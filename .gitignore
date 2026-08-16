@@ -11,3 +11,21 @@ Thumbs.db
 
 # Node (in case tooling is added later)
 node_modules/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# devcontainers
+devcontainer-lock.json
+.devcontainer/local/
+
+# local files
+*.local
+*.local.json
+*.local.md
+
+# claude files
+.claude/
+CLAUDE.md

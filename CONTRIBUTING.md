@@ -54,6 +54,13 @@ Both platforms are built on the same Open Plugin Spec:
 
 ## Tooling
 
-There's no CI, linter, or build step yet — plugins are validated by hand
-(JSON parses, referenced paths exist, frontmatter fields are present). Add
-tooling here when a real validation gap shows up.
+Manifests are still validated by hand (JSON parses, referenced paths
+exist, frontmatter fields are present) — see the `example-reviewer` agent
+in `plugins/example-plugin/agents/` for a scripted version of that
+checklist you can run against a new plugin directory.
+
+Plugins with real executable code or checkable skill behavior get actual
+tests. See [docs/testing.md](docs/testing.md) for the two tiers
+(`tests/<plugin-name>/` for non-LLM mechanics, `tests/claude-code/` for
+skill-behavior checks) and how to add coverage when you add a new plugin.
+No CI workflow yet — tests run locally, by hand.
