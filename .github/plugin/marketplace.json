@@ -1,0 +1,16 @@
+{
+  "name": "common-agent-marketplace",
+  "description": "A marketplace of Claude Code plugins covering a range of skills and agents. Manifests and skills are also readable directly by GitHub Copilot CLI.",
+  "owner": {
+    "name": "Jubast",
+    "email": "30406814+Jubast@users.noreply.github.com"
+  },
+  "plugins": [
+    {
+      "name": "convert-pdf-to-md",
+      "description": "Converts PDF documents into Markdown so their contents can be accurately analyzed, summarized, searched, or extracted from.",
+      "version": "1.0.0",
+      "source": "./plugins/convert-pdf-to-md/"
+    }
+  ]
+}
