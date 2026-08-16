@@ -23,10 +23,9 @@ plugins/<new-plugin-name>/
 2. Add the plugin's skill(s) and/or agent(s), following the conventions
    below.
 3. Write `plugins/<new-plugin-name>/README.md` describing the plugin.
-4. Add an entry to **both** marketplace manifests' `plugins` arrays — see
-   "Claude Code / Copilot CLI compatibility" below for why there are two:
-   - `.claude-plugin/marketplace.json` (Claude Code)
-   - `.github/plugin/marketplace.json` (Copilot CLI)
+4. Add an entry to `.claude-plugin/marketplace.json`'s `plugins` array —
+   this single file is read by both Claude Code and Copilot CLI, see
+   "Claude Code / Copilot CLI compatibility" below.
 5. Validate every manifest parses: `python3 -m json.tool <path>`.
 
 ## Skill conventions
@@ -49,21 +48,13 @@ plugins/<new-plugin-name>/
 
 ## Claude Code / Copilot CLI compatibility
 
-Both platforms are built on the same Open Plugin Spec, but the
-marketplace-level manifest is maintained as two separate files by design:
+Both platforms are built on the same Open Plugin Spec:
 
-- **`plugin.json` is shared, no duplication.** Both platforms read
-  `<plugin-dir>/.claude-plugin/plugin.json` directly — one file per
-  plugin, regardless of which marketplace manifest pointed to it.
-- **`marketplace.json` is maintained separately per platform, on
-  purpose.** Claude Code reads `.claude-plugin/marketplace.json`.
-  Copilot CLI reads `.github/plugin/marketplace.json` — Copilot CLI also
-  accepts `.claude-plugin/marketplace.json` as a fallback per its docs,
-  but this repo keeps the two marketplace listings independent rather
-  than relying on that undocumented-precedence fallback. **Every plugin
-  needs an entry in both files** (see step 4 above) — nothing keeps them
-  in sync automatically, and their per-plugin metadata (author,
-  description, version) is allowed to diverge between the two listings.
+- `marketplace.json` and `plugin.json` are read directly from
+  `.claude-plugin/` by both Claude Code and Copilot CLI — one manifest,
+  no duplication. (Copilot CLI also accepts a `.github/plugin/`
+  location, but this repo doesn't maintain one — `.claude-plugin/` alone
+  is sufficient for both platforms.)
 - `skills/<name>/SKILL.md` uses the same format on both platforms.
 - **Agents are Claude Code-only for now.** Claude Code loads every `*.md`
   file under `agents/`; Copilot CLI loads only files named `*.agent.md` in

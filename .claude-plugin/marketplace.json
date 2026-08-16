@@ -7,14 +7,21 @@
   },
   "plugins": [
     {
+      "name": "superpowers",
+      "description": "Superpowers teaches Claude brainstorming, subagent driven development with built in code review, systematic debugging, and red/green TDD. Additionally, it teaches Claude how to author and test new skills.",
+      "category": "development",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/obra/superpowers.git",
+        "sha": "b36e0829c6d0140e93cfef2ca599b1b07d4a7797"
+      },
+      "homepage": "https://github.com/obra/superpowers.git"
+    },
+    {
       "name": "convert-pdf-to-md",
       "description": "Converts PDF documents into Markdown so their contents can be accurately analyzed, summarized, searched, or extracted from.",
       "version": "1.0.0",
-      "source": "./plugins/convert-pdf-to-md/",
-      "author": {
-        "name": "Jubast",
-        "email": "30406814+Jubast@users.noreply.github.com"
-      }
+      "source": "./plugins/convert-pdf-to-md/"
     }
   ]
 }

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Test: does `copilot plugin marketplace add` + `copilot plugin install`
-# actually work for every plugin registered in .github/plugin/marketplace.json?
+# actually work for every plugin registered in .claude-plugin/marketplace.json?
+# (Copilot CLI accepts this location directly -- no separate
+# .github/plugin/marketplace.json is maintained in this repo.)
 #
 # Runs in a throwaway $HOME (mktemp -d, discarded on exit) so this never
 # touches the real, possibly-shared ~/.copilot/ config.
@@ -8,7 +10,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-MANIFEST="$REPO_ROOT/.github/plugin/marketplace.json"
+MANIFEST="$REPO_ROOT/.claude-plugin/marketplace.json"
 
 if ! command -v copilot &> /dev/null; then
     echo "ERROR: copilot CLI not found on PATH"

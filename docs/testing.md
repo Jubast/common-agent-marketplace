@@ -71,15 +71,11 @@ the assertion to make it pass.
 
 ## What this repo deliberately omits, and why
 
-- **No manifest-sync tests between the two `marketplace.json` files.**
-  `.claude-plugin/marketplace.json` (Claude Code) and
-  `.github/plugin/marketplace.json` (Copilot CLI) are maintained
-  separately, on purpose (see `CONTRIBUTING.md`'s "Claude Code / Copilot
-  CLI compatibility" section) — their per-plugin metadata is allowed to
-  diverge, so there's no test asserting they match. `tests/marketplace/`
-  tests that each one independently produces a working install, not that
-  they agree with each other. `plugin.json` itself has no such split — one
-  file, read directly by both platforms.
+- **No manifest-sync tests.** `marketplace.json`/`plugin.json` are read
+  directly by both Claude Code and Copilot CLI from `.claude-plugin/` —
+  one manifest, no per-platform copy to drift. `tests/marketplace/`
+  instead tests that this single manifest actually produces a working
+  install on both platforms.
 - **No frontmatter schema validator.** Matches superpowers: none exists
   there either. Malformed SKILL.md/agent frontmatter fails to load at
   runtime and surfaces naturally.
@@ -103,6 +99,6 @@ for the full rationale.
 - No executable code and no behavioral claims worth verifying (e.g. a pure
   template)? No tests needed.
 - `tests/marketplace/` needs nothing added — it reads plugin names
-  straight out of both `marketplace.json` files, so registering a new
+  straight out of `.claude-plugin/marketplace.json`, so registering a new
   plugin there (a required step regardless, see `CONTRIBUTING.md`) is
   the only thing needed for install-test coverage.
