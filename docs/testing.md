@@ -1,6 +1,6 @@
 # Testing This Repo
 
-Two kinds of tests, mirroring how
+Three kinds of tests, the first two mirroring how
 [obra/superpowers](https://github.com/obra/superpowers) tests itself
 (see its own `docs/testing.md`), adapted for hosting multiple plugins
 instead of one:
@@ -14,6 +14,13 @@ instead of one:
   default — does the skill describe the right behavior) and
   `--integration`-gated slow tests (does the skill actually produce the
   right behavior end-to-end).
+- **`tests/marketplace/`** — does the marketplace actually install? Real,
+  live `claude plugin marketplace add` + `install` and
+  `copilot plugin marketplace add` + `install` runs, one per platform,
+  each isolated to a throwaway `$HOME` so a test run never touches your
+  real global Claude Code or Copilot CLI config. Plugin names are read
+  from the manifests at run time, so a new plugin is covered
+  automatically — no test file to update.
 
 ## Running
 
@@ -44,6 +51,9 @@ quicker, non-isolated alternative.
 # Skill-behavior tests (fast + integration; also needs markitdown/pymupdf,
 # see plugins/convert-pdf-to-md/skills/convert-pdf-to-md/references/setup.md)
 ./tests/claude-code/run-skill-tests.sh --integration
+
+# Marketplace install tests (needs both `claude` and `copilot` on PATH)
+./tests/marketplace/run-marketplace-tests.sh
 ```
 
 ## Known state: convert-pdf-to-md's integration test is a documented failure
@@ -61,10 +71,15 @@ the assertion to make it pass.
 
 ## What this repo deliberately omits, and why
 
-- **No manifest-sync tests.** `marketplace.json`/`plugin.json` are read
-  directly by both Claude Code and Copilot CLI — no per-platform
-  generation step exists here to drift, unlike superpowers' many CLI
-  targets.
+- **No manifest-sync tests between the two `marketplace.json` files.**
+  `.claude-plugin/marketplace.json` (Claude Code) and
+  `.github/plugin/marketplace.json` (Copilot CLI) are maintained
+  separately, on purpose (see `CONTRIBUTING.md`'s "Claude Code / Copilot
+  CLI compatibility" section) — their per-plugin metadata is allowed to
+  diverge, so there's no test asserting they match. `tests/marketplace/`
+  tests that each one independently produces a working install, not that
+  they agree with each other. `plugin.json` itself has no such split — one
+  file, read directly by both platforms.
 - **No frontmatter schema validator.** Matches superpowers: none exists
   there either. Malformed SKILL.md/agent frontmatter fails to load at
   runtime and surfaces naturally.
@@ -87,3 +102,7 @@ for the full rationale.
   `tests/claude-code/run-skill-tests.sh`.
 - No executable code and no behavioral claims worth verifying (e.g. a pure
   template)? No tests needed.
+- `tests/marketplace/` needs nothing added — it reads plugin names
+  straight out of both `marketplace.json` files, so registering a new
+  plugin there (a required step regardless, see `CONTRIBUTING.md`) is
+  the only thing needed for install-test coverage.
