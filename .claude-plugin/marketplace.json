@@ -15,6 +15,16 @@
         "name": "Jubast",
         "email": "30406814+Jubast@users.noreply.github.com"
       }
+    },
+    {
+      "name": "convert-pdf-to-md",
+      "description": "Converts PDF documents into Markdown so their contents can be accurately analyzed, summarized, searched, or extracted from.",
+      "version": "1.0.0",
+      "source": "./plugins/convert-pdf-to-md/",
+      "author": {
+        "name": "Jubast",
+        "email": "30406814+Jubast@users.noreply.github.com"
+      }
     }
   ]
 }
