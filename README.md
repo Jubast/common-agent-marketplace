@@ -33,14 +33,13 @@ GitHub.)
 
 ## Available plugins
 
-- [`example-plugin`](plugins/example-plugin/) — a minimal working example;
-  copy it to start a new plugin.
+- [`convert-pdf-to-md`](plugins/convert-pdf-to-md/) — converts PDF
+  documents into Markdown so their contents can be accurately analyzed,
+  summarized, searched, or extracted from.
 
 ## Adding a plugin
 
-See the `example-skill` skill inside `example-plugin`
-(`plugins/example-plugin/skills/example-skill/SKILL.md`), or read
-[CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Repo layout
 
@@ -49,7 +48,7 @@ common-agent-marketplace/
 ├── .claude-plugin/
 │   └── marketplace.json      # lists every plugin in this repo
 ├── plugins/
-│   └── example-plugin/       # one directory per plugin
+│   └── <plugin-name>/        # one directory per plugin
 ├── CONTRIBUTING.md
 └── LICENSE
 ```

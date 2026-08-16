@@ -2,18 +2,29 @@
 
 ## Adding a new plugin
 
-1. Copy `plugins/example-plugin/` to `plugins/<new-plugin-name>/`.
-2. Update `plugins/<new-plugin-name>/.claude-plugin/plugin.json` — `name`,
-   `description`, `version`, and `author` if different from the
-   marketplace owner.
-3. Replace the example skill(s) and agent(s) with the plugin's real
-   content.
-4. Rewrite `plugins/<new-plugin-name>/README.md`.
-5. Add an entry to `.claude-plugin/marketplace.json`'s `plugins` array.
-6. Validate both manifests parse: `python3 -m json.tool <path>`.
+Each plugin is a self-contained directory under `plugins/<new-plugin-name>/`:
 
-This exact process is also captured as a working skill:
-`plugins/example-plugin/skills/example-skill/SKILL.md`.
+```
+plugins/<new-plugin-name>/
+├── .claude-plugin/
+│   └── plugin.json      # name, description, version, author, license
+├── skills/               # optional — see "Skill conventions" below
+│   └── <skill-name>/
+│       └── SKILL.md
+├── agents/               # optional — see "Agent conventions" below
+│   └── <agent-name>.md
+└── README.md
+```
+
+1. Create `plugins/<new-plugin-name>/.claude-plugin/plugin.json` — `name`
+   (kebab-case, matches the directory), `description`, `version`, `author`
+   (the marketplace owner unless the plugin has a different author),
+   `license`.
+2. Add the plugin's skill(s) and/or agent(s), following the conventions
+   below.
+3. Write `plugins/<new-plugin-name>/README.md` describing the plugin.
+4. Add an entry to `.claude-plugin/marketplace.json`'s `plugins` array.
+5. Validate both manifests parse: `python3 -m json.tool <path>`.
 
 ## Skill conventions
 
@@ -55,9 +66,7 @@ Both platforms are built on the same Open Plugin Spec:
 ## Tooling
 
 Manifests are still validated by hand (JSON parses, referenced paths
-exist, frontmatter fields are present) — see the `example-reviewer` agent
-in `plugins/example-plugin/agents/` for a scripted version of that
-checklist you can run against a new plugin directory.
+exist, frontmatter fields are present).
 
 Plugins with real executable code or checkable skill behavior get actual
 tests. See [docs/testing.md](docs/testing.md) for the two tiers

@@ -7,16 +7,6 @@
   },
   "plugins": [
     {
-      "name": "example-plugin",
-      "description": "A minimal example plugin demonstrating this marketplace's skill and agent conventions. Copy this directory to start a new plugin.",
-      "version": "1.0.0",
-      "source": "./plugins/example-plugin/",
-      "author": {
-        "name": "Jubast",
-        "email": "30406814+Jubast@users.noreply.github.com"
-      }
-    },
-    {
       "name": "convert-pdf-to-md",
       "description": "Converts PDF documents into Markdown so their contents can be accurately analyzed, summarized, searched, or extracted from.",
       "version": "1.0.0",

@@ -86,4 +86,4 @@ for the full rationale.
   real end-to-end behavior to verify), then add it to the lists in
   `tests/claude-code/run-skill-tests.sh`.
 - No executable code and no behavioral claims worth verifying (e.g. a pure
-  template)? No tests needed — same as `example-plugin` today.
+  template)? No tests needed.
