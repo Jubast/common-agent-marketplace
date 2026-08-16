@@ -36,6 +36,9 @@ GitHub.)
 - [`convert-pdf-to-md`](plugins/convert-pdf-to-md/) — converts PDF
   documents into Markdown so their contents can be accurately analyzed,
   summarized, searched, or extracted from.
+- [`clean-code`](plugins/clean-code/) — helps AI agents design, write, and
+  review C#/.NET code following the principles in Robert C. Martin's Clean
+  Code, translated into .NET idiom.
 
 ## Adding a plugin
 

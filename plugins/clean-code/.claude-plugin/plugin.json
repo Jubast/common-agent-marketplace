@@ -1,0 +1,17 @@
+{
+  "name": "clean-code",
+  "description": "Helps AI agents design, write, and review C#/.NET code following the principles in Robert C. Martin's Clean Code, translated into .NET idiom.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Jubast",
+    "email": "30406814+Jubast@users.noreply.github.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "clean-code",
+    "dotnet",
+    "csharp",
+    "code-review",
+    "software-craftsmanship"
+  ]
+}

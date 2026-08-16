@@ -105,12 +105,14 @@ in all ten topics.
 ## Testing
 
 - `tests/claude-code/test-clean-code.sh` — fast test via `claude -p`,
-  following `test-convert-pdf-to-md.sh`'s pattern: feed a small,
-  deliberately messy C# fixture (bad names, a long multi-purpose method, a
-  swallowed exception, magic numbers) and assert that, when the skill is
-  explicitly invoked in review mode, it reports findings referencing the
-  right principles. Registered in `run-skill-tests.sh` alongside the
-  existing PDF test.
+  mirroring `test-convert-pdf-to-md.sh`'s description-recall pattern
+  exactly: ask the live model what `SKILL.md` claims and assert on the
+  answers, rather than exercising a real review run. Four checks — the
+  explicit-invocation trigger conditions (no generic "review this code"
+  trigger, yes on "review this for clean code"), the target platform and
+  the concurrency chapter's exclusion, the curated topic list, and review
+  mode's reporting tool plus its empty-findings behavior. Registered in
+  `run-skill-tests.sh` alongside the existing PDF test.
 - No integration-tier test — there's no executable script here, just skill
   instructions, so the fast tier is the whole story.
 

@@ -26,7 +26,8 @@ plugins/<new-plugin-name>/
 4. Add an entry to `.claude-plugin/marketplace.json`'s `plugins` array —
    this single file is read by both Claude Code and Copilot CLI, see
    "Claude Code / Copilot CLI compatibility" below.
-5. Validate every manifest parses: `python3 -m json.tool <path>`.
+5. Add the new plugin to the root `README.md`'s "Available plugins" list.
+6. Validate every manifest parses: `python3 -m json.tool <path>`.
 
 ## Skill conventions
 

@@ -22,6 +22,12 @@
       "description": "Converts PDF documents into Markdown so their contents can be accurately analyzed, summarized, searched, or extracted from.",
       "version": "1.0.0",
       "source": "./plugins/convert-pdf-to-md/"
+    },
+    {
+      "name": "clean-code",
+      "description": "Helps AI agents design, write, and review C#/.NET code following the principles in Robert C. Martin's Clean Code, translated into .NET idiom.",
+      "version": "1.0.0",
+      "source": "./plugins/clean-code/"
     }
   ]
 }

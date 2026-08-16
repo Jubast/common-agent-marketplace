@@ -55,6 +55,15 @@ Four checks against SKILL.md's documented claims: implicit-trigger wording,
 the "run the script, don't ad-hoc parse" discipline rule, the default
 output-location rule, and the mixed-file-type sibling-skill rule.
 
+### `test-clean-code.sh` (fast)
+
+Four checks against SKILL.md's documented claims: the explicit-invocation
+trigger wording (no trigger on a generic review request, trigger on "review
+this for clean code"), the target platform and the concurrency chapter's
+exclusion, the curated topic coverage, and review mode's reporting tool plus
+its empty-findings behavior. No integration counterpart — the skill is pure
+guidance with no executable code.
+
 ### `test-convert-pdf-to-md-integration.sh` (`--integration`)
 
 Application and Pressure scenarios, each generating a fixture PDF and
