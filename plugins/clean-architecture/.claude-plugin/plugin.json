@@ -1,0 +1,17 @@
+{
+  "name": "clean-architecture",
+  "description": "Helps AI agents design, write, and review C#/.NET code and solution structure following the principles in Robert C. Martin's Clean Architecture, translated into .NET idiom.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Jubast",
+    "email": "30406814+Jubast@users.noreply.github.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "clean-architecture",
+    "dotnet",
+    "csharp",
+    "software-architecture",
+    "dependency-rule"
+  ]
+}

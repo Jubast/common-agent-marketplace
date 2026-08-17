@@ -64,6 +64,16 @@ exclusion, the curated topic coverage, and review mode's reporting tool plus
 its empty-findings behavior. No integration counterpart — the skill is pure
 guidance with no executable code.
 
+### `test-clean-architecture.sh` (fast)
+
+Four checks against SKILL.md's documented claims: the explicit-invocation
+trigger wording (no trigger on a generic review request, trigger on "does
+this follow the dependency rule?"), the target platform and the
+programming-paradigms chapters' exclusion, the curated topic coverage (all
+nine reference-file slugs), and review mode's `ReportFindings` tool plus its
+empty-findings behavior. No integration counterpart — the skill is pure
+guidance with no executable code.
+
 ### `test-convert-pdf-to-md-integration.sh` (`--integration`)
 
 Application and Pressure scenarios, each generating a fixture PDF and

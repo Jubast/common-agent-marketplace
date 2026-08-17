@@ -79,7 +79,7 @@ the assertion to make it pass.
 - **No frontmatter schema validator.** Matches superpowers: none exists
   there either. Malformed SKILL.md/agent frontmatter fails to load at
   runtime and surfaces naturally.
-- **No `evals/`-style drill harness.** Disproportionate to a three-plugin
+- **No `evals/`-style drill harness.** Disproportionate to a four-plugin
   repo — `tests/claude-code/` already covers both "describes itself
   right" and "actually works" without a separate tmux/multi-CLI harness.
 - **No CI workflow.** Local/manual only, for now.

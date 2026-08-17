@@ -39,6 +39,10 @@ GitHub.)
 - [`clean-code`](plugins/clean-code/) — helps AI agents design, write, and
   review C#/.NET code following the principles in Robert C. Martin's Clean
   Code, translated into .NET idiom.
+- [`clean-architecture`](plugins/clean-architecture/) — helps AI agents
+  design, write, and review C#/.NET code and solution structure
+  following the principles in Robert C. Martin's Clean Architecture,
+  translated into .NET idiom.
 
 ## Adding a plugin
 
