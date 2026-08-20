@@ -13,14 +13,20 @@ analyzed, summarized, searched, or extracted from.
 
 ## Provenance
 
-The `skills/convert-pdf-to-md/` directory was copied verbatim from:
+The `skills/convert-pdf-to-md/` directory originated as a verbatim copy of:
 
 - Source repository: [github/awesome-copilot](https://github.com/github/awesome-copilot)
 - Path: [`skills/convert-pdf-to-md`](https://github.com/github/awesome-copilot/tree/e4a1f57fd9d8c22d2a345d498fe6fde306c6456e/skills/convert-pdf-to-md)
 - Commit: [`e4a1f57fd9d8c22d2a345d498fe6fde306c6456e`](https://github.com/github/awesome-copilot/commit/e4a1f57fd9d8c22d2a345d498fe6fde306c6456e)
 
-Only the plugin scaffolding (`plugin.json`, this README) was added locally to
-fit this marketplace's conventions; the skill content itself is unmodified.
+Besides the plugin scaffolding (`plugin.json`, this README) added locally to
+fit this marketplace's conventions, this repo's own test suite
+(`tests/claude-code/`) later found that the skill's "don't parse the PDF
+directly" rule didn't actually stop agents from using the Read tool on the
+`.pdf` file. `SKILL.md` was subsequently modified locally to close that
+loophole and trim its frontmatter `description`, and
+`scripts/convert_pdf_to_md.py` had dead code removed — see git history for
+the exact diff from the upstream commit above.
 
 ## Using this plugin
 

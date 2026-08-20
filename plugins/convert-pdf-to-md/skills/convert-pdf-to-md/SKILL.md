@@ -1,6 +1,6 @@
 ---
 name: convert-pdf-to-md
-description: 'Converts PDF (.pdf) documents into Markdown so their contents can be accurately analyzed, summarized, searched, or extracted from. Use this skill whenever the user shares, references, or asks about a .pdf file — even if they don''t say "convert" or "markdown" explicitly. This includes requests to "read", "summarize", "review", "extract data from", "compare", or "analyze" a PDF report, paper, invoice, form, contract, or scanned document. Always run the bundled conversion script to produce Markdown first; do not attempt to parse PDF content directly or write ad-hoc extraction code. Also use this skill for batch requests involving a whole folder of PDF documents. IMPORTANT: When the user references a folder or set of documents containing multiple file types (.pdf, .docx, .xlsx), invoke ALL three sibling skills — convert-pdf-to-md, convert-word-to-md, and convert-excel-to-md — so no file type is silently skipped.'
+description: 'Use when the user shares, references, or asks to read, summarize, review, extract data from, compare, or analyze a .pdf file — a report, paper, invoice, form, contract, or scanned document — even if they don''t say "convert" or "markdown". Also use for batch requests over a folder of PDFs, and alongside convert-word-to-md / convert-excel-to-md when a folder mixes .pdf with .docx or .xlsx so no file type is skipped.'
 ---
 
 # Convert PDF to Markdown
@@ -12,8 +12,23 @@ understood or processed — for example, a user attaches a PDF and asks
 questions about it, wants a summary, wants specific data or tables pulled
 out, or wants multiple PDFs in a folder processed together. PDF is a
 layout/print format, not reliably readable as plain text, so always convert
-it to Markdown first using the script in this skill rather than trying to
-open or parse the file directly.
+it to Markdown first using the script in this skill.
+
+**Do not call the Read tool (or any other file-reading method) on the
+`.pdf` file directly** — even to "quickly check" or "skim" it. Claude
+Code's Read tool can technically open PDFs, which is exactly why this rule
+is easy to miss: it doesn't feel like "parsing" or "ad-hoc code," it feels
+like using a normal tool. The `.pdf` path is only a valid argument to the
+conversion script below.
+
+**Common mistake:** skimming the PDF with Read because "it seems to
+work" — Read's rendering skips embedded images and loses table structure,
+defeating the point of this skill.
+
+**This still applies under time pressure.** "Quickly," "just skim it,"
+"don't worry about any formal process" are not exceptions — the script
+takes a second or two to run. Skipping it to save time is the mistake this
+rule exists to prevent, not a reasonable judgment call.
 
 This skill only supports `.pdf` — that's MarkItDown's only PDF-family
 format, so there's no legacy format to worry about here (unlike Word's

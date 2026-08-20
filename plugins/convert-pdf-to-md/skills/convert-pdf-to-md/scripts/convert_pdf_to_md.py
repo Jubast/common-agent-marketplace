@@ -81,7 +81,6 @@ def _import_fitz():
     """Import PyMuPDF (module name 'fitz'), failing with a clear message if absent."""
     try:
         import fitz
-        import hashlib
         return fitz
     except ImportError:
         print(
@@ -267,10 +266,6 @@ def main() -> int:
         help="When input is a directory, also search subdirectories",
     )
     args = parser.parse_args()
-
-    #MarkItDown = _import_markitdown()
-    #fitz = _import_fitz()
-    #md = MarkItDown()
 
     source = Path(args.input)
     if not source.exists():

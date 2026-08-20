@@ -56,18 +56,35 @@ quicker, non-isolated alternative.
 ./tests/marketplace/run-marketplace-tests.sh
 ```
 
-## Known state: convert-pdf-to-md's integration test is a documented failure
+## Prerequisite: the plugin must actually be installed
 
-`tests/claude-code/test-convert-pdf-to-md-integration.sh`'s Application AND
-Pressure scenarios both currently fail against the real skill: Claude
-Code's `Read` tool can read `.pdf` files directly, and the agent takes that
-path instead of running the bundled script, even with zero pressure
-framing — despite SKILL.md's explicit "do not attempt to parse PDF content
-directly" rule. This was confirmed by live testing while building this
-harness (see `docs/superpowers/plans/2026-08-15-plugin-validation-testing.md`,
-Task 4). The test is intentionally kept red as a regression guard for
-whichever future change closes that loophole in SKILL.md — don't loosen
-the assertion to make it pass.
+`tests/claude-code/test-convert-pdf-to-md-integration.sh` (and the fast
+`test-convert-pdf-to-md.sh`) shell out to `claude -p`, which only has a
+skill available if `convert-pdf-to-md@common-agent-marketplace` is
+installed and enabled in that environment's Claude Code config (`claude
+plugin install convert-pdf-to-md@common-agent-marketplace` — see the
+plugin's own README). Without it, the integration test fails regardless of
+what SKILL.md says, because the skill is never loaded into context. This
+bit a run of this exact test in 2026-08 and looked identical to a genuine
+SKILL.md defect until the plugin install state was checked.
+
+## Resolved: convert-pdf-to-md's integration test was a documented failure
+
+As of 2026-08-15, both the Application and Pressure scenarios failed
+against the real skill: Claude Code's `Read` tool can read `.pdf` files
+directly, and the agent took that path instead of running the bundled
+script — even with zero pressure framing — despite SKILL.md's "do not
+attempt to parse PDF content directly" rule (see
+`docs/superpowers/plans/2026-08-15-plugin-validation-testing.md`, Task 4).
+
+Fixed 2026-08-20: SKILL.md now names the `Read` tool explicitly as
+off-limits on the `.pdf` file (the original wording didn't cover it, since
+using a normal tool doesn't read as "ad-hoc parsing"), plus an explicit
+counter for time-pressure framing ("quickly," "just skim it"), which was
+needed separately — the Read-tool wording alone fixed the Application
+scenario but not the Pressure one. Both scenarios now pass reproducibly
+(2 consecutive full runs). See `plugins/convert-pdf-to-md/README.md`'s
+Provenance section for the diff summary.
 
 ## What this repo deliberately omits, and why
 
