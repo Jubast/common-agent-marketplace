@@ -103,3 +103,46 @@ has to catch identically anyway.
   already protects.
 - Reach for a project's existing `Option`/`Result`-style type if one is
   already in use — don't introduce a new one solely for this rule.
+
+## Define the normal flow (Special Case objects)
+
+When an absent or exceptional case has one sensible default behavior,
+don't push a null check or a branch onto every caller — model the
+special case as an object that implements the same interface and
+behaves reasonably on its own.
+
+```csharp
+public interface ICustomer
+{
+    decimal LoyaltyDiscount { get; }
+}
+
+public class RegisteredCustomer : ICustomer
+{
+    public decimal LoyaltyDiscount { get; init; }
+}
+
+// Special Case: no customer found, but "no discount" is a sensible
+// default — callers don't need to know this case exists.
+public class GuestCustomer : ICustomer
+{
+    public decimal LoyaltyDiscount => 0m;
+}
+```
+
+```csharp
+// Bad — every caller must remember the branch
+ICustomer? customer = _repository.Find(id);
+var discount = customer?.LoyaltyDiscount ?? 0m;
+
+// Good — the special case is baked into the object, not scattered
+// across call sites
+ICustomer customer = _repository.Find(id) ?? new GuestCustomer();
+var discount = customer.LoyaltyDiscount;
+```
+
+This is a different tool than nullable reference types, not a
+replacement for them: reach for a Special Case object when the absence
+has one sensible, reusable default behavior; reach for a nullable type
+when absence has no sensible default and the caller genuinely needs to
+decide what to do about it.

@@ -53,9 +53,14 @@ Keep test methods linear — no loops, conditionals, or branching helper
 logic inside the test body. A test with an `if` in it has become code
 that itself needs testing, defeating the point.
 
-## Tests are production code
+## Tests are production code, held to a different standard
 
-Apply the same standards — clear naming, no duplication, single
-responsibility per test — to test code as to the code it tests. A test
-suite nobody trusts or wants to touch gets skipped, ignored, or deleted,
-which is worse than having no tests at all.
+Give test code the same care as production code for clarity, naming,
+and structure — a test suite nobody trusts or wants to touch gets
+skipped, ignored, or deleted, which is worse than having no tests at
+all. Where tests *can* differ is efficiency: a test may allocate
+freely, exercise a slower code path, or hold more in memory than
+production code ever should, because it runs in a test environment,
+not production — don't let that leniency bleed into naming or
+structure, and don't import production performance constraints into a
+test where they don't belong.
