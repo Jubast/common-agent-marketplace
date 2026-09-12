@@ -34,7 +34,8 @@ cover/
 
 # devcontainers
 devcontainer-lock.json
-.devcontainer/local/
+.devcontainer/*/
+scripts/setup.*.sh
 
 # local files
 *.local
