@@ -1,0 +1,16 @@
+{
+  "name": "conventional-commits",
+  "description": "Commits changes using micro commits with conventional commit messages, grouping related files into logical commits.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Jubast",
+    "email": "30406814+Jubast@users.noreply.github.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "git",
+    "commit",
+    "conventional-commits",
+    "changelog"
+  ]
+}

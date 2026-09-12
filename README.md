@@ -43,6 +43,9 @@ GitHub.)
   design, write, and review C#/.NET code and solution structure
   following the principles in Robert C. Martin's Clean Architecture,
   translated into .NET idiom.
+- [`conventional-commits`](plugins/conventional-commits/) — commits
+  changes using micro commits with conventional commit messages,
+  grouping related files into logical commits.
 
 ## Adding a plugin
 
