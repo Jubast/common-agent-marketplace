@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# SessionStart hook for the using-orca plugin: only inject guidance when
-# Orca is actually running (never nag with stale advice), and always exit 0
-# so a broken hook can never fail session start.
+# Injects using-orca's SKILL.md as additionalContext, only when Orca is running.
 set -euo pipefail
 
 if ! command -v orca >/dev/null 2>&1 || ! timeout 3 orca status --json >/dev/null 2>&1; then

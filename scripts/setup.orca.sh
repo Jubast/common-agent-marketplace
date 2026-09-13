@@ -42,24 +42,16 @@ if ! command -v npx >/dev/null 2>&1; then
 fi
 
 # `orca skills install` refuses to run over this SSH-forwarded shell, so we call npx directly.
-# stablyai/orca has no .claude-plugin/marketplace.json of its own, so
-# orca-cli/orchestration have no native install path and must stay on npx.
+# stablyai/orca has no marketplace.json, so orca-cli/orchestration must stay on npx.
 echo "setup: [skills] installing orca-cli, orchestration"
 npx --yes skills add https://github.com/stablyai/orca --skill orca-cli --skill orchestration --agent claude-code --global -y
 
-# `npx skills add` only copies SKILL.md/skill folders - it has no concept of
-# plugin hooks, so it silently drops any hooks/hooks.json a plugin ships
-# (confirmed for both superpowers's own SessionStart hook and this repo's
-# using-orca plugin). Install both marketplaces natively instead
-# (`claude plugin marketplace add` + `claude plugin install`) so hooks
-# actually get registered - confirmed end-to-end in an isolated sandbox this
-# session (enabledPlugins + cached hooks.json + preserved exec bit, for both
-# superpowers and every plugin in this repo). Both commands are naturally
-# idempotent on a re-run (exit 0, no error) but we still guard them so an
-# unexpected failure here can't hard-fail the rest of devcontainer setup.
+# `npx skills add` only copies skill files - it silently drops any
+# hooks/hooks.json a plugin ships (true for both superpowers and this
+# repo's using-orca). Install those natively instead so hooks actually
+# register. Both commands below are idempotent on a re-run.
 
-# `owner/repo#ref` pins the marketplace clone to a specific tag/branch/SHA,
-# the same way the old npx `.../tree/v6.3.0` URL did.
+# `owner/repo#ref` pins the marketplace to a tag, like the old npx tree URL did.
 echo "setup: [plugins] installing superpowers@v6.3.0"
 claude plugin marketplace add "obra/superpowers#v6.3.0" --scope user \
   || echo "setup: superpowers marketplace add failed, continuing" >&2
@@ -72,8 +64,7 @@ echo "setup: [plugins] installing common-agent-marketplace plugins"
 claude plugin marketplace add "$REPO_ROOT" --scope user \
   || echo "setup: common-agent-marketplace marketplace add failed, continuing" >&2
 
-# Installs every plugin listed in marketplace.json (not just using-orca) so
-# this stays in sync as plugins are added, without hardcoding names here.
+# Reads plugin names from marketplace.json so new plugins stay covered automatically.
 if command -v python3 >/dev/null 2>&1; then
   while IFS= read -r plugin_name; do
     claude plugin install "${plugin_name}@common-agent-marketplace" -y --scope user --json \
