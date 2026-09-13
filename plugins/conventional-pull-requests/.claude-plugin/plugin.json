@@ -1,6 +1,6 @@
 {
   "name": "conventional-pull-requests",
-  "description": "Opens pull requests with conventional-commit-style titles and structured bodies, gathering the change set from the branch's commits and diff.",
+  "description": "Opens pull requests (or merge requests) with conventional-commit-style titles and structured bodies, gathering the change set from the branch's commits and diff, and requires this skill via a SessionStart hook.",
   "version": "1.0.0",
   "author": {
     "name": "Jubast",
@@ -9,9 +9,9 @@
   "license": "MIT",
   "keywords": [
     "git",
-    "github",
     "pull-request",
+    "merge-request",
     "conventional-commits",
-    "gh-cli"
+    "session-start-hook"
   ]
 }
