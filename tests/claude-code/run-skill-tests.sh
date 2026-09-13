@@ -54,9 +54,10 @@ while [[ $# -gt 0 ]]; do
             echo "  --help, -h           Show this help"
             echo ""
             echo "Tests:"
-            echo "  test-convert-pdf-to-md.sh    Skill content and requirements"
-            echo "  test-clean-code.sh           Skill content and trigger conditions"
-            echo "  test-clean-architecture.sh   Skill content and trigger conditions"
+            echo "  test-convert-pdf-to-md.sh      Skill content and requirements"
+            echo "  test-clean-code.sh             Skill content and trigger conditions"
+            echo "  test-clean-architecture.sh     Skill content and trigger conditions"
+            echo "  test-conventional-commits.sh   Skill content and trigger conditions"
             echo ""
             echo "Integration Tests (use --integration):"
             echo "  test-convert-pdf-to-md-integration.sh  Real end-to-end conversion"
@@ -74,6 +75,7 @@ tests=(
     "test-convert-pdf-to-md.sh"
     "test-clean-code.sh"
     "test-clean-architecture.sh"
+    "test-conventional-commits.sh"
 )
 
 integration_tests=(
