@@ -8,28 +8,19 @@ if ! command -v orca >/dev/null 2>&1 || ! timeout 3 orca status --json >/dev/nul
 fi
 
 SKILL_FILE="${CLAUDE_PLUGIN_ROOT}/skills/using-orca/SKILL.md"
+[ -f "$SKILL_FILE" ] || { echo '{}'; exit 0; }
 
-if [ ! -f "$SKILL_FILE" ]; then
-  echo '{}'
-  exit 0
-fi
+# Single-pass bash substitutions - no python3/jq dependency, same approach as
+# obra/superpowers's session-start hook.
+escape_for_json() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\t'/\\t}"
+  printf '%s' "$s"
+}
 
-GUIDANCE=$(cat "$SKILL_FILE")
-
-if command -v python3 >/dev/null 2>&1; then
-  ESCAPED=$(python3 -c 'import json, sys; print(json.dumps(sys.stdin.read()))' <<< "$GUIDANCE")
-elif command -v jq >/dev/null 2>&1; then
-  ESCAPED=$(jq -Rs . <<< "$GUIDANCE")
-else
-  # Last-resort manual JSON string escaping via bash parameter expansion
-  # (order matters: backslashes first, then quotes, then join lines with \n).
-  ESCAPED='"'
-  while IFS= read -r line || [ -n "$line" ]; do
-    line=${line//\\/\\\\}
-    line=${line//\"/\\\"}
-    ESCAPED+="${line}\\n"
-  done <<< "$GUIDANCE"
-  ESCAPED="${ESCAPED%\\n}\""
-fi
-
-printf '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": %s}}\n' "$ESCAPED"
+escaped=$(escape_for_json "$(cat "$SKILL_FILE")")
+printf '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "%s"}}\n' "$escaped"

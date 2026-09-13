@@ -53,23 +53,24 @@ npx --yes skills add https://github.com/stablyai/orca/tree/v1.4.200 --skill orca
 
 # `owner/repo#ref` pins the marketplace to a tag, like the old npx tree URL did.
 echo "setup: [plugins] installing superpowers@v6.3.0"
-claude plugin marketplace add "obra/superpowers#v6.3.0" --scope user \
-  || echo "setup: superpowers marketplace add failed, continuing" >&2
-claude plugin install superpowers@superpowers-dev -y --scope user --json \
-  || echo "setup: superpowers install failed, continuing" >&2
+if ! claude plugin marketplace add "obra/superpowers#v6.3.0" --scope user; then
+  echo "setup: superpowers marketplace add failed, continuing" >&2
+fi
+if ! claude plugin install superpowers@superpowers-dev -y --scope user --json; then
+  echo "setup: superpowers install failed, continuing" >&2
+fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MARKETPLACE_JSON="$REPO_ROOT/.claude-plugin/marketplace.json"
 echo "setup: [plugins] installing common-agent-marketplace plugins"
-claude plugin marketplace add "$REPO_ROOT" --scope user \
-  || echo "setup: common-agent-marketplace marketplace add failed, continuing" >&2
-
-# Reads plugin names from marketplace.json so new plugins stay covered automatically.
-if command -v python3 >/dev/null 2>&1; then
-  while IFS= read -r plugin_name; do
-    claude plugin install "${plugin_name}@common-agent-marketplace" -y --scope user --json \
-      || echo "setup: ${plugin_name} install failed, continuing" >&2
-  done < <(python3 -c "import json, sys; print('\n'.join(p['name'] for p in json.load(open(sys.argv[1]))['plugins']))" "$MARKETPLACE_JSON")
-else
-  echo "setup: python3 not found, skipping native installs of common-agent-marketplace plugins" >&2
+if ! claude plugin marketplace add "$REPO_ROOT" --scope user; then
+  echo "setup: common-agent-marketplace marketplace add failed, continuing" >&2
 fi
+
+# using-orca is required for its SessionStart hook; conventional-commits is
+# the only other plugin in this repo meant to be globally available (the
+# rest are C#/.NET- or PDF-specific, installed per-project on demand).
+for plugin_name in using-orca conventional-commits; do
+  if ! claude plugin install "${plugin_name}@common-agent-marketplace" -y --scope user --json; then
+    echo "setup: ${plugin_name} install failed, continuing" >&2
+  fi
+done
