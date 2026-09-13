@@ -41,6 +41,12 @@
       "description": "Teaches Claude Code to recognize and require the conventional-commits skill whenever changes are committed.",
       "version": "1.0.0",
       "source": "./plugins/using-conventional-commits/"
+    },
+    {
+      "name": "conventional-pull-requests",
+      "description": "Creates or updates pull requests (or merge requests) with conventional-commit-style titles and structured bodies, gathering the change set from the branch's commits and diff, and requires this skill via a SessionStart hook.",
+      "version": "1.0.0",
+      "source": "./plugins/conventional-pull-requests/"
     }
   ]
 }
