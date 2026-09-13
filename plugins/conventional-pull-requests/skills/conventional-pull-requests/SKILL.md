@@ -1,23 +1,17 @@
 ---
 name: conventional-pull-requests
-description: Create a clean, review-ready pull request (or merge request) with a conventional-commit-style title, structured description, and linked issues. Gathers the branch's commits and diff against the base branch. Use when the user wants to open or create a pull request, or invokes a PR-creation command.
+description: Create or update a clean, review-ready pull request (or merge request) with a conventional-commit-style title, structured description, and linked issues. Gathers the branch's commits and diff against the base branch. Use when the user wants to open, create, or update a pull request, or invokes a PR-creation or PR-update command.
 ---
 
-# Creating a PR
+# Creating or Updating a PR
 
 Package work into a pull request that's easy to review and merge.
-
-## 0. Check for Project-Specific Conventions
-
-Look for a `.github/PULL_REQUEST_TEMPLATE.md`, `CONTRIBUTING.md`, or
-`CLAUDE.md`/`AGENTS.md` before applying the defaults below. If a template or
-convention exists, follow it — it overrides everything below.
 
 ## Workflow
 
 ### 1. Prepare the Branch
 
-Before creating the PR:
+Before creating or updating the PR:
 
 ```bash
 # Ensure branch is up to date with base
@@ -29,9 +23,9 @@ git log origin/main..HEAD --oneline
 git diff origin/main --stat
 ```
 
-Squash fixup commits if the project prefers clean history. Keep logical
-commits separate if the project prefers granular history (if committed with
-`conventional-commits`, they already are).
+Squash fixup commits before opening the PR. Always commit using the
+`conventional-commits` skill, so the branch's commits are already logically
+grouped and conventionally typed by the time you get here.
 
 ### 2. Write the Title
 
@@ -59,7 +53,10 @@ Examples:
 
 ### 3. Write the Description
 
-Use this structure:
+Check for an existing template first, in this priority order:
+1. A platform-native PR template — GitHub's `.github/PULL_REQUEST_TEMPLATE.md`, Azure DevOps's default PR description template, etc.
+2. Repo conventions in `CLAUDE.md` / `AGENTS.md`.
+3. Otherwise, use this structure:
 
 ```markdown
 ## Summary
@@ -74,11 +71,11 @@ Closes #123
 - Updated `Layout` to read theme from context
 - Added theme persistence to localStorage
 
-## Test Plan
+## Performed Tests
 
-- [ ] Toggle between light/dark/system themes
-- [ ] Refresh page — theme persists
-- [ ] Check no flash of unstyled content on load
+- [ ] Toggled between light/dark/system themes
+- [ ] Refreshed page — theme persists
+- [ ] Checked no flash of unstyled content on load
 ```
 
 ### 4. Self-Review
@@ -87,12 +84,19 @@ Before requesting review:
 - Read every line of the diff yourself
 - Remove debug code (`console.log`, `TODO`, commented-out code)
 - Verify tests, types, and lint pass (whatever the project uses)
-- Check for files that shouldn't be committed (`.env`, lockfile conflicts)
+- Check for files and secrets that shouldn't be committed (`.env`, credentials, lockfile conflicts)
 
-### 5. Create the PR
+### 5. Create or Update the PR
 
 ```bash
 git push -u origin HEAD
+```
+
+Create or update the PR/MR with whatever tool the project relies on — GitHub
+(`gh`), Azure DevOps (`az repos pr`), GitLab (`glab`), Bitbucket, or the
+platform's web UI. Don't assume GitHub by default. For example, with `gh`:
+
+```bash
 gh pr create --title "<title>" --body "$(cat <<'EOF'
 ## Summary
 ...
@@ -100,14 +104,14 @@ gh pr create --title "<title>" --body "$(cat <<'EOF'
 ## Changes
 ...
 
-## Test Plan
+## Performed Tests
 ...
 EOF
 )"
 ```
 
-Use whatever CLI the project relies on (`gh`, `glab`, etc.) — don't assume
-GitHub by default.
+If a PR/MR already exists for this branch, update it instead (e.g. `gh pr
+edit`, `glab mr update`) rather than opening a duplicate.
 
 ### 6. Request Review
 
@@ -132,3 +136,6 @@ GitHub by default.
   PR/MR title or body — it must read as if written entirely by the human
   author. This is a hard requirement from the plugin's author, not a
   suggestion.
+- Use imperative mood in the description ("add feature" not "added feature").
+- Scope is optional but helpful for larger codebases.
+- Keep the PR title and description concise.

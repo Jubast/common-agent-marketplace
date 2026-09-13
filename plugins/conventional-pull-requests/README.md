@@ -1,16 +1,16 @@
 # conventional-pull-requests
 
-Opens pull requests (or merge requests) with conventional-commit-style
-titles and structured bodies, gathering the change set from the branch's
-commits and diff against its base branch — regardless of which hosting
-platform or CLI the project uses.
+Creates or updates pull requests (or merge requests) with
+conventional-commit-style titles and structured bodies, gathering the
+change set from the branch's commits and diff against its base branch —
+regardless of which hosting platform or CLI the project uses.
 
 ## What's in here
 
 - `.claude-plugin/plugin.json` — the plugin manifest, read directly by
   both Claude Code and Copilot CLI.
 - `skills/conventional-pull-requests/` — the main skill: drafts the
-  title/body and creates the PR/MR.
+  title/body and creates or updates the PR/MR.
 - `skills/using-conventional-pull-requests/` — a short trigger skill
   pointing at `conventional-pull-requests` for its full procedure.
 - `hooks/` — a `SessionStart` hook that force-injects the trigger skill as

@@ -1,6 +1,6 @@
 {
   "name": "conventional-pull-requests",
-  "description": "Opens pull requests (or merge requests) with conventional-commit-style titles and structured bodies, gathering the change set from the branch's commits and diff, and requires this skill via a SessionStart hook.",
+  "description": "Creates or updates pull requests (or merge requests) with conventional-commit-style titles and structured bodies, gathering the change set from the branch's commits and diff, and requires this skill via a SessionStart hook.",
   "version": "1.0.0",
   "author": {
     "name": "Jubast",
