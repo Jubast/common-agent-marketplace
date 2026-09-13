@@ -74,7 +74,7 @@ Closes #123
 ## Performed Tests
 
 - [ ] Toggled between light/dark/system themes
-- [ ] Refreshed page — theme persists
+- [ ] Refreshed page, confirmed theme persists
 - [ ] Checked no flash of unstyled content on load
 ```
 
@@ -135,3 +135,4 @@ EOF
 - Use imperative mood in the description ("add feature" not "added feature").
 - Scope is optional but helpful for larger codebases.
 - Keep the PR title and description concise.
+- NEVER use em dashes in the PR/MR title or body.
