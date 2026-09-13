@@ -67,9 +67,9 @@ Closes #123
 
 ## Changes
 
-- Added `ThemeToggle` component with system/light/dark options
-- Updated `Layout` to read theme from context
-- Added theme persistence to localStorage
+- Add `ThemeToggle` component with system/light/dark options
+- Update `Layout` to read theme from context
+- Add theme persistence to localStorage
 
 ## Performed Tests
 
@@ -110,12 +110,8 @@ EOF
 )"
 ```
 
-If a PR/MR already exists for this branch, update it instead (e.g. `gh pr
-edit`, `glab mr update`) rather than opening a duplicate.
-
 ### 6. Request Review
 
-- Tag the appropriate reviewers (code owners, domain experts)
 - If the PR is large (>400 lines), add a comment explaining the best order to review files
 - If the PR depends on another PR, note it in the description
 - Label the PR appropriately (feature, bug, breaking change, etc.)
@@ -123,7 +119,7 @@ edit`, `glab mr update`) rather than opening a duplicate.
 ## Tips
 
 - Small PRs get reviewed faster — aim for <300 lines changed
-- If a PR is too big, split it into stacked PRs
+- If a PR is too big, split it into multiple (stacked if possible) PRs
 - Screenshots/recordings for UI changes make review much faster
 - Draft PRs are useful for early feedback before the work is complete
 
