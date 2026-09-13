@@ -1,30 +1,33 @@
 # conventional-commits
 
 Commits changes using micro commits with conventional commit messages,
-grouping related files into logical commits.
+grouping related files into logical commits. Enforced via a `SessionStart`
+hook that force-injects a reminder to use the skill, so the guidance
+doesn't depend on the model choosing to read a skill file.
 
 ## What's in here
 
 - `.claude-plugin/plugin.json` — the plugin manifest, read directly by
   both Claude Code and Copilot CLI.
 - `skills/conventional-commits/` — the skill: a single `SKILL.md`.
+- `skills/using-conventional-commits/` — a short trigger skill pointing at
+  `conventional-commits` for its full commit procedure.
+- `hooks/` — the `SessionStart` hook, which force-injects
+  `skills/using-conventional-commits/SKILL.md` as `additionalContext` on
+  every session start, so the guidance doesn't depend on the model
+  choosing to read a skill file. Claude Code only, and only a native
+  plugin install registers it — tools that just copy skill files (e.g.
+  `npx skills add`) drop `hooks/`.
 
 ## Provenance
 
-The `skills/conventional-commits/SKILL.md` file originated as a copy of:
-
-- Source: [gist by rvanbaalen](https://gist.github.com/rvanbaalen/50769263f3b96f58c27aed4d4e11dc54)
-- Raw file fetched: [`SKILL.md` at revision `45222e19ae74a9307555472a46cd221f446ce457`](https://gist.githubusercontent.com/rvanbaalen/50769263f3b96f58c27aed4d4e11dc54/raw/45222e19ae74a9307555472a46cd221f446ce457/SKILL.md)
-
-Besides the plugin scaffolding (`plugin.json`, this README) added locally
-to fit this marketplace's conventions, the workflow was changed from the
-original: the upstream skill proposes each commit group with an
-`Approve? yes/no` prompt and waits for the user to confirm before staging
-and committing it. That approval gate was removed — this version has the
-agent group the changes and commit each group directly using its own
-judgment, only surfacing feedback-driven adjustments (wrong grouping,
-wrong message) after the fact rather than gating on upfront sign-off. See
-git history for the exact diff from the upstream gist revision above.
+`skills/conventional-commits/SKILL.md` originated as a copy of
+[this gist](https://gist.github.com/rvanbaalen/50769263f3b96f58c27aed4d4e11dc54)
+([revision `45222e19`](https://gist.githubusercontent.com/rvanbaalen/50769263f3b96f58c27aed4d4e11dc54/raw/45222e19ae74a9307555472a46cd221f446ce457/SKILL.md)).
+Locally, the upstream's per-commit `Approve? yes/no` gate was removed —
+this version groups and commits using its own judgment, surfacing
+feedback-driven adjustments only after the fact. See git history for the
+diff from the gist revision above.
 
 ## Using this plugin
 

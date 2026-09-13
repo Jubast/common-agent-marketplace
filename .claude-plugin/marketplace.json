@@ -26,7 +26,7 @@
     },
     {
       "name": "conventional-commits",
-      "description": "Commits changes using micro commits with conventional commit messages, grouping related files into logical commits.",
+      "description": "Commits changes using micro commits with conventional commit messages, grouping related files into logical commits, and requires this skill via a SessionStart hook.",
       "version": "1.0.0",
       "source": "./plugins/conventional-commits/"
     },
@@ -35,12 +35,6 @@
       "description": "Teaches Claude Code to recognize and require the orca-cli and orchestration skills for worktree/agent-dispatch work in Orca-managed environments.",
       "version": "1.0.0",
       "source": "./plugins/using-orca/"
-    },
-    {
-      "name": "using-conventional-commits",
-      "description": "Teaches Claude Code to recognize and require the conventional-commits skill whenever changes are committed.",
-      "version": "1.0.0",
-      "source": "./plugins/using-conventional-commits/"
     },
     {
       "name": "conventional-pull-requests",
