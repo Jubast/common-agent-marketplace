@@ -29,6 +29,12 @@
       "description": "Commits changes using micro commits with conventional commit messages, grouping related files into logical commits.",
       "version": "1.0.0",
       "source": "./plugins/conventional-commits/"
+    },
+    {
+      "name": "using-orca",
+      "description": "Teaches Claude Code to recognize and require the orca-cli and orchestration skills for worktree/agent-dispatch work in Orca-managed environments.",
+      "version": "1.0.0",
+      "source": "./plugins/using-orca/"
     }
   ]
 }

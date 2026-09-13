@@ -41,13 +41,32 @@ if ! command -v npx >/dev/null 2>&1; then
   exit 0
 fi
 
-# superpowers is pinned to a tag; the other installs float on their default branch.
-echo "setup: [skills] installing superpowers@v6.3.0"
-npx --yes skills add https://github.com/obra/superpowers/tree/v6.3.0 --skill '*' --agent claude-code --global -y
-
-echo "setup: [skills] installing common-agent-marketplace plugins"
-npx --yes skills add https://github.com/Jubast/common-agent-marketplace --skill '*' --agent claude-code --global -y
-
 # `orca skills install` refuses to run over this SSH-forwarded shell, so we call npx directly.
-echo "setup: [skills] installing orca-cli, orchestration"
-npx --yes skills add https://github.com/stablyai/orca --skill orca-cli --skill orchestration --agent claude-code --global -y
+# stablyai/orca has no marketplace.json, so orca-cli/orchestration must stay on npx.
+echo "setup: [skills] installing orca-cli, orchestration @ v1.4.200"
+npx --yes skills add https://github.com/stablyai/orca/tree/v1.4.200 --skill orca-cli --skill orchestration --agent claude-code --global -y
+
+# `npx skills add` drops plugin hooks silently, so superpowers and this
+# repo's plugins are installed natively instead (idempotent on re-run).
+
+# `owner/repo#ref` pins the marketplace to a tag, like the old npx tree URL did.
+echo "setup: [plugins] installing superpowers@v6.3.0"
+if ! claude plugin marketplace add "obra/superpowers#v6.3.0" --scope user; then
+  echo "setup: superpowers marketplace add failed, continuing" >&2
+fi
+if ! claude plugin install superpowers@superpowers-dev -y --scope user --json; then
+  echo "setup: superpowers install failed, continuing" >&2
+fi
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+echo "setup: [plugins] installing common-agent-marketplace plugins"
+if ! claude plugin marketplace add "$REPO_ROOT" --scope user; then
+  echo "setup: common-agent-marketplace marketplace add failed, continuing" >&2
+fi
+
+# Only these two are meant to install globally; the rest are per-project.
+for plugin_name in using-orca conventional-commits; do
+  if ! claude plugin install "${plugin_name}@common-agent-marketplace" -y --scope user --json; then
+    echo "setup: ${plugin_name} install failed, continuing" >&2
+  fi
+done
