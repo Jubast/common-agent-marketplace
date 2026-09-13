@@ -1,6 +1,6 @@
 {
   "name": "conventional-commits",
-  "description": "Commits changes using micro commits with conventional commit messages, grouping related files into logical commits.",
+  "description": "Commits changes using micro commits with conventional commit messages, grouping related files into logical commits, and requires this skill via a SessionStart hook.",
   "version": "1.0.0",
   "author": {
     "name": "Jubast",
@@ -11,6 +11,7 @@
     "git",
     "commit",
     "conventional-commits",
-    "changelog"
+    "changelog",
+    "session-start-hook"
   ]
 }
