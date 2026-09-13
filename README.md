@@ -46,6 +46,9 @@ GitHub.)
 - [`conventional-commits`](plugins/conventional-commits/) — commits
   changes using micro commits with conventional commit messages,
   grouping related files into logical commits.
+- [`using-orca`](plugins/using-orca/) — teaches Claude Code to recognize
+  and use the Orca CLI (orca-cli) for worktree and agent-dispatch work in
+  Orca-managed environments.
 
 ## Adding a plugin
 

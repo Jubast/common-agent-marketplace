@@ -51,3 +51,17 @@ npx --yes skills add https://github.com/Jubast/common-agent-marketplace --skill 
 # `orca skills install` refuses to run over this SSH-forwarded shell, so we call npx directly.
 echo "setup: [skills] installing orca-cli, orchestration"
 npx --yes skills add https://github.com/stablyai/orca --skill orca-cli --skill orchestration --agent claude-code --global -y
+
+# `npx skills add` only copies SKILL.md/skill folders - it has no concept of
+# plugin hooks, so it can't register using-orca's SessionStart hook. Install
+# it natively instead so the hook actually gets registered (confirmed via
+# enabledPlugins + the plugin cache in an isolated sandbox this session).
+# Both commands below are already idempotent on a re-run (exit 0, no error)
+# but we still guard them so an unexpected failure here can't hard-fail the
+# rest of devcontainer setup.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+echo "setup: [plugins] installing using-orca (native install, needed for its SessionStart hook)"
+claude plugin marketplace add "$REPO_ROOT" --scope user \
+  || echo "setup: marketplace add failed, continuing" >&2
+claude plugin install using-orca@common-agent-marketplace -y --scope user --json \
+  || echo "setup: using-orca install failed, continuing" >&2
