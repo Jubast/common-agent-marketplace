@@ -41,27 +41,44 @@ if ! command -v npx >/dev/null 2>&1; then
   exit 0
 fi
 
-# superpowers is pinned to a tag; the other installs float on their default branch.
-echo "setup: [skills] installing superpowers@v6.3.0"
-npx --yes skills add https://github.com/obra/superpowers/tree/v6.3.0 --skill '*' --agent claude-code --global -y
-
-echo "setup: [skills] installing common-agent-marketplace plugins"
-npx --yes skills add https://github.com/Jubast/common-agent-marketplace --skill '*' --agent claude-code --global -y
-
 # `orca skills install` refuses to run over this SSH-forwarded shell, so we call npx directly.
+# stablyai/orca has no .claude-plugin/marketplace.json of its own, so
+# orca-cli/orchestration have no native install path and must stay on npx.
 echo "setup: [skills] installing orca-cli, orchestration"
 npx --yes skills add https://github.com/stablyai/orca --skill orca-cli --skill orchestration --agent claude-code --global -y
 
 # `npx skills add` only copies SKILL.md/skill folders - it has no concept of
-# plugin hooks, so it can't register using-orca's SessionStart hook. Install
-# it natively instead so the hook actually gets registered (confirmed via
-# enabledPlugins + the plugin cache in an isolated sandbox this session).
-# Both commands below are already idempotent on a re-run (exit 0, no error)
-# but we still guard them so an unexpected failure here can't hard-fail the
-# rest of devcontainer setup.
+# plugin hooks, so it silently drops any hooks/hooks.json a plugin ships
+# (confirmed for both superpowers's own SessionStart hook and this repo's
+# using-orca plugin). Install both marketplaces natively instead
+# (`claude plugin marketplace add` + `claude plugin install`) so hooks
+# actually get registered - confirmed end-to-end in an isolated sandbox this
+# session (enabledPlugins + cached hooks.json + preserved exec bit, for both
+# superpowers and every plugin in this repo). Both commands are naturally
+# idempotent on a re-run (exit 0, no error) but we still guard them so an
+# unexpected failure here can't hard-fail the rest of devcontainer setup.
+
+# `owner/repo#ref` pins the marketplace clone to a specific tag/branch/SHA,
+# the same way the old npx `.../tree/v6.3.0` URL did.
+echo "setup: [plugins] installing superpowers@v6.3.0"
+claude plugin marketplace add "obra/superpowers#v6.3.0" --scope user \
+  || echo "setup: superpowers marketplace add failed, continuing" >&2
+claude plugin install superpowers@superpowers-dev -y --scope user --json \
+  || echo "setup: superpowers install failed, continuing" >&2
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-echo "setup: [plugins] installing using-orca (native install, needed for its SessionStart hook)"
+MARKETPLACE_JSON="$REPO_ROOT/.claude-plugin/marketplace.json"
+echo "setup: [plugins] installing common-agent-marketplace plugins"
 claude plugin marketplace add "$REPO_ROOT" --scope user \
-  || echo "setup: marketplace add failed, continuing" >&2
-claude plugin install using-orca@common-agent-marketplace -y --scope user --json \
-  || echo "setup: using-orca install failed, continuing" >&2
+  || echo "setup: common-agent-marketplace marketplace add failed, continuing" >&2
+
+# Installs every plugin listed in marketplace.json (not just using-orca) so
+# this stays in sync as plugins are added, without hardcoding names here.
+if command -v python3 >/dev/null 2>&1; then
+  while IFS= read -r plugin_name; do
+    claude plugin install "${plugin_name}@common-agent-marketplace" -y --scope user --json \
+      || echo "setup: ${plugin_name} install failed, continuing" >&2
+  done < <(python3 -c "import json, sys; print('\n'.join(p['name'] for p in json.load(open(sys.argv[1]))['plugins']))" "$MARKETPLACE_JSON")
+else
+  echo "setup: python3 not found, skipping native installs of common-agent-marketplace plugins" >&2
+fi
