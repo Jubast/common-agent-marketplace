@@ -1,0 +1,43 @@
+{
+  "name": "common-agent-marketplace-local",
+  "remoteUser": "vscode",
+  "build": {
+    "dockerfile": "./Dockerfile"
+  },
+  "appPort": [
+    "2253:2222"
+  ],
+  "portsAttributes": {
+    "2253": {
+      "label": "SSH Port",
+      "onAutoForward": "silent"
+    }
+  },
+  "mounts": [
+    "source=${localWorkspaceFolderBasename}-ssh-host-keys,target=/etc/ssh,type=volume",
+    "source=${localWorkspaceFolderBasename}-claude-code-data,target=/home/vscode/.claude,type=volume",
+    "source=${localWorkspaceFolderBasename}-gh-cli-data,target=/home/vscode/.config/gh,type=volume",
+    "source=${localWorkspaceFolderBasename}-history,target=/home/vscode/.history,type=volume",
+    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind"
+  ],
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": false,
+      "installOhMyZsh": false,
+      "upgradePackages": true
+    },
+    "ghcr.io/devcontainers/features/sshd:1": {},
+    "ghcr.io/devcontainers/features/python:1": {},
+    "ghcr.io/devcontainers/features/node:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
+    "DISABLE_AUTOUPDATER": "1",
+    "DEVCONTAINER_ENVIRONMENT": "orca"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/home/vscode/workspaces/${localWorkspaceFolderBasename},type=bind",
+  "workspaceFolder": "/home/vscode/workspaces/${localWorkspaceFolderBasename}",
+  "postCreateCommand": "bash scripts/setup.sh"
+}
