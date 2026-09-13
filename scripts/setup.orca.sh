@@ -43,8 +43,13 @@ fi
 
 # `orca skills install` refuses to run over this SSH-forwarded shell, so we call npx directly.
 # stablyai/orca has no marketplace.json, so orca-cli/orchestration must stay on npx.
-echo "setup: [skills] installing orca-cli, orchestration @ v1.4.200"
-npx --yes skills add https://github.com/stablyai/orca/tree/v1.4.200 --skill orca-cli --skill orchestration --agent claude-code --global -y
+installed_skills="$(npx --yes skills list -g 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g')"
+if grep -q '^orca-cli' <<<"$installed_skills" && grep -q '^orchestration' <<<"$installed_skills"; then
+  echo "setup: [skills] orca-cli, orchestration already installed, skipping"
+else
+  echo "setup: [skills] installing orca-cli, orchestration @ v1.4.200"
+  npx --yes skills add https://github.com/stablyai/orca/tree/v1.4.200 --skill orca-cli --skill orchestration --agent claude-code --global -y
+fi
 
 # `npx skills add` drops plugin hooks silently, so superpowers and this
 # repo's plugins are installed natively instead (idempotent on re-run).
