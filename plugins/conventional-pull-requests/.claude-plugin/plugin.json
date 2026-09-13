@@ -1,0 +1,17 @@
+{
+  "name": "conventional-pull-requests",
+  "description": "Opens pull requests with conventional-commit-style titles and structured bodies, gathering the change set from the branch's commits and diff.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Jubast",
+    "email": "30406814+Jubast@users.noreply.github.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "git",
+    "github",
+    "pull-request",
+    "conventional-commits",
+    "gh-cli"
+  ]
+}
