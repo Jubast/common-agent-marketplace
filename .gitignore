@@ -41,6 +41,7 @@ devcontainer-lock.json
 *.local.json
 *.local.md
 *.local.sh
+docs/superpowers/
 
 # claude files
 .claude/
