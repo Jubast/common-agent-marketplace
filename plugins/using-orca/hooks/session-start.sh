@@ -23,4 +23,5 @@ escape_for_json() {
 }
 
 escaped=$(escape_for_json "$(cat "$SKILL_FILE")")
-printf '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "%s"}}\n' "$escaped"
+session_context="<EXTREMELY_IMPORTANT>\nOrca is running. You MUST follow the 'using-orca' skill below:\n\n${escaped}\n</EXTREMELY_IMPORTANT>"
+printf '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "%s"}}\n' "$session_context"

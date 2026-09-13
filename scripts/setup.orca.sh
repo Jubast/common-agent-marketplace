@@ -46,10 +46,8 @@ fi
 echo "setup: [skills] installing orca-cli, orchestration @ v1.4.200"
 npx --yes skills add https://github.com/stablyai/orca/tree/v1.4.200 --skill orca-cli --skill orchestration --agent claude-code --global -y
 
-# `npx skills add` only copies skill files - it silently drops any
-# hooks/hooks.json a plugin ships (true for both superpowers and this
-# repo's using-orca). Install those natively instead so hooks actually
-# register. Both commands below are idempotent on a re-run.
+# `npx skills add` drops plugin hooks silently, so superpowers and this
+# repo's plugins are installed natively instead (idempotent on re-run).
 
 # `owner/repo#ref` pins the marketplace to a tag, like the old npx tree URL did.
 echo "setup: [plugins] installing superpowers@v6.3.0"
@@ -66,9 +64,7 @@ if ! claude plugin marketplace add "$REPO_ROOT" --scope user; then
   echo "setup: common-agent-marketplace marketplace add failed, continuing" >&2
 fi
 
-# using-orca is required for its SessionStart hook; conventional-commits is
-# the only other plugin in this repo meant to be globally available (the
-# rest are C#/.NET- or PDF-specific, installed per-project on demand).
+# Only these two are meant to install globally; the rest are per-project.
 for plugin_name in using-orca conventional-commits; do
   if ! claude plugin install "${plugin_name}@common-agent-marketplace" -y --scope user --json; then
     echo "setup: ${plugin_name} install failed, continuing" >&2
