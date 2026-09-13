@@ -54,7 +54,7 @@ Examples:
 ### 3. Write the Description
 
 Check for an existing template first, in this priority order:
-1. A platform-native PR template — GitHub's `.github/PULL_REQUEST_TEMPLATE.md`, Azure DevOps's default PR description template, etc.
+1. A platform-native PR template — GitHub's `.github/PULL_REQUEST_TEMPLATE.md`, GitLab's `.gitlab/merge_request_templates/`, Bitbucket's `.bitbucket/PULL_REQUEST_TEMPLATE.md`, Azure DevOps's default PR description template, etc.
 2. Repo conventions in `CLAUDE.md` / `AGENTS.md`.
 3. Otherwise, use this structure:
 
