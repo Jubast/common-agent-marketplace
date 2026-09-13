@@ -1,6 +1,6 @@
 {
   "name": "using-orca",
-  "description": "Teaches Claude Code to recognize and use the Orca CLI (orca-cli) for worktree and agent-dispatch work in Orca-managed environments.",
+  "description": "Teaches Claude Code to recognize and require the orca-cli and orchestration skills for worktree/agent-dispatch work in Orca-managed environments.",
   "version": "1.0.0",
   "author": {
     "name": "Jubast",
@@ -10,6 +10,7 @@
   "keywords": [
     "orca",
     "orca-cli",
+    "orchestration",
     "worktree",
     "agent-dispatch",
     "session-start-hook"

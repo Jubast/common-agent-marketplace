@@ -1,13 +1,14 @@
 # using-orca
 
-Teaches Claude Code to recognize and use the Orca CLI (`orca-cli`) for
-worktree and agent-dispatch work in Orca-managed environments.
+Teaches Claude Code to recognize and require the `orca-cli` and
+`orchestration` skills for worktree/agent-dispatch work in Orca-managed
+environments.
 
 ## What's in here
 
 - `.claude-plugin/plugin.json` — plugin manifest.
-- `skills/using-orca/` — a short trigger skill pointing at `orca-cli` for
-  the full command reference.
+- `skills/using-orca/` — a short trigger skill pointing at `orca-cli` and
+  `orchestration` for their full command references.
 - `hooks/` — a `SessionStart` hook that force-injects the skill as
   `additionalContext` whenever Orca is actually running, so the guidance
   doesn't depend on the model choosing to read a skill file.
@@ -16,7 +17,8 @@ worktree and agent-dispatch work in Orca-managed environments.
 
 - Claude Code only — the hook emits Claude Code's hook JSON shape.
 - Silent when Orca isn't running (checks `orca status --json` itself).
-- A pointer, not a reference — see `orca-cli` for full capabilities.
+- A pointer, not a reference — see `orca-cli`/`orchestration` for full
+  capabilities.
 
 ## Using this plugin
 

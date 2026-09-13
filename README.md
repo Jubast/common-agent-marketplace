@@ -47,8 +47,8 @@ GitHub.)
   changes using micro commits with conventional commit messages,
   grouping related files into logical commits.
 - [`using-orca`](plugins/using-orca/) — teaches Claude Code to recognize
-  and use the Orca CLI (orca-cli) for worktree and agent-dispatch work in
-  Orca-managed environments.
+  and require the orca-cli and orchestration skills for worktree/agent-
+  dispatch work in Orca-managed environments.
 
 ## Adding a plugin
 

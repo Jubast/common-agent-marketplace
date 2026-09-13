@@ -1,6 +1,6 @@
 ---
 name: using-orca
-description: Use when working in an environment where the orca CLI is available (check `orca status`), especially before dispatching an agent into a worktree or isolating work - teaches when to prefer orca-cli over generic git-worktree/Agent-tool isolation.
+description: Use when working in an environment where the orca CLI is available (check `orca status`), especially before dispatching an agent, isolating work, or coordinating multiple agents - teaches when orca-cli/orchestration are required over generic git-worktree/Agent-tool isolation.
 ---
 
 Check whether Orca is running:
@@ -9,15 +9,16 @@ Check whether Orca is running:
 command -v orca >/dev/null 2>&1 && orca status --json >/dev/null 2>&1
 ```
 
-If so, prefer the `orca-cli` skill's commands over generic isolation — the
-Agent tool's `isolation: "worktree"`, raw `git worktree`, or an ad hoc
-background PTY. Those alternatives are invisible to the user outside this
-session; an Orca child worktree is tracked and attachable from the Orca app.
+If so, you MUST use the `orca-cli` and `orchestration` skills instead of
+generic alternatives — the Agent tool's `isolation: "worktree"`, raw `git
+worktree`, or an ad hoc background PTY. Those are invisible to the user
+outside this session; Orca's tooling is tracked and attachable from the app.
 
-Core dispatch command:
+- **orca-cli** — worktrees, terminals, artifacts, handoffs:
+  ```bash
+  orca worktree create --agent <agent-id> --prompt "<task>" --json
+  ```
+- **orchestration** — supervising workers: threaded messages, task
+  dispatch, DAGs, decision gates.
 
-```bash
-orca worktree create --agent <agent-id> --prompt "<task>" --json
-```
-
-See the `orca-cli` skill for the full command reference.
+See each skill for its full command reference.
