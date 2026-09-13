@@ -1,0 +1,8 @@
+#!/bin/sh
+# Work around a bug in podman that causes /tmp to have the wrong permissions.
+#   Our hacky apt-get wrapper will chmod 1777 /tmp to allow for temporary file
+# creation as the docker-in-docker feature needs that to install its MS
+# repositories. Why? Well, it passes some keys that way.
+#   I, for one, am livid that this ugly thing even works.
+mkdir -p /tmp/ && chmod 1777 /tmp/
+exec /usr/bin/apt-get "$@"
