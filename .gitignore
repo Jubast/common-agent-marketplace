@@ -45,3 +45,6 @@ devcontainer-lock.json
 # claude files
 .claude/
 CLAUDE.md
+
+# superpowers skill
+docs/superpowers/

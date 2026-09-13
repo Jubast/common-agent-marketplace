@@ -30,9 +30,7 @@ Architecture*, translated into .NET idiom.
   class-level SRP coverage.
 - **Curated, not exhaustive.** Nine core topics; the book's
   programming-paradigms chapters, its embedded-architecture chapter, and
-  its case-study chapters are out of scope. See the design spec for the
-  full rationale:
-  `docs/superpowers/specs/2026-08-17-clean-architecture-skill-design.md`.
+  its case-study chapters are out of scope.
 
 ## Using this plugin
 

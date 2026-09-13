@@ -28,10 +28,7 @@ idiom.
   `ReportFindings` tool, falling back to a severity-ranked markdown list
   of the same fields when that tool isn't available in the session.
 - **Curated, not exhaustive.** Ten core topics; the book's concurrency
-  chapter and case-study chapters are out of scope. See this marketplace
-  repository's design spec at
-  `docs/superpowers/specs/2026-08-16-clean-code-skill-design.md` for the
-  full rationale.
+  chapter and case-study chapters are out of scope.
 
 ## Using this plugin
 

@@ -74,8 +74,7 @@ As of 2026-08-15, both the Application and Pressure scenarios failed
 against the real skill: Claude Code's `Read` tool can read `.pdf` files
 directly, and the agent took that path instead of running the bundled
 script — even with zero pressure framing — despite SKILL.md's "do not
-attempt to parse PDF content directly" rule (see
-`docs/superpowers/plans/2026-08-15-plugin-validation-testing.md`, Task 4).
+attempt to parse PDF content directly" rule.
 
 Fixed 2026-08-20: SKILL.md now names the `Read` tool explicitly as
 off-limits on the `.pdf` file (the original wording didn't cover it, since
@@ -100,10 +99,6 @@ Provenance section for the diff summary.
   repo — `tests/claude-code/` already covers both "describes itself
   right" and "actually works" without a separate tmux/multi-CLI harness.
 - **No CI workflow.** Local/manual only, for now.
-
-See
-[docs/superpowers/specs/2026-08-15-plugin-validation-testing-design.md](superpowers/specs/2026-08-15-plugin-validation-testing-design.md)
-for the full rationale.
 
 ## Adding tests for a new plugin
 
