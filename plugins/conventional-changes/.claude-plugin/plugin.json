@@ -1,0 +1,19 @@
+{
+  "name": "conventional-changes",
+  "description": "Commits changes using micro commits with conventional commit messages, then creates or updates a pull/merge request with a conventional-commit-style title and structured body, grouping related files into logical commits and requires both skills via a SessionStart hook.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Jubast",
+    "email": "30406814+Jubast@users.noreply.github.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "git",
+    "commit",
+    "conventional-commits",
+    "pull-request",
+    "merge-request",
+    "changelog",
+    "session-start-hook"
+  ]
+}

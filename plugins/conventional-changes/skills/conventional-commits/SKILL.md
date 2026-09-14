@@ -86,7 +86,9 @@ Once all commits are made, ask the user:
 All changes committed. Would you like to push the branch?
 ```
 
-If yes, run `git push` (with `-u origin branch-name` if needed for new branches).
+If yes, run `git push` (with `-u origin branch-name` if needed for new
+branches). Once pushed, ask if they'd like to open or update a pull
+request; if yes, use the `conventional-pull-requests` skill to do it.
 
 ---
 

@@ -33,4 +33,11 @@ Allowed to add Co-authored-by trailers: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
 assert_contains "$output" "Allowed to add Co-authored-by trailers:.*no" "Never adds Co-authored-by trailers"
 echo ""
 
+echo "Test 4: Push offers to continue into a PR..."
+output=$(run_claude "According to the conventional-commits skill, after the branch is pushed, does it ask the user whether to open or update a pull request and, if yes, use the conventional-pull-requests skill for that? Answer using exactly this structure:
+Offers to continue into conventional-pull-requests after push: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
+
+assert_contains "$output" "Offers to continue into conventional-pull-requests after push:.*yes" "Offers to open/update a PR via conventional-pull-requests after pushing"
+echo ""
+
 echo "=== All conventional-commits skill tests passed ==="
