@@ -25,22 +25,16 @@
       "source": "./plugins/clean-architecture/"
     },
     {
-      "name": "conventional-commits",
-      "description": "Commits changes using micro commits with conventional commit messages, grouping related files into logical commits, and requires this skill via a SessionStart hook.",
-      "version": "1.0.0",
-      "source": "./plugins/conventional-commits/"
-    },
-    {
       "name": "using-orca",
       "description": "Teaches Claude Code to recognize and require the orca-cli and orchestration skills for worktree/agent-dispatch work in Orca-managed environments.",
       "version": "1.0.0",
       "source": "./plugins/using-orca/"
     },
     {
-      "name": "conventional-pull-requests",
-      "description": "Creates or updates pull requests (or merge requests) with conventional-commit-style titles and structured bodies, gathering the change set from the branch's commits and diff, and requires this skill via a SessionStart hook.",
+      "name": "conventional-changes",
+      "description": "Commits changes using micro commits with conventional commit messages, then creates or updates a pull/merge request with a conventional-commit-style title and structured body, grouping related files into logical commits and requires both skills via a SessionStart hook.",
       "version": "1.0.0",
-      "source": "./plugins/conventional-pull-requests/"
+      "source": "./plugins/conventional-changes/"
     }
   ]
 }

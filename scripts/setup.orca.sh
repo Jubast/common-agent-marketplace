@@ -70,7 +70,7 @@ if ! claude plugin marketplace add "$REPO_ROOT" --scope user; then
 fi
 
 # Only these are meant to install globally; the rest are per-project.
-for plugin_name in using-orca conventional-commits conventional-pull-requests; do
+for plugin_name in using-orca conventional-changes; do
   if ! claude plugin install "${plugin_name}@common-agent-marketplace" -y --scope user --json; then
     echo "setup: ${plugin_name} install failed, continuing" >&2
   fi

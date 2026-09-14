@@ -43,12 +43,13 @@ GitHub.)
   design, write, and review C#/.NET code and solution structure
   following the principles in Robert C. Martin's Clean Architecture,
   translated into .NET idiom.
-- [`conventional-commits`](plugins/conventional-commits/) — commits
-  changes using micro commits with conventional commit messages,
-  grouping related files into logical commits.
 - [`using-orca`](plugins/using-orca/) — teaches Claude Code to recognize
   and require the orca-cli and orchestration skills for worktree/agent-
   dispatch work in Orca-managed environments.
+- [`conventional-changes`](plugins/conventional-changes/) — commits
+  changes using micro commits with conventional commit messages, then
+  creates or updates a pull/merge request with a conventional-commit-style
+  title and structured body.
 
 ## Adding a plugin
 
