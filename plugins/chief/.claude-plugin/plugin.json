@@ -1,0 +1,19 @@
+{
+  "name": "chief",
+  "description": "A lightweight supervisor for Claude Code: dispatches work to isolated builder/scout agents over the herdr or Orca backend, tracks a plain-markdown backlog, and supervises them with a near-zero-token watch loop.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Jubast",
+    "email": "30406814+Jubast@users.noreply.github.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "orchestration",
+    "orca",
+    "herdr",
+    "worktree",
+    "agent-dispatch",
+    "backlog",
+    "supervision"
+  ]
+}

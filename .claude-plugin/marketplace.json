@@ -35,6 +35,12 @@
       "description": "Commits changes using micro commits with conventional commit messages, then creates or updates a pull/merge request with a conventional-commit-style title and structured body, grouping related files into logical commits and requires both skills via a SessionStart hook.",
       "version": "1.0.0",
       "source": "./plugins/conventional-changes/"
+    },
+    {
+      "name": "chief",
+      "description": "A lightweight supervisor for Claude Code: dispatches work to isolated builder/scout agents over the herdr or Orca backend, tracks a plain-markdown backlog, and supervises them with a near-zero-token watch loop.",
+      "version": "0.1.0",
+      "source": "./plugins/chief/"
     }
   ]
 }
