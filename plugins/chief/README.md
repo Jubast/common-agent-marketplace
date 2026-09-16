@@ -8,7 +8,7 @@ Inspired by [Firstmate](https://github.com/kunchenguid/firstmate), which does th
 
 ## Layout
 
-- `bin/` - the lifecycle scripts (`chief-spawn`, `chief-send`, `chief-control`, `chief-crew-state`, `chief-watch`, `chief-teardown`, `chief-merge`, `chief-backlog`, `chief-setup`) and `bin/lib/` (path/meta/lock helpers, the backend adapters, and `chief-worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one).
+- `bin/` - the lifecycle scripts (`chief-spawn`, `chief-send`, `chief-control`, `chief-crew-state`, `chief-watch`, `chief-teardown`, `chief-merge`, `chief-promote`, `chief-backlog`, `chief-setup`) and `bin/lib/` (path/meta/lock helpers, the backend adapters, and `chief-worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one).
 - `templates/` - the two brief templates (`brief-ship.md`, `brief-scout.md`).
 - `skills/using-chief` - the identity/job-description skill, force-injected every session via the `SessionStart` hook so Chief always knows its role without being asked.
 - `skills/setup` - one-time per-project config (backend choice + gitignoring `.chief/`); only relevant before `.chief/config/backend` exists, which the `SessionStart` digest flags explicitly.
@@ -20,4 +20,4 @@ Runtime state lives at `.chief/` under the current project's git root (`state/`,
 
 ## Status
 
-Core lifecycle (backlog, spawn, send, control/relaunch, crew-state, watch, teardown, merge) is implemented and tested end-to-end against a mock backend. The **herdr adapter** (`bin/lib/chief-backend-herdr.sh`) is verified against a live herdr 0.9.0 install - spawn/capture/busy/send/kill/relaunch all exercised end to end with a real `claude` turn in `tests/chief/test-backend-herdr.sh` (opt-in, `CHIEF_TEST_HERDR=1`). The **Orca adapter is still an unverified draft** (`bin/lib/chief-backend-orca.sh`) - built from documented command fragments, not run against a live install; its header comment lists exactly what needs confirming before it's trustworthy.
+Core lifecycle (backlog, spawn, send, control/relaunch, crew-state, watch, teardown, merge, promote) is implemented and tested end-to-end against a mock backend. The **herdr adapter** (`bin/lib/chief-backend-herdr.sh`) is verified against a live herdr 0.9.0 install - spawn/capture/busy/send/kill/relaunch all exercised end to end with a real `claude` turn in `tests/chief/test-backend-herdr.sh` (opt-in, `CHIEF_TEST_HERDR=1`). The **Orca adapter is still an unverified draft** (`bin/lib/chief-backend-orca.sh`) - built from documented command fragments, not run against a live install; its header comment lists exactly what needs confirming before it's trustworthy.
