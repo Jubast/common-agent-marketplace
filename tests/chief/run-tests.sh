@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # run-tests.sh - runs every tests/chief/test-*.sh and reports a summary.
 #
-# These are functional/integration tests of Chief's own bash scripts. All of
-# them run against the `mock` backend (no `claude` CLI invocation, zero
-# model tokens) EXCEPT test-backend-herdr.sh, which opts into a real herdr
-# install and a real (trivial) claude turn and is skipped by default - see
-# this directory's README.md. Skill-BEHAVIOR tests (does Claude actually
-# follow using-chief/dispatch/reviewer/setup correctly) live in
-# tests/claude-code/ instead, and the Orca backend adapter is still an
-# unverified draft - see chief-backend-orca.sh's own header.
+# These are functional/integration tests of Chief's own bash scripts. Most
+# run against the `mock` backend (no `claude` CLI, zero tokens).
+# test-backend-orca-mock.sh is also zero-cost - it unit-tests
+# chief-backend-orca.sh against a fake `orca` CLI. test-backend-herdr.sh and
+# test-backend-orca.sh are the exceptions: each opts into a real
+# herdr/orca install and a real claude turn, skipped by default - see this
+# directory's README.md. Skill-BEHAVIOR tests (does Claude actually follow
+# using-chief/dispatch/reviewer/setup correctly) live in tests/claude-code/
+# instead.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

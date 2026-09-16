@@ -1,12 +1,13 @@
 # Chief plugin tests
 
-Functional/integration tests of Chief's own bash scripts. Everything except
-`test-backend-herdr.sh` runs against the `mock` backend
-(`plugins/chief/bin/lib/chief-backend-mock.sh`, a throwaway background
-process standing in for a real terminal session) with no `claude` CLI
-invocation - zero model tokens, safe to run anywhere including outside a
-devcontainer. `test-backend-herdr.sh` is the one exception: it opts into a
-real herdr install and a real (trivial) claude turn - see below.
+Functional/integration tests of Chief's own bash scripts. Most files run
+against the `mock` backend (`plugins/chief/bin/lib/chief-backend-mock.sh`, a
+throwaway background process standing in for a real terminal session) - no
+`claude` CLI, zero tokens, safe anywhere. `test-backend-orca-mock.sh` is
+also zero-cost: it unit-tests `chief-backend-orca.sh` against a fake `orca`
+CLI stub. `test-backend-herdr.sh` and `test-backend-orca.sh` are the two
+exceptions: each opts into a real herdr/orca install and a real claude turn
+- see below.
 
 ## Running
 
@@ -34,27 +35,34 @@ JSON output (skipped gracefully if absent).
 | `test-hooks.sh` | `session-start.sh` and `stop-watch-arm.sh`'s own bash logic across fresh/configured/in-flight/builder-worktree scenarios |
 | `test-lifecycle.sh` | The full happy path: backlog → spawn → simulated work → crew-state → teardown-refuses-before-merge → merge → teardown-succeeds |
 | `test-backend-herdr.sh` | `chief-backend-herdr.sh` against a REAL herdr install and a real (trivial) claude turn: spawn, capture, busy, send, kill, relaunch. **Not zero-cost** - opt in with `CHIEF_TEST_HERDR=1`; skips cleanly otherwise. See below. |
+| `test-backend-orca-mock.sh` | `chief-backend-orca.sh`'s argument-building and JSON-parsing against a fake `orca` CLI stub: spawn, capture, busy, send, kill, relaunch. Zero cost. |
+| `test-backend-orca.sh` | `chief-backend-orca.sh` against a REAL live Orca instance and a real (trivial) claude turn: spawn, capture, busy, send, kill, relaunch. **Not zero-cost** - opt in with `CHIEF_TEST_ORCA=1`; skips cleanly otherwise. See below. |
 
-## The herdr backend test is different from the rest
+## The herdr and orca backend tests are different from the rest
 
-`test-backend-herdr.sh` is the one file here that isn't free: it needs `herdr`
-and `claude` on PATH, a headless `herdr server`, and spends a small number of
-real tokens on one trivial prompt per claude turn it starts. It's skipped by
-default (even under `run-tests.sh`) unless you opt in:
+`test-backend-herdr.sh` and `test-backend-orca.sh` aren't free: each needs
+its real backend reachable (`herdr` + a headless `herdr server`, or `orca`
+talking to a live Orca runtime) plus `claude` on PATH, and spends a small
+number of real tokens per claude turn it starts. Both skip by default
+(even under `run-tests.sh`) unless you opt in:
 
 ```bash
 CHIEF_TEST_HERDR=1 bash tests/chief/test-backend-herdr.sh
+CHIEF_TEST_ORCA=1  bash tests/chief/test-backend-orca.sh
 ```
 
-`chief-backend-herdr.sh` itself is verified against a live herdr 0.9.0
-install (no longer a draft) - see the adapter file's own header comments for
-the real CLI shape (`herdr workspace`/`worktree`/`pane`/`agent`, not
-`herdr session ...`) and two confirmed-live quirks it works around: Claude
-Code's own first-run "trust this folder?" dialog on every fresh worktree,
-and `herdr agent prompt --wait` occasionally reporting `agent_prompt_stalled`
-right after that dialog closes even when the text was genuinely delivered.
+`chief-backend-herdr.sh` is verified against a live herdr 0.9.0 install -
+see its header for the real CLI shape and two confirmed quirks: Claude
+Code's first-run "trust this folder?" dialog, and `herdr agent prompt
+--wait` occasionally reporting `agent_prompt_stalled` on a genuinely
+delivered prompt.
+
+`chief-backend-orca.sh` is matched against a live Orca CLI (`orca --help` /
+`orca agent-context --json`, schema v1) via read-only probes only. What's
+still unverified end-to-end - what `CHIEF_TEST_ORCA=1` is for - is listed in
+the adapter's own header: whether `terminal create --worktree path:<p>`
+resolves a worktree Orca hasn't seen yet, and the trust-dialog keystroke.
 
 ## What's deliberately NOT here (needs the devcontainer instead)
 
-- **The Orca adapter** (`chief-backend-orca.sh`) - still an unverified draft; its header lists exactly what to confirm against a live Orca instance.
 - **Skill-behavior tests** (does Claude actually follow `using-chief`/`dispatch`/`reviewer`/`setup` correctly when loaded) - that's `tests/claude-code/test-using-chief.sh`, `test-dispatch.sh`, `test-reviewer.sh`, and `test-chief-setup.sh`, which invoke the real `claude` CLI and cost real tokens.
