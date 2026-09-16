@@ -58,6 +58,10 @@ while [[ $# -gt 0 ]]; do
             echo "  test-clean-code.sh             Skill content and trigger conditions"
             echo "  test-clean-architecture.sh     Skill content and trigger conditions"
             echo "  test-conventional-commits.sh   Skill content and trigger conditions"
+            echo "  test-using-chief.sh            Skill content and trigger conditions"
+            echo "  test-dispatch.sh               Skill content and trigger conditions"
+            echo "  test-reviewer.sh               Skill content and trigger conditions"
+            echo "  test-chief-setup.sh            Skill content and trigger conditions"
             echo ""
             echo "Integration Tests (use --integration):"
             echo "  test-convert-pdf-to-md-integration.sh  Real end-to-end conversion"
@@ -76,6 +80,10 @@ tests=(
     "test-clean-code.sh"
     "test-clean-architecture.sh"
     "test-conventional-commits.sh"
+    "test-using-chief.sh"
+    "test-dispatch.sh"
+    "test-reviewer.sh"
+    "test-chief-setup.sh"
 )
 
 integration_tests=(
