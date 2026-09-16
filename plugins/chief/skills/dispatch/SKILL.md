@@ -39,15 +39,21 @@ Don't launch a scout to resolve ordinary ambiguity - ask one concise question in
    - `bin/chief-control.sh <id> interrupt` (nudge; it keeps running) + a corrective `chief-send.sh`
    - `bin/chief-control.sh <id> relaunch --note "<progress so far>"` only if genuinely wedged (looping, unresponsive, truly dead) - the replacement gets the same worktree and commits but NONE of the conversation, so the note is the only thing carrying context forward. Write it accordingly.
 
-7. **Review.** Once a ship task reports `done`, load the `reviewer` skill against its diff before merging.
+7. **Review and report.** Once a task reports `done`:
+   - If it's a ship, load the `reviewer` skill against its diff, then report the outcome to the operator plainly.
+   - If it's a scout, relay its report as-is.
 
-8. **Merge - always your call, never automatic:**
-   `bin/chief-merge.sh <id>` for a local fast-forward, or `bin/chief-merge.sh <id> --pr <url>` if it opened a PR.
-   Chief never merges on its own initiative. Only run this after you've actually looked at the diff.
+   That's the end of the lifecycle above for this task until the operator responds.
 
-9. **Clean up:**
-   `bin/chief-backlog.sh done <id>` (if not already updated), then `bin/chief-teardown.sh <id>`.
-   Teardown refuses unless the branch is already reachable from the project's default branch - it will not discard unlanded work. If it refuses, merge first.
+## After the operator responds
+
+Whatever they decide, do exactly that and nothing more - never on your own initiative:
+
+- **Not satisfied** - fix it: `bin/chief-send.sh <id> "<instruction>"` back to the builder, or send the scout to investigate further.
+- **Ready to land** (ship only) - push the branch and open a PR yourself, for the operator to review. Skip this if they want a local-only merge instead.
+- **Accepted** - for a ship: `bin/chief-merge.sh <id>` for a local fast-forward, or `bin/chief-merge.sh <id> --pr <url>` to merge the open PR. For a scout: `bin/chief-promote.sh <id> --intent "<the operator's ask for the ship task>" [--spec "<build instructions>"]` - converts it to a ship task in place (same worktree, same branch, same running agent) and sends it the new instructions through its steering inbox; its findings become supporting context, not the deliverable.
+- **Abandon** - `bin/chief-control.sh <id> exit` stops the worker without discarding its worktree or commits, in case it's needed later.
+- **Landed** - clean up: `bin/chief-backlog.sh done <id>` (if not already updated), then `bin/chief-teardown.sh <id>`. Teardown refuses unless the branch is already reachable from the project's default branch - it will not discard unlanded work.
 
 ## Backlog reference
 
@@ -55,6 +61,5 @@ Don't launch a scout to resolve ordinary ambiguity - ask one concise question in
 
 ## What NOT to do
 
-- Don't spawn a builder for something you can just do yourself in one or two tool calls - dispatch is for work worth isolating, not everything.
-- Don't merge or teardown on the operator's behalf without them having seen the actual result.
+- Don't spawn a worker agent to answer something you can check yourself with a quick, read-only look - dispatch is for changes and real investigation, not a single lookup. Any actual change to a project, however small, still goes to a worker agent.
 - Don't invent scope in `--spec` beyond what `--intent` asks for.
