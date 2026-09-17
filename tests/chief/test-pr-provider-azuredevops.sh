@@ -81,6 +81,13 @@ assert_contains "$OUT" "mergeStatus: conflicts" "pr_state reports a non-succeede
 unset AZ_MOCK_SHOW
 
 : > "$AZ_MOCK_LOG"
+export AZ_MOCK_SHOW=active
+export AZ_MOCK_POLICY=running
+OUT=$(pr_state "$PR_URL")
+assert_contains "$OUT" "policy: build running" "pr_state surfaces a blocking branch policy, mirroring pr_merge"
+unset AZ_MOCK_SHOW AZ_MOCK_POLICY
+
+: > "$AZ_MOCK_LOG"
 pr_approve "$PR_URL" >/dev/null
 assert_contains "$(cat "$AZ_MOCK_LOG")" "repos pr set-vote --organization https://dev.azure.com/acme --id 55 --vote approve" "pr_approve casts an approve vote"
 
@@ -105,5 +112,22 @@ pr_merge "$PR_URL" >/dev/null 2>"$WORK/err-policy"
 assert_eq "$?" "1" "pr_merge refuses while a required policy is still running"
 assert_contains "$(cat "$WORK/err-policy")" "blocking policies" "pr_merge names the blocking-policy refusal"
 unset AZ_MOCK_SHOW AZ_MOCK_POLICY
+
+: > "$AZ_MOCK_LOG"
+export AZ_MOCK_SHOW=active
+pr_merge "$PR_URL" --rebase >/dev/null 2>"$WORK/err-rebase"
+assert_eq "$?" "1" "pr_merge refuses --rebase (Azure DevOps has no true rebase-merge)"
+assert_contains "$(cat "$WORK/err-rebase")" "not supported by Azure DevOps" "pr_merge names the --rebase refusal"
+unset AZ_MOCK_SHOW
+
+# --- az present, jq NOT on PATH -------------------------------------------
+# Fully controls PATH (mirroring how the rest of this file uses $WORK/bin) so
+# this exercises "az is present, jq is not" deterministically, regardless of
+# whether the host itself has jq.
+: > "$AZ_MOCK_LOG"
+NOJQ_ERR=$(cd "$WORK/repo" && PATH="$WORK/bin"; pr_open "chief/t1" "main" "My title" "My body" 2>&1)
+NOJQ_RC=$?
+assert_eq "$NOJQ_RC" "1" "pr_open fails when only az is on PATH (no jq)"
+assert_contains "$NOJQ_ERR" "jq is required" "pr_open names the missing-jq requirement"
 
 harness_summary

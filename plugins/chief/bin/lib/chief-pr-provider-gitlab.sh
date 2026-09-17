@@ -66,5 +66,5 @@ pr_merge() {
   [ "$state" = "opened" ] || { echo "chief-pr-provider-gitlab: MR is $state, not opened" >&2; return 1; }
   [ "$draft" = "false" ] || { echo "chief-pr-provider-gitlab: MR is still a draft" >&2; return 1; }
   [ "$mergeable" = "mergeable" ] || { echo "chief-pr-provider-gitlab: MR is not mergeable (reported: $mergeable)" >&2; return 1; }
-  glab mr merge "$url" "${extra[@]}" --yes
+  glab mr merge "$url" ${extra[@]+"${extra[@]}"} --yes
 }

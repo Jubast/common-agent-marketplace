@@ -8,7 +8,7 @@ Inspired by [Firstmate](https://github.com/kunchenguid/firstmate), which does th
 
 ## Layout
 
-- `bin/` - the lifecycle scripts (`chief-spawn`, `chief-send`, `chief-control`, `chief-crew-state`, `chief-watch`, `chief-teardown`, `chief-merge`, `chief-promote`, `chief-backlog`, `chief-setup`) and `bin/lib/` (path/meta/lock helpers, the backend adapters, and `chief-worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one).
+- `bin/` - the lifecycle scripts (`chief-spawn`, `chief-send`, `chief-control`, `chief-crew-state`, `chief-watch`, `chief-teardown`, `chief-merge`, `chief-promote`, `chief-backlog`, `chief-setup`), the PR/MR lifecycle scripts (`chief-pr-open`, `chief-pr-state`, `chief-pr-review`, `chief-pr-approve`, `chief-pr-merge`), and `bin/lib/` (path/meta/lock helpers, the backend adapters, the PR provider dispatcher `chief-pr-provider.sh` and its adapters `chief-pr-provider-{mock,github,gitlab,azuredevops}.sh`, and `chief-worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one).
 - `templates/` - the two brief templates (`brief-ship.md`, `brief-scout.md`).
 - `skills/using-chief` - the identity/job-description skill, force-injected every session via the `SessionStart` hook so Chief always knows its role without being asked.
 - `skills/setup` - one-time per-project config (backend choice + gitignoring `.chief/`); only relevant before `.chief/config/backend` exists, which the `SessionStart` digest flags explicitly.

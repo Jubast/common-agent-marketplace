@@ -16,4 +16,6 @@ Report one of:
 - `PASS` - safe to merge.
 - `FAIL: <checklist item> - <one-line reason>` for each failed check.
 
+If the task already has a PR/MR open (`pr_url` set), post this verdict to it: `chief-pr-review.sh <id> --comment "<verdict>"` for a PASS, or `chief-pr-review.sh <id> --request-changes "<verdict>"` for a FAIL.
+
 This is intentionally thin. As real review needs surface (security patterns, project-specific conventions, etc.), add them here rather than building a separate pipeline.

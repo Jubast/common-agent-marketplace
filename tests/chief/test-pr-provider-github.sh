@@ -101,6 +101,13 @@ export GH_MOCK_VIEW=checks_failing
 pr_merge "https://github.com/acme/widgets/pull/42" >/dev/null 2>"$WORK/err"
 assert_eq "$?" "1" "pr_merge refuses a PR with blocking checks"
 assert_contains "$(cat "$WORK/err")" "blocking checks" "pr_merge names the blocking checks refusal"
+# Guard the guard: the fake gh ignores its own --json field list and always
+# emits statusCheckRollup, so the two asserts above would still pass even if
+# pr_merge stopped asking gh for statusCheckRollup at all. Assert the actual
+# logged `gh pr view` call for the merge path requested that field.
+PR_VIEW_LINE=$(grep '^pr view' "$GH_MOCK_LOG")
+assert_contains "$PR_VIEW_LINE" "statusCheckRollup" \
+  "pr_merge's gh pr view call actually requests statusCheckRollup in --json"
 unset GH_MOCK_VIEW
 
 harness_summary

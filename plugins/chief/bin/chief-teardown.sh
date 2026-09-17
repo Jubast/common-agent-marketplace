@@ -29,7 +29,7 @@ DEFAULT=$(git -C "$PROJECT" symbolic-ref --quiet --short refs/remotes/origin/HEA
 [ -n "$DEFAULT" ] || DEFAULT=$(git -C "$PROJECT" symbolic-ref --quiet --short HEAD 2>/dev/null || echo main)
 
 if ! git -C "$PROJECT" merge-base --is-ancestor "$BRANCH" "$DEFAULT" 2>/dev/null; then
-  fail "REFUSED: $BRANCH is not reachable from $DEFAULT - the work has not landed. Run chief-merge.sh first, or merge it by hand, then retry."
+  fail "REFUSED: $BRANCH is not reachable from $DEFAULT - the work has not landed. Run chief-merge.sh first, or merge it by hand, then retry. If it was merged via chief-pr-merge.sh, that lands on the remote's default branch - fetch/update $DEFAULT locally (e.g. git -C $PROJECT fetch origin $DEFAULT && git -C $PROJECT merge --ff-only origin/$DEFAULT) and retry."
 fi
 
 backend_kill "$ID"

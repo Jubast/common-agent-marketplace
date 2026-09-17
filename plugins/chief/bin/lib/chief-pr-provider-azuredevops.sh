@@ -93,6 +93,10 @@ pr_state() {
   merge_status=$(printf '%s' "$json" | jq -r '.mergeStatus')
   [ "$draft" = "true" ] && echo "draft: still a draft PR"
   [ "$merge_status" = "succeeded" ] || echo "mergeStatus: $merge_status"
+  local policies blocking
+  policies=$(az repos pr policy list --organization "https://dev.azure.com/$_CHIEF_ADO_ORG" --id "$_CHIEF_ADO_ID" --output json) || return 0
+  blocking=$(printf '%s' "$policies" | jq -r '.[]? | select(.status=="rejected" or .status=="queued" or .status=="running") | "\(.configuration.type.displayName // "policy") \(.status)"')
+  [ -z "$blocking" ] || printf '%s\n' "$blocking" | while IFS= read -r line; do echo "policy: $line"; done
   return 0
 }
 
@@ -124,7 +128,8 @@ pr_merge() {
   local squash=false
   case "${1:-}" in
     --squash) squash=true ;;
-    --merge|--rebase|"") squash=false ;;
+    --merge|"") squash=false ;;
+    --rebase) echo "chief-pr-provider-azuredevops: --rebase is not supported by Azure DevOps (use --squash or the default merge)" >&2; return 1 ;;
     *) echo "chief-pr-provider-azuredevops: unknown merge method '$1'" >&2; return 1 ;;
   esac
   local json status draft merge_status

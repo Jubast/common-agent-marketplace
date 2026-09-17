@@ -5,6 +5,10 @@
 # Replaces chief-merge.sh's old --pr mode (which was GitHub-only); for a
 # local-only fast-forward merge with no PR at all, use chief-merge.sh.
 #
+# The default merge method (no flag given) is provider-specific: GitHub
+# squashes by default, GitLab and Azure DevOps do a plain merge by default -
+# don't rely on the bare no-flag form behaving the same across providers.
+#
 # Usage: chief-pr-merge.sh <id> [--squash|--merge|--rebase]
 set -euo pipefail
 

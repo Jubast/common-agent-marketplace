@@ -2,9 +2,10 @@
 # chief-pr-provider-github.sh - GitHub adapter, backed by `gh`.
 #
 # pr_merge mirrors the precondition rigor chief-merge.sh's old --pr mode
-# already had: open, non-draft, mergeable, all read live via `gh pr view`
-# immediately before merging, with the exact current head passed to
-# `--match-head-commit` so a push landing between the read and the merge
+# already had: open, non-draft, mergeable, and checks green (statusCheckRollup
+# has no FAILURE/CANCELLED/IN_PROGRESS entries), all read live via
+# `gh pr view` immediately before merging, with the exact current head passed
+# to `--match-head-commit` so a push landing between the read and the merge
 # fails the merge instead of landing unverified commits.
 
 pr_open() {

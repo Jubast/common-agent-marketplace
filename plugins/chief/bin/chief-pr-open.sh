@@ -25,8 +25,8 @@ TITLE=""
 BODY=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --title) TITLE=$2; shift 2 ;;
-    --body) BODY=$2; shift 2 ;;
+    --title) TITLE=${2:-}; shift 2 ;;
+    --body) BODY=${2:-}; shift 2 ;;
     *) fail "unknown argument: $1" ;;
   esac
 done
@@ -45,7 +45,8 @@ DEFAULT=$(git -C "$PROJECT" symbolic-ref --quiet --short refs/remotes/origin/HEA
 [ -n "$DEFAULT" ] || DEFAULT=$(git -C "$PROJECT" symbolic-ref --quiet --short HEAD 2>/dev/null || echo main)
 
 extract_intent() {
-  awk '/^## Operator.s intent$/ { flag=1; next } /^## / { flag=0 } flag' "$1" 2>/dev/null
+  [ -f "$1" ] || return 0
+  awk '/^## Operator.s intent$/ { flag=1; next } /^## / { flag=0 } flag' "$1"
 }
 
 BRIEF="$DATA/$ID/brief.md"
@@ -65,6 +66,11 @@ chief_pr_load_provider "$PROVIDER" || exit 1
 
 URL=$(cd "$WORKTREE" && pr_open "$BRANCH" "$DEFAULT" "$TITLE" "$BODY") || fail "provider failed to open a PR"
 [ -n "$URL" ] || fail "provider returned no PR URL"
+case "$URL" in
+  http*) ;;
+  *) fail "provider returned something that doesn't look like a URL: $URL" ;;
+esac
+[ "$(printf '%s' "$URL" | wc -l)" -le 0 ] || fail "provider returned more than one line: $URL"
 
 chief_meta_set "$ID" pr_url "$URL"
 chief_meta_set "$ID" pr_provider "$PROVIDER"
