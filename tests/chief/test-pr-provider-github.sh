@@ -32,6 +32,7 @@ case "$1 $2" in
       open) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[]}' ;;
       draft) echo '{"state":"OPEN","isDraft":true,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[]}' ;;
       failing) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[{"name":"ci","conclusion":"FAILURE"}]}' ;;
+      checks_failing) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[{"name":"ci","conclusion":"FAILURE"}]}' ;;
     esac
     ;;
   "pr review") echo '{"ok":true}' ;;
@@ -93,6 +94,13 @@ export GH_MOCK_VIEW=draft
 pr_merge "https://github.com/acme/widgets/pull/42" >/dev/null 2>"$WORK/err"
 assert_eq "$?" "1" "pr_merge refuses a draft PR"
 assert_contains "$(cat "$WORK/err")" "still a draft" "pr_merge names the draft refusal"
+unset GH_MOCK_VIEW
+
+: > "$GH_MOCK_LOG"
+export GH_MOCK_VIEW=checks_failing
+pr_merge "https://github.com/acme/widgets/pull/42" >/dev/null 2>"$WORK/err"
+assert_eq "$?" "1" "pr_merge refuses a PR with blocking checks"
+assert_contains "$(cat "$WORK/err")" "blocking checks" "pr_merge names the blocking checks refusal"
 unset GH_MOCK_VIEW
 
 harness_summary

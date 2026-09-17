@@ -59,7 +59,7 @@ pr_merge() {
   command -v gh >/dev/null 2>&1 || { echo "chief-pr-provider-github: gh is required" >&2; return 1; }
   command -v jq >/dev/null 2>&1 || { echo "chief-pr-provider-github: jq is required" >&2; return 1; }
   local json state mergeable draft head
-  json=$(gh pr view "$url" --json state,mergeable,isDraft,headRefOid) \
+  json=$(gh pr view "$url" --json state,mergeable,isDraft,headRefOid,statusCheckRollup) \
     || { echo "chief-pr-provider-github: could not read PR state for $url" >&2; return 1; }
   state=$(printf '%s' "$json" | jq -r .state)
   mergeable=$(printf '%s' "$json" | jq -r .mergeable)
@@ -68,5 +68,8 @@ pr_merge() {
   [ "$state" = "OPEN" ] || { echo "chief-pr-provider-github: PR is $state, not OPEN" >&2; return 1; }
   [ "$draft" = "false" ] || { echo "chief-pr-provider-github: PR is still a draft" >&2; return 1; }
   [ "$mergeable" = "MERGEABLE" ] || { echo "chief-pr-provider-github: PR is not mergeable (reported: $mergeable)" >&2; return 1; }
+  local blocking
+  blocking=$(printf '%s' "$json" | jq -r '.statusCheckRollup[]? | select(.conclusion=="FAILURE" or .conclusion=="CANCELLED" or (.status=="IN_PROGRESS")) | "\(.name) \(.conclusion // .status)"')
+  [ -z "$blocking" ] || { echo "chief-pr-provider-github: PR has blocking checks: $blocking" >&2; return 1; }
   gh pr merge "$url" "$method" --match-head-commit "$head"
 }
