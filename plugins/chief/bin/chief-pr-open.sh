@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# chief-pr-open.sh - push a task's branch and open a PR/MR for it, then
+# record the result on the task so review/approve/state/merge can find it.
+# Operator-invoked only, like every other chief-*.sh lifecycle script; ship
+# agents are explicitly told never to do this themselves (see
+# templates/brief-ship.md rule 1).
+#
+# Usage: chief-pr-open.sh <id> [--title "..."] [--body "..."]
+#   Defaults title/body from the task's brief.md '## Operator's intent'
+#   section when not given explicitly.
+set -euo pipefail
+
+. "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
+. "$CHIEF_ROOT/bin/lib/chief-meta.sh"
+. "$CHIEF_ROOT/bin/lib/chief-pr-provider.sh"
+
+fail() { echo "chief-pr-open: $*" >&2; exit 1; }
+
+ID=${1:-}
+[ -n "$ID" ] || fail "usage: chief-pr-open.sh <id> [--title \"...\"] [--body \"...\"]"
+chief_meta_exists "$ID" || fail "no such task: $ID"
+shift
+
+TITLE=""
+BODY=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --title) TITLE=$2; shift 2 ;;
+    --body) BODY=$2; shift 2 ;;
+    *) fail "unknown argument: $1" ;;
+  esac
+done
+
+EXISTING=$(chief_meta_get "$ID" pr_url 2>/dev/null || true)
+[ -z "$EXISTING" ] || fail "PR already open: $EXISTING - use chief-pr-state.sh to check it"
+
+PROJECT=$(chief_meta_require "$ID" project)
+BRANCH=$(chief_meta_require "$ID" branch)
+WORKTREE=$(chief_meta_require "$ID" worktree)
+
+[ -z "$(git -C "$WORKTREE" status --porcelain 2>/dev/null)" ] \
+  || fail "$WORKTREE has uncommitted changes; commit or discard them before opening a PR"
+
+DEFAULT=$(git -C "$PROJECT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##') || true
+[ -n "$DEFAULT" ] || DEFAULT=$(git -C "$PROJECT" symbolic-ref --quiet --short HEAD 2>/dev/null || echo main)
+
+extract_intent() {
+  awk '/^## Operator.s intent$/ { flag=1; next } /^## / { flag=0 } flag' "$1" 2>/dev/null
+}
+
+BRIEF="$DATA/$ID/brief.md"
+if [ -z "$TITLE" ]; then
+  TITLE=$(extract_intent "$BRIEF" | sed -n '1{s/^[[:space:]]*//p}')
+  [ -n "$TITLE" ] || TITLE="chief: $ID"
+fi
+if [ -z "$BODY" ]; then
+  BODY=$(extract_intent "$BRIEF" | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+  [ -n "$BODY" ] || BODY="(see $DATA/$ID/report.md)"
+fi
+
+git -C "$WORKTREE" push -q -u origin "$BRANCH" || fail "push failed for $BRANCH"
+
+PROVIDER=$(chief_pr_detect_provider "$WORKTREE") || exit 1
+chief_pr_load_provider "$PROVIDER" || exit 1
+
+URL=$(cd "$WORKTREE" && pr_open "$BRANCH" "$DEFAULT" "$TITLE" "$BODY") || fail "provider failed to open a PR"
+[ -n "$URL" ] || fail "provider returned no PR URL"
+
+chief_meta_set "$ID" pr_url "$URL"
+chief_meta_set "$ID" pr_provider "$PROVIDER"
+"$CHIEF_ROOT/bin/chief-backlog.sh" note "$ID" "opened PR: $URL" 2>/dev/null || true
+
+echo "opened: $ID -> $URL ($PROVIDER)"
