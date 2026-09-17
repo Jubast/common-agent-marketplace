@@ -68,6 +68,7 @@ _chief_ado_parse_url() {
 pr_open() {
   local branch=$1 base=$2 title=$3 body=$4
   command -v az >/dev/null 2>&1 || { echo "chief-pr-provider-azuredevops: az is required" >&2; return 1; }
+  command -v jq >/dev/null 2>&1 || { echo "chief-pr-provider-azuredevops: jq is required" >&2; return 1; }
   _chief_ado_parse_remote || return 1
   local json id
   json=$(az repos pr create --organization "https://dev.azure.com/$_CHIEF_ADO_ORG" \
