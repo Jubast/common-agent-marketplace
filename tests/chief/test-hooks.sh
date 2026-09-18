@@ -54,6 +54,8 @@ echo "done: finished" >> "$CHIEF_HOME/state/t-1.status"
 out3=$("$SS")
 ctx3=$(json_field "d['hookSpecificOutput']['additionalContext']" "$out3")
 assert_contains "$ctx3" "t-1: done: finished" "session-start: shows the in-flight task's latest status"
+assert_contains "$ctx3" "t-1: done: finished [mode: ship]" \
+  "session-start: also shows the task's current mode, so a fresh session can tell a promoted scout from a plain ship task without reading meta by hand"
 
 arm_out2=$("$ARM" 2>&1); arm_rc2=$?
 assert_eq "$arm_rc2" "2" "stop-watch-arm: exits 2 (rewake) once a task hits a terminal state"

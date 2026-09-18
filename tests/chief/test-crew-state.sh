@@ -31,6 +31,7 @@ disown
 echo $! > "$CHIEF_HOME/state/t-1.term.pid"
 
 assert_contains "$("$CS" t-1)" "state: working" "a live backend process with no status yet reads as working"
+assert_contains "$("$CS" t-1)" "[mode: ship]" "the state line reports the task's mode, so Chief can tell a promoted scout from a plain one without re-reading meta by hand"
 
 kill "$(cat "$CHIEF_HOME/state/t-1.term.pid")"
 sleep 1
@@ -53,5 +54,11 @@ assert_contains "$("$CS" t-1)" "state: failed" "failed status line is authoritat
 
 echo "done: added hello.txt" >> "$CHIEF_HOME/state/t-1.status"
 assert_contains "$("$CS" t-1)" "state: done · added hello.txt" "done status line is authoritative and carries its detail"
+assert_contains "$("$CS" t-1)" "[mode: ship]" "mode still reports correctly once the task is done"
+
+printf 'project=%s\nmode=scout\nbranch=chief/t-2\nworktree=%s\nendpoint=mock:t-2\nstatus=working\n' \
+  "$WORK/project" "$WORK/.chief/worktrees/t-2" > "$CHIEF_HOME/state/t-2.meta"
+echo "done: wrote report.md" >> "$CHIEF_HOME/state/t-2.status"
+assert_contains "$("$CS" t-2)" "[mode: scout]" "a scout task reports its own mode, distinct from a ship task"
 
 harness_summary

@@ -10,7 +10,11 @@
 # backend-specific heuristic.
 #
 # Usage: chief-crew-state.sh <id>
-# Prints one line: "state: <working|done|blocked|needs-decision|failed|stale> · <detail>"
+# Prints one line: "state: <working|done|blocked|needs-decision|failed|stale> · <detail> [mode: <ship|scout>]"
+#
+# mode is appended, not prefixed, so it doesn't break prefix matches on
+# state/detail elsewhere. Read it fresh here - chief-promote.sh can flip a
+# scout to ship mid-task, same id.
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
@@ -27,21 +31,23 @@ chief_meta_exists "$ID" || fail "no such task: $ID"
 
 STATUS_FILE="$STATE/$ID.status"
 TURN_FILE="$STATE/$ID.turn-ended"
+MODE=$(chief_meta_get "$ID" mode 2>/dev/null || true)
+MODE_SUFFIX=" [mode: ${MODE:-unknown}]"
 
 LAST=""
 [ -f "$STATUS_FILE" ] && LAST=$(tail -n 1 "$STATUS_FILE" 2>/dev/null || true)
 
 case "$LAST" in
-  done:*)            echo "state: done · ${LAST#done: }"; exit 0 ;;
-  failed:*)          echo "state: failed · ${LAST#failed: }"; exit 0 ;;
-  blocked:*)         echo "state: blocked · ${LAST#blocked: }"; exit 0 ;;
-  needs-decision:*)  echo "state: needs-decision · ${LAST#needs-decision: }"; exit 0 ;;
+  done:*)            echo "state: done · ${LAST#done: }$MODE_SUFFIX"; exit 0 ;;
+  failed:*)          echo "state: failed · ${LAST#failed: }$MODE_SUFFIX"; exit 0 ;;
+  blocked:*)         echo "state: blocked · ${LAST#blocked: }$MODE_SUFFIX"; exit 0 ;;
+  needs-decision:*)  echo "state: needs-decision · ${LAST#needs-decision: }$MODE_SUFFIX"; exit 0 ;;
 esac
 
 # Anything else (a "working:" line, or no status yet) is only provisional -
 # reconcile it against liveness before reporting.
 if backend_busy "$ID" 2>/dev/null; then
-  echo "state: working · ${LAST:-no status yet, backend reports busy}"
+  echo "state: working · ${LAST:-no status yet, backend reports busy}$MODE_SUFFIX"
   exit 0
 fi
 
@@ -53,7 +59,7 @@ if [ -f "$TURN_FILE" ]; then
 fi
 
 if [ "$turn_age" -le "$STALE_AFTER_SECS" ]; then
-  echo "state: working · ${LAST:-no status yet}, turn ended ${turn_age}s ago"
+  echo "state: working · ${LAST:-no status yet}, turn ended ${turn_age}s ago$MODE_SUFFIX"
 else
-  echo "state: stale · ${LAST:-no status ever}, no turn activity for ${turn_age}s"
+  echo "state: stale · ${LAST:-no status ever}, no turn activity for ${turn_age}s$MODE_SUFFIX"
 fi

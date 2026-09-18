@@ -51,7 +51,8 @@ if [ -d "$STATE" ]; then
     [ "$status" = "working" ] || continue
     any=1
     line=$(tail -n 1 "$STATE/$id.status" 2>/dev/null || echo "no status yet")
-    digest+="- $id: $line"$'\n'
+    mode=$(grep '^mode=' "$f" | cut -d= -f2- || echo unknown)
+    digest+="- $id: $line [mode: $mode]"$'\n'
   done
   [ "$any" -eq 0 ] && digest+="(none)"$'\n'
 else
