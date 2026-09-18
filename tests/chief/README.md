@@ -36,7 +36,7 @@ JSON output (skipped gracefully if absent).
 | `test-lifecycle.sh` | The full happy path: backlog → spawn → simulated work → crew-state → teardown-refuses-before-merge → merge → teardown-succeeds |
 | `test-backend-herdr.sh` | `chief-backend-herdr.sh` against a REAL herdr install and a real (trivial) claude turn: spawn, capture, busy, send, kill, relaunch. **Not zero-cost** - opt in with `CHIEF_TEST_HERDR=1`; skips cleanly otherwise. See below. |
 | `test-backend-orca-mock.sh` | `chief-backend-orca.sh`'s argument-building and JSON-parsing against a fake `orca` CLI stub: spawn, capture, busy, send, kill, relaunch. Zero cost. |
-| `test-backend-orca.sh` | `chief-backend-orca.sh` against a REAL live Orca instance and a real (trivial) claude turn: spawn, capture, busy, send, kill, relaunch. **Not zero-cost** - opt in with `CHIEF_TEST_ORCA=1`; skips cleanly otherwise. See below. |
+| `test-backend-orca.sh` | `chief-backend-orca.sh` against a REAL live Orca instance and a real (trivial) claude turn, targeting this repo itself: spawn, capture, busy, send, kill, relaunch. **Not zero-cost** - opt in with `CHIEF_TEST_ORCA=1`; skips cleanly otherwise. See below. |
 
 ## The herdr and orca backend tests are different from the rest
 
@@ -57,11 +57,13 @@ Code's first-run "trust this folder?" dialog, and `herdr agent prompt
 --wait` occasionally reporting `agent_prompt_stalled` on a genuinely
 delivered prompt.
 
-`chief-backend-orca.sh` is matched against a live Orca CLI (`orca --help` /
-`orca agent-context --json`, schema v1) via read-only probes only. What's
-still unverified end-to-end - what `CHIEF_TEST_ORCA=1` is for - is listed in
-the adapter's own header: whether `terminal create --worktree path:<p>`
-resolves a worktree Orca hasn't seen yet, and the trust-dialog keystroke.
+`chief-backend-orca.sh` targets this repo itself as the project, since
+`orca` only resolves a worktree selector for one it created via `orca
+worktree create` - never a plain `git worktree add`, so the project has to
+already be in `orca repo list`; a throwaway temp repo can't satisfy that.
+Spawn (worktree creation, the branch rename, launch, reply capture,
+busy/idle, send, kill) is confirmed working end to end live. Relaunch has
+a known issue - see the adapter's own header.
 
 ## What's deliberately NOT here (needs the devcontainer instead)
 
