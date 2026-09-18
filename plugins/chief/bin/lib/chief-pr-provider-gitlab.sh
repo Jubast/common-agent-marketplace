@@ -7,6 +7,15 @@
 # the request-changes/comment distinction is preserved by chief-pr-review.sh
 # in its own stdout message, but there is nothing provider-side to route it
 # to differently.
+#
+# pr_review_line is an UNVERIFIED DRAFT - built from GitLab's documented API
+# shape, not run against a live install. It needs a full diff "position"
+# (base_sha/start_sha/head_sha/new_path/new_line), so it reads project_id,
+# iid, and diff_refs from `glab mr view -F json` and POSTs to
+# projects/:id/merge_requests/:iid/discussions. Unconfirmed: whether
+# `glab mr view -F json` actually surfaces project_id/iid/diff_refs under
+# those names (vs. a curated subset), and whether `glab api` accepts nested
+# `position[field]=value` form fields the way `gh api` does.
 
 pr_open() {
   local branch=$1 base=$2 title=$3 body=$4
@@ -38,6 +47,29 @@ pr_review() {
     comment|request-changes) glab mr note "$url" --message "$body" ;;
     *) echo "chief-pr-provider-gitlab: unknown verdict '$verdict'" >&2; return 1 ;;
   esac
+}
+
+pr_review_line() {
+  local url=$1 file=$2 line=$3 body=$4
+  command -v glab >/dev/null 2>&1 || { echo "chief-pr-provider-gitlab: glab is required" >&2; return 1; }
+  command -v jq >/dev/null 2>&1 || { echo "chief-pr-provider-gitlab: jq is required" >&2; return 1; }
+  local json project_id iid base_sha start_sha head_sha
+  json=$(glab mr view "$url" -F json) || { echo "chief-pr-provider-gitlab: could not read MR state for $url" >&2; return 1; }
+  project_id=$(printf '%s' "$json" | jq -r '.project_id')
+  iid=$(printf '%s' "$json" | jq -r '.iid')
+  base_sha=$(printf '%s' "$json" | jq -r '.diff_refs.base_sha')
+  start_sha=$(printf '%s' "$json" | jq -r '.diff_refs.start_sha')
+  head_sha=$(printf '%s' "$json" | jq -r '.diff_refs.head_sha')
+  [ -n "$project_id" ] && [ "$project_id" != "null" ] || { echo "chief-pr-provider-gitlab: could not read project_id for $url" >&2; return 1; }
+  [ -n "$base_sha" ] && [ "$base_sha" != "null" ] || { echo "chief-pr-provider-gitlab: could not read diff_refs for $url" >&2; return 1; }
+  glab api "projects/$project_id/merge_requests/$iid/discussions" \
+    -f body="$body" \
+    -f "position[position_type]=text" \
+    -f "position[base_sha]=$base_sha" \
+    -f "position[start_sha]=$start_sha" \
+    -f "position[head_sha]=$head_sha" \
+    -f "position[new_path]=$file" \
+    -F "position[new_line]=$line" >/dev/null
 }
 
 pr_approve() {

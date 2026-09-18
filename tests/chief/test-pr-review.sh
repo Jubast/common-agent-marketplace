@@ -42,4 +42,31 @@ assert_contains "$(cat "$WORK/err-empty")" "must not be empty" "names the empty-
 "$CHIEF_BIN/chief-pr-review.sh" t1 --bogus "x" >/dev/null 2>"$WORK/err-flag"
 assert_eq "$?" "1" "refuses an unknown flag"
 
+# --- inline (file:line) comments ------------------------------------------
+: > "$CHIEF_PR_MOCK_LOG"
+OUT=$("$CHIEF_BIN/chief-pr-review.sh" t1 --comment "off by one" --file src/limiter.go --line 42)
+assert_eq "$OUT" "commented: t1 (src/limiter.go:42)" "reports the inline comment location"
+assert_contains "$(cat "$CHIEF_PR_MOCK_LOG")" "pr_review_line https://example.invalid/mock/pr/7 src/limiter.go 42 off by one" \
+  "posts an inline comment with the file, line, and body"
+
+: > "$CHIEF_PR_MOCK_LOG"
+OUT=$("$CHIEF_BIN/chief-pr-review.sh" t1 --file src/limiter.go --line 42 --comment "off by one")
+assert_eq "$OUT" "commented: t1 (src/limiter.go:42)" "accepts --file/--line before --comment too"
+
+"$CHIEF_BIN/chief-pr-review.sh" t1 --comment "x" --file src/limiter.go >/dev/null 2>"$WORK/err-noline"
+assert_eq "$?" "1" "refuses --file without --line"
+assert_contains "$(cat "$WORK/err-noline")" "--file and --line" "names the missing --line refusal"
+
+"$CHIEF_BIN/chief-pr-review.sh" t1 --comment "x" --line 42 >/dev/null 2>"$WORK/err-nofile"
+assert_eq "$?" "1" "refuses --line without --file"
+assert_contains "$(cat "$WORK/err-nofile")" "--file and --line" "names the missing --file refusal"
+
+"$CHIEF_BIN/chief-pr-review.sh" t1 --comment "x" --file src/limiter.go --line abc >/dev/null 2>"$WORK/err-badline"
+assert_eq "$?" "1" "refuses a non-numeric --line"
+assert_contains "$(cat "$WORK/err-badline")" "positive integer" "names the bad-line refusal"
+
+"$CHIEF_BIN/chief-pr-review.sh" t1 --request-changes "x" --file src/limiter.go --line 42 >/dev/null 2>"$WORK/err-reqchanges"
+assert_eq "$?" "1" "refuses --file/--line combined with --request-changes"
+assert_contains "$(cat "$WORK/err-reqchanges")" "--comment" "the refusal points at using --comment for inline notes"
+
 harness_summary

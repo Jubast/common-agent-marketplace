@@ -6,6 +6,30 @@
 # exact current head is passed to `--match-head-commit` so a push landing
 # between the read and the merge fails the merge instead of landing
 # unverified commits.
+#
+# pr_review_line has no `gh pr review` equivalent (that command only posts
+# top-level reviews), so it goes through `gh api` directly against
+# POST /repos/{owner}/{repo}/pulls/{number}/comments, with the PR's current
+# head read live as commit_id.
+
+# _chief_github_parse_url <pr-url> -> sets _CHIEF_GH_OWNER/_REPO/_NUMBER
+_chief_github_parse_url() {
+  local url=$1 rest
+  case "$url" in
+    https://github.com/*/*/pull/*)
+      rest=${url#https://github.com/}
+      _CHIEF_GH_OWNER=${rest%%/*}
+      rest=${rest#*/}
+      _CHIEF_GH_REPO=${rest%%/pull/*}
+      _CHIEF_GH_NUMBER=${rest#*/pull/}
+      _CHIEF_GH_NUMBER=${_CHIEF_GH_NUMBER%%/*}
+      ;;
+    *)
+      echo "chief-pr-provider-github: not a GitHub PR URL: $url" >&2
+      return 1
+      ;;
+  esac
+}
 
 pr_open() {
   local branch=$1 base=$2 title=$3 body=$4
@@ -39,6 +63,18 @@ pr_review() {
     request-changes) gh pr review "$url" --request-changes --body "$body" ;;
     *) echo "chief-pr-provider-github: unknown verdict '$verdict'" >&2; return 1 ;;
   esac
+}
+
+pr_review_line() {
+  local url=$1 file=$2 line=$3 body=$4
+  command -v gh >/dev/null 2>&1 || { echo "chief-pr-provider-github: gh is required" >&2; return 1; }
+  command -v jq >/dev/null 2>&1 || { echo "chief-pr-provider-github: jq is required" >&2; return 1; }
+  _chief_github_parse_url "$url" || return 1
+  local head
+  head=$(gh pr view "$url" --json headRefOid | jq -r .headRefOid) \
+    || { echo "chief-pr-provider-github: could not read PR head for $url" >&2; return 1; }
+  gh api "repos/$_CHIEF_GH_OWNER/$_CHIEF_GH_REPO/pulls/$_CHIEF_GH_NUMBER/comments" \
+    -f body="$body" -f commit_id="$head" -f path="$file" -F "line=$line" -f side=RIGHT >/dev/null
 }
 
 pr_approve() {

@@ -16,6 +16,15 @@
 # required policy (e.g. a build) is still running or has failed. The policy
 # list is the Azure DevOps equivalent of GitHub's statusCheckRollup check in
 # chief-pr-provider-github.sh's pr_merge.
+#
+# pr_review_line is an UNVERIFIED DRAFT - built from Azure DevOps's
+# documented REST shape, not run against a live install. `az repos pr thread
+# create` has no exposed flags for file/line context, so this goes straight
+# to `az rest` against the threads endpoint with a threadContext payload
+# instead. Unconfirmed: whether `az repos pr show`'s JSON actually includes
+# `.repository.id` under that name, and the exact threadContext/comment
+# field names and enum values (commentType, status) at the current
+# api-version.
 
 _chief_ado_parse_remote() {
   local remote rest
@@ -110,6 +119,26 @@ pr_review() {
   esac
   az repos pr thread create --organization "https://dev.azure.com/$_CHIEF_ADO_ORG" --id "$_CHIEF_ADO_ID" \
     --comment "$body" --status active
+}
+
+pr_review_line() {
+  local url=$1 file=$2 line=$3 body=$4
+  command -v az >/dev/null 2>&1 || { echo "chief-pr-provider-azuredevops: az is required" >&2; return 1; }
+  command -v jq >/dev/null 2>&1 || { echo "chief-pr-provider-azuredevops: jq is required" >&2; return 1; }
+  _chief_ado_parse_url "$url" || return 1
+  local json repo_id payload
+  json=$(az repos pr show --organization "https://dev.azure.com/$_CHIEF_ADO_ORG" --id "$_CHIEF_ADO_ID" --output json) \
+    || { echo "chief-pr-provider-azuredevops: could not read PR state for $url" >&2; return 1; }
+  repo_id=$(printf '%s' "$json" | jq -r '.repository.id')
+  [ -n "$repo_id" ] && [ "$repo_id" != "null" ] || { echo "chief-pr-provider-azuredevops: could not read repository id for $url" >&2; return 1; }
+  payload=$(jq -nc --arg body "$body" --arg path "/$file" --argjson line "$line" '{
+    comments: [{parentCommentId: 0, content: $body, commentType: 1}],
+    status: 1,
+    threadContext: {filePath: $path, rightFileStart: {line: $line, offset: 1}, rightFileEnd: {line: $line, offset: 1}}
+  }')
+  az rest --method post \
+    --uri "https://dev.azure.com/$_CHIEF_ADO_ORG/$_CHIEF_ADO_PROJECT/_apis/git/repositories/$repo_id/pullRequests/$_CHIEF_ADO_ID/threads?api-version=7.0" \
+    --body "$payload" >/dev/null
 }
 
 pr_approve() {

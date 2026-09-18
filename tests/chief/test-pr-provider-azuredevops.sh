@@ -29,7 +29,7 @@ case "$1 $2 $3" in
     ;;
   "repos pr show")
     case "${AZ_MOCK_SHOW:-active}" in
-      active) echo '{"status":"active","isDraft":false,"mergeStatus":"succeeded"}' ;;
+      active) echo '{"status":"active","isDraft":false,"mergeStatus":"succeeded","repository":{"id":"repo-guid-1"}}' ;;
       draft) echo '{"status":"active","isDraft":true,"mergeStatus":"succeeded"}' ;;
       conflicts) echo '{"status":"active","isDraft":false,"mergeStatus":"conflicts"}' ;;
     esac
@@ -43,6 +43,9 @@ case "$1 $2 $3" in
     esac
     ;;
   "repos pr update") echo "updated" ;;
+  "rest --method post")
+    echo '{"id":1}'
+    ;;
   *)
     echo "fake-az: unhandled invocation: $*" >&2
     exit 1
@@ -129,5 +132,19 @@ NOJQ_ERR=$(cd "$WORK/repo" && PATH="$WORK/bin"; pr_open "chief/t1" "main" "My ti
 NOJQ_RC=$?
 assert_eq "$NOJQ_RC" "1" "pr_open fails when only az is on PATH (no jq)"
 assert_contains "$NOJQ_ERR" "jq is required" "pr_open names the missing-jq requirement"
+
+: > "$AZ_MOCK_LOG"
+export AZ_MOCK_SHOW=active
+pr_review_line "$PR_URL" "src/limiter.cs" 42 "off by one" >/dev/null
+assert_eq "$?" "0" "pr_review_line succeeds"
+assert_contains "$(cat "$AZ_MOCK_LOG")" "repos pr show --organization https://dev.azure.com/acme --id 55 --output json" \
+  "pr_review_line reads the PR's repository id live before posting"
+REST_LINE=$(grep '^rest ' "$AZ_MOCK_LOG")
+assert_contains "$REST_LINE" "rest --method post --uri https://dev.azure.com/acme/widgets/_apis/git/repositories/repo-guid-1/pullRequests/55/threads?api-version=7.0 --body" \
+  "pr_review_line posts an inline thread via az rest against the repository's threads endpoint"
+assert_contains "$REST_LINE" '"filePath":"/src/limiter.cs"' "the thread payload names the file"
+assert_contains "$REST_LINE" '"line":42' "the thread payload names the line"
+assert_contains "$REST_LINE" '"content":"off by one"' "the thread payload carries the comment body"
+unset AZ_MOCK_SHOW
 
 harness_summary

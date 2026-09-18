@@ -32,6 +32,11 @@ pr_review() {
   _chief_pr_mock_log "pr_review $url $verdict $body"
 }
 
+pr_review_line() {
+  local url=$1 file=$2 line=$3 body=$4
+  _chief_pr_mock_log "pr_review_line $url $file $line $body"
+}
+
 pr_approve() {
   local url=$1
   _chief_pr_mock_log "pr_approve $url"

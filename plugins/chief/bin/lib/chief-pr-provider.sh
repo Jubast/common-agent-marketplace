@@ -9,7 +9,7 @@
 #     pr_provider in the task's .meta (written by chief-pr-open.sh): they
 #     LOAD that exact adapter directly (chief_pr_load_provider), no detection.
 #
-# Adapter contract - each chief-pr-provider-<name>.sh must define all five:
+# Adapter contract - each chief-pr-provider-<name>.sh must define all six:
 #   pr_open <branch> <base> <title> <body>
 #     -> creates the PR/MR. MUST be called with CWD inside the project's git
 #        checkout (the task's worktree) - this is the only function that
@@ -20,7 +20,10 @@
 #        check, requested changes, draft, not mergeable); prints nothing when
 #        there are none. Never posts, approves, or merges.
 #   pr_review <pr-url> <verdict:comment|request-changes> <body>
-#     -> posts a review/comment with the given text.
+#     -> posts a top-level review/comment with the given text.
+#   pr_review_line <pr-url> <file> <line> <body>
+#     -> posts <body> as an inline comment on <file>:<line> in the diff, at
+#        the PR's current head. No verdict/state - that's pr_review's job.
 #   pr_approve <pr-url>
 #     -> submits an approving review/vote.
 #   pr_merge <pr-url> [--squash|--merge|--rebase]
@@ -29,7 +32,7 @@
 # Every function but pr_open takes a full PR/MR URL and re-derives whatever
 # provider-specific identity it needs (owner/repo/number, or org/project/repo
 # for Azure DevOps) from that URL alone - never from cached state - matching
-# chief-merge.sh's existing "read live at merge time" precondition style.
+# chief-local-merge.sh's existing "read live at merge time" precondition style.
 
 # chief_pr_detect_provider <repo-dir> -> prints the provider name and exits 0,
 # or exits 1 with a message on stderr. Honors CHIEF_PR_PROVIDER as an

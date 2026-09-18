@@ -23,24 +23,31 @@ mkdir -p "$WORK/bin"
 cat > "$WORK/bin/gh" <<'FAKE_GH'
 #!/usr/bin/env bash
 echo "$*" >> "$GH_MOCK_LOG"
-case "$1 $2" in
-  "pr create")
-    echo "https://github.com/acme/widgets/pull/42"
+case "$1" in
+  api)
+    echo '{"id":123}'
     ;;
-  "pr view")
-    case "${GH_MOCK_VIEW:-open}" in
-      open) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[]}' ;;
-      draft) echo '{"state":"OPEN","isDraft":true,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[]}' ;;
-      failing) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[{"name":"ci","conclusion":"FAILURE"}]}' ;;
-      checks_failing) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[{"name":"ci","conclusion":"FAILURE"}]}' ;;
-      changes_requested) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"CHANGES_REQUESTED","headRefOid":"abc123","statusCheckRollup":[]}' ;;
-    esac
-    ;;
-  "pr review") echo '{"ok":true}' ;;
-  "pr merge") echo "merged" ;;
   *)
-    echo "fake-gh: unhandled invocation: $*" >&2
-    exit 1
+    case "$1 $2" in
+      "pr create")
+        echo "https://github.com/acme/widgets/pull/42"
+        ;;
+      "pr view")
+        case "${GH_MOCK_VIEW:-open}" in
+          open) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[]}' ;;
+          draft) echo '{"state":"OPEN","isDraft":true,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[]}' ;;
+          failing) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[{"name":"ci","conclusion":"FAILURE"}]}' ;;
+          checks_failing) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[{"name":"ci","conclusion":"FAILURE"}]}' ;;
+          changes_requested) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"CHANGES_REQUESTED","headRefOid":"abc123","statusCheckRollup":[]}' ;;
+        esac
+        ;;
+      "pr review") echo '{"ok":true}' ;;
+      "pr merge") echo "merged" ;;
+      *)
+        echo "fake-gh: unhandled invocation: $*" >&2
+        exit 1
+        ;;
+    esac
     ;;
 esac
 FAKE_GH
@@ -120,6 +127,16 @@ assert_not_contains "$(cat "$GH_MOCK_LOG")" "pr merge" "pr_merge never calls gh 
 PR_VIEW_LINE2=$(grep '^pr view' "$GH_MOCK_LOG")
 assert_contains "$PR_VIEW_LINE2" "reviewDecision" \
   "pr_merge's gh pr view call actually requests reviewDecision in --json"
+unset GH_MOCK_VIEW
+
+: > "$GH_MOCK_LOG"
+export GH_MOCK_VIEW=open
+pr_review_line "https://github.com/acme/widgets/pull/42" "src/limiter.go" 42 "off by one" >/dev/null
+assert_eq "$?" "0" "pr_review_line succeeds"
+assert_contains "$(cat "$GH_MOCK_LOG")" "pr view https://github.com/acme/widgets/pull/42 --json headRefOid" \
+  "pr_review_line reads the current head live before posting"
+assert_contains "$(cat "$GH_MOCK_LOG")" "api repos/acme/widgets/pulls/42/comments -f body=off by one -f commit_id=abc123 -f path=src/limiter.go -F line=42 -f side=RIGHT" \
+  "pr_review_line posts to the pulls/comments endpoint with body, the live head as commit_id, path, line, and side"
 unset GH_MOCK_VIEW
 
 harness_summary

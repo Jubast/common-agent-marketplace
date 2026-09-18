@@ -23,24 +23,31 @@ mkdir -p "$WORK/bin"
 cat > "$WORK/bin/glab" <<'FAKE_GLAB'
 #!/usr/bin/env bash
 echo "$*" >> "$GLAB_MOCK_LOG"
-case "$1 $2" in
-  "mr create")
-    echo "Creating merge request for chief/t1 into main"
-    echo "https://gitlab.com/acme/widgets/-/merge_requests/9"
+case "$1" in
+  api)
+    echo '{"id":1}'
     ;;
-  "mr view")
-    case "${GLAB_MOCK_VIEW:-open}" in
-      open) echo '{"state":"opened","draft":false,"detailed_merge_status":"mergeable"}' ;;
-      draft) echo '{"state":"opened","draft":true,"detailed_merge_status":"mergeable"}' ;;
-      blocked) echo '{"state":"opened","draft":false,"detailed_merge_status":"ci_still_running"}' ;;
-    esac
-    ;;
-  "mr note") echo "note posted" ;;
-  "mr approve") echo "approved" ;;
-  "mr merge") echo "merged" ;;
   *)
-    echo "fake-glab: unhandled invocation: $*" >&2
-    exit 1
+    case "$1 $2" in
+      "mr create")
+        echo "Creating merge request for chief/t1 into main"
+        echo "https://gitlab.com/acme/widgets/-/merge_requests/9"
+        ;;
+      "mr view")
+        case "${GLAB_MOCK_VIEW:-open}" in
+          open) echo '{"state":"opened","draft":false,"detailed_merge_status":"mergeable","project_id":456,"iid":9,"diff_refs":{"base_sha":"base1","start_sha":"start1","head_sha":"head1"}}' ;;
+          draft) echo '{"state":"opened","draft":true,"detailed_merge_status":"mergeable"}' ;;
+          blocked) echo '{"state":"opened","draft":false,"detailed_merge_status":"ci_still_running"}' ;;
+        esac
+        ;;
+      "mr note") echo "note posted" ;;
+      "mr approve") echo "approved" ;;
+      "mr merge") echo "merged" ;;
+      *)
+        echo "fake-glab: unhandled invocation: $*" >&2
+        exit 1
+        ;;
+    esac
     ;;
 esac
 FAKE_GLAB
@@ -95,6 +102,16 @@ export GLAB_MOCK_VIEW=draft
 pr_merge "https://gitlab.com/acme/widgets/-/merge_requests/9" >/dev/null 2>"$WORK/err"
 assert_eq "$?" "1" "pr_merge refuses a draft MR"
 assert_contains "$(cat "$WORK/err")" "still a draft" "pr_merge names the draft refusal"
+unset GLAB_MOCK_VIEW
+
+: > "$GLAB_MOCK_LOG"
+export GLAB_MOCK_VIEW=open
+pr_review_line "https://gitlab.com/acme/widgets/-/merge_requests/9" "src/limiter.rb" 42 "off by one" >/dev/null
+assert_eq "$?" "0" "pr_review_line succeeds"
+assert_contains "$(cat "$GLAB_MOCK_LOG")" "mr view https://gitlab.com/acme/widgets/-/merge_requests/9 -F json" \
+  "pr_review_line reads the MR's project id, iid, and diff_refs live before posting"
+assert_contains "$(cat "$GLAB_MOCK_LOG")" "api projects/456/merge_requests/9/discussions -f body=off by one -f position[position_type]=text -f position[base_sha]=base1 -f position[start_sha]=start1 -f position[head_sha]=head1 -f position[new_path]=src/limiter.rb -F position[new_line]=42" \
+  "pr_review_line posts a discussion with a full position object"
 unset GLAB_MOCK_VIEW
 
 harness_summary
