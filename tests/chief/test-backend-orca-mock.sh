@@ -31,10 +31,29 @@ mkdir -p "$WORK/project" "$WORK/bin"
 # --- fake `orca` -------------------------------------------------------
 # Logs every call to $ORCA_MOCK_LOG and returns canned --json responses.
 # `terminal wait --for tui-idle` exits 0 (idle) unless $ORCA_MOCK_BUSY=1.
+# `worktree create` does a real `git worktree add` (sanitizing '/' out of
+# --name into the branch, like the real Orca does) so backend_spawn's
+# branch rename has something real to act on; fails instead with
+# $ORCA_MOCK_WT_FAIL=1, for the "project isn't Orca-known" path.
 cat > "$WORK/bin/orca" <<'FAKE_ORCA'
 #!/usr/bin/env bash
 echo "$*" >> "$ORCA_MOCK_LOG"
+# Real orca prints a connect banner to stderr on every call - mirror that
+# so a regression to 2>&1 (merging it into a --json capture, breaking jq)
+# fails loud instead of silently passing.
+echo "[relay-connect] Handshake OK at version=mock" >&2
 case "$1 $2" in
+  "worktree create")
+    if [ "${ORCA_MOCK_WT_FAIL:-0}" = "1" ]; then
+      echo '{"ok":false,"error":{"code":"runtime_error","message":"Not a valid git repository"}}'
+      exit 1
+    fi
+    repo_path="${4#path:}"
+    sanitized=${6//\//-}
+    new_path="$ORCA_MOCK_WORKTREES/$sanitized"
+    git -C "$repo_path" worktree add -q -b "$sanitized" "$new_path" >&2 || exit 1
+    printf '{"ok":true,"result":{"worktree":{"path":"%s","branch":"refs/heads/%s"}}}\n' "$new_path" "$sanitized"
+    ;;
   "terminal create")
     echo '{"ok":true,"result":{"terminal":{"handle":"term_mock-1"}}}'
     ;;
@@ -63,6 +82,8 @@ FAKE_ORCA
 chmod +x "$WORK/bin/orca"
 export PATH="$WORK/bin:$PATH"
 export ORCA_MOCK_LOG="$WORK/orca.log"
+export ORCA_MOCK_WORKTREES="$WORK/orca-worktrees"
+mkdir -p "$ORCA_MOCK_WORKTREES"
 : > "$ORCA_MOCK_LOG"
 
 export CHIEF_HOME="$WORK/.chief"
@@ -83,17 +104,27 @@ assert_eq "$SPAWN_RC" "0" "backend_spawn succeeds"
 WORKTREE=$(printf '%s\n' "$SPAWN_OUTPUT" | sed -n 1p)
 ENDPOINT=$(printf '%s\n' "$SPAWN_OUTPUT" | sed -n 2p)
 
-assert_eq "$WORKTREE" "$WORK/.chief/worktrees/$ID" "backend_spawn prints the worktree path first"
+assert_eq "$WORKTREE" "$ORCA_MOCK_WORKTREES/$ID" "backend_spawn prints the worktree path Orca assigned"
 assert_eq "$ENDPOINT" "orca:term_mock-1" "backend_spawn prints an orca:<handle> endpoint second"
-assert_file_exists "$WORKTREE/.git" "backend_spawn created a real git worktree (not via orca)"
+assert_file_exists "$WORKTREE/.git" "orca worktree create actually created a real git worktree"
 
 CURRENT_BRANCH=$(git -C "$WORKTREE" rev-parse --abbrev-ref HEAD)
-assert_eq "$CURRENT_BRANCH" "$BRANCH" "backend_spawn's worktree is on the requested branch"
+assert_eq "$CURRENT_BRANCH" "$BRANCH" "backend_spawn renamed Orca's sanitized branch to the requested chief/<id> branch"
 
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "worktree create --repo path:$WORK/project --name $ID --no-parent --json" \
+  "backend_spawn calls 'orca worktree create' scoped to the project repo, not a raw git worktree add"
 assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal create --worktree path:$WORKTREE --command claude --json" \
-  "backend_spawn calls 'orca terminal create' scoped to the worktree path it just made"
+  "backend_spawn calls 'orca terminal create' scoped to the worktree path Orca just made"
 assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal send --terminal term_mock-1 --text Reply with exactly the single word: ok" \
   "backend_spawn submits the brief's own content as the first prompt (not a path)"
+
+: > "$ORCA_MOCK_LOG"
+ORCA_MOCK_WT_FAIL=1 backend_spawn "t-orca-fail" "$WORK/project" "$BRIEF" "chief/t-orca-fail" 2>"$WORK/spawn-fail.err"
+assert_eq "$?" "1" "backend_spawn fails when 'orca worktree create' fails"
+assert_contains "$(cat "$WORK/spawn-fail.err")" "orca worktree create" \
+  "backend_spawn's failure message names the failing orca command"
+assert_contains "$(cat "$WORK/spawn-fail.err")" "Orca-registered repo" \
+  "backend_spawn's failure message hints that the project needs to be Orca-registered"
 
 chief_meta_set "$ID" endpoint "$ENDPOINT"
 chief_meta_set "$ID" worktree "$WORKTREE"

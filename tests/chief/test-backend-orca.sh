@@ -1,19 +1,24 @@
 #!/usr/bin/env bash
 # test-backend-orca.sh - exercises chief-backend-orca.sh's five adapter
 # functions against a REAL live Orca instance and a real (minimal) claude
-# turn.
+# turn, targeting this repo itself as the project (must be an
+# Orca-registered repo - see `orca repo list --json` - since Orca only
+# resolves a worktree selector for one it created itself; a throwaway
+# temp repo can never satisfy that, unlike test-backend-herdr.sh).
 #
 # NOT zero-cost: needs `orca` on PATH talking to a live Orca runtime, and
 # spends a small number of real tokens on one trivial claude prompt. Opt in:
 #
 #   CHIEF_TEST_ORCA=1 bash tests/chief/test-backend-orca.sh
 #
-# Skips cleanly otherwise, so it's safe for run-tests.sh's default sweep.
+# Skips cleanly (no opt-in, no orca, no live runtime) so it's safe for
+# run-tests.sh's default sweep.
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
+PROJECT="$REPO_ROOT"
 . "$TEST_DIR/lib/harness.sh"
 
 echo "test-backend-orca:"
@@ -44,20 +49,25 @@ if ! orca status --json 2>/dev/null | jq -e '.ok == true' >/dev/null 2>&1; then
 fi
 
 WORK=$(mktemp -d)
-ID=t-orca-1
+ID="chief-test-orca-$$"
+BRANCH="chief/$ID"
 cleanup() {
-  # Close whatever terminal this run produced, even on a partial failure.
-  local endpoint handle
+  # Best-effort: close whatever terminal this run produced, then let Orca
+  # forget the worktree it made (also removes the git worktree/branch) so
+  # this repo's own Orca worktree list stays clean; fall back to plain git.
+  local endpoint handle worktree
   endpoint=$(chief_meta_get "$ID" endpoint 2>/dev/null) || endpoint=""
   handle=${endpoint#orca:}
-  [ -n "$handle" ] && orca terminal close --terminal "$handle" --tab >/dev/null 2>&1 || true
+  [ -n "$handle" ] && orca terminal close --terminal "$handle" --tab >/dev/null 2>&1
+  worktree=$(chief_meta_get "$ID" worktree 2>/dev/null) || worktree=""
+  if [ -n "$worktree" ]; then
+    orca worktree rm --worktree "path:$worktree" --force >/dev/null 2>&1 \
+      || { git -C "$PROJECT" worktree remove --force "$worktree" >/dev/null 2>&1
+           git -C "$PROJECT" branch -D "$BRANCH" >/dev/null 2>&1; }
+  fi
   rm -rf "$WORK"
 }
 trap cleanup EXIT
-
-mkdir -p "$WORK/project" && cd "$WORK/project"
-git init -q -b main
-git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
 
 export CHIEF_HOME="$WORK/.chief"
 . "$CHIEF_BIN/lib/chief-paths.sh"
@@ -67,7 +77,7 @@ export CHIEF_HOME="$WORK/.chief"
 BRIEF="$WORK/brief.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF"
 
-SPAWN_OUTPUT=$(backend_spawn "$ID" "$WORK/project" "$BRIEF" "chief/$ID" 2>"$WORK/spawn.err")
+SPAWN_OUTPUT=$(backend_spawn "$ID" "$PROJECT" "$BRIEF" "$BRANCH" 2>"$WORK/spawn.err")
 SPAWN_RC=$?
 assert_eq "$SPAWN_RC" "0" "backend_spawn succeeds"
 [ "$SPAWN_RC" = "0" ] || cat "$WORK/spawn.err"
@@ -75,13 +85,17 @@ assert_eq "$SPAWN_RC" "0" "backend_spawn succeeds"
 WORKTREE=$(printf '%s\n' "$SPAWN_OUTPUT" | sed -n 1p)
 ENDPOINT=$(printf '%s\n' "$SPAWN_OUTPUT" | sed -n 2p)
 
-assert_eq "$WORKTREE" "$WORK/.chief/worktrees/$ID" "backend_spawn prints the worktree path first"
+[ -n "$WORKTREE" ]
+assert_eq "$?" "0" "backend_spawn printed a non-empty worktree path"
 assert_contains "$ENDPOINT" "orca:" "backend_spawn prints an orca: endpoint second"
-assert_file_exists "$WORKTREE/.git" "backend_spawn actually created the git worktree"
+assert_file_exists "$WORKTREE/.git" "backend_spawn actually created the git worktree (via orca)"
 
 chief_meta_set "$ID" endpoint "$ENDPOINT"
 chief_meta_set "$ID" worktree "$WORKTREE"
-chief_meta_set "$ID" project "$WORK/project"
+chief_meta_set "$ID" project "$PROJECT"
+
+CURRENT_BRANCH=$(git -C "$WORKTREE" rev-parse --abbrev-ref HEAD 2>/dev/null)
+assert_eq "$CURRENT_BRANCH" "$BRANCH" "the worktree is on the exact chief/<id> branch, renamed from Orca's own"
 
 CAPTURE=$(backend_capture "$ID")
 assert_contains "$CAPTURE" "ok" "backend_capture shows the claude reply"

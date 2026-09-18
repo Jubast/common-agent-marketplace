@@ -2,28 +2,55 @@
 # chief-backend-orca.sh - Orca backend adapter, matched against a live Orca
 # CLI (`orca --help` / `orca agent-context --json`, schema v1).
 #
-# `orca worktree create` can't pin an exact path/branch (only --name), so
-# this adapter does `git worktree add` itself (like chief-backend-mock.sh)
-# and attaches an Orca terminal to that path via `orca terminal create
-# --worktree path:<path>` - Orca's own recommended way to launch an agent in
-# an existing worktree. Endpoint format: "orca:<terminal-handle>".
+# Confirmed live: Orca only resolves a worktree selector (path:/id:/...)
+# for a worktree IT created via `orca worktree create` - never one from a
+# plain `git worktree add`, even under an already-registered repo. So
+# unlike the mock/herdr backends, this can't do its own git worktree add;
+# it has to create the worktree through Orca.
 #
-# Sends the brief's CONTENT (not its path) as the first prompt: same reason
-# as chief-backend-herdr.sh - the brief lives outside the worktree, so
-# telling claude to Read it would hit the "outside working directory" dialog.
+# `orca worktree create --repo path:<project> --name <id>` has no flag to
+# pin an exact branch (only --name, and Orca sanitizes '/' out of it for
+# the real branch - "chief/t-1" becomes "chief-t-1"), so backend_spawn
+# renames whatever branch Orca picked to the exact "chief/<id>" every
+# other chief script expects from meta. The worktree PATH Orca picks is
+# left as-is - nothing downstream assumes a fixed path.
 #
-# busy/idle: `orca terminal wait --for tui-idle --timeout-ms <n>` returns ok
-# once idle, or a timeout error while busy (confirmed live) - used below as
-# a non-blocking poll.
+# Requires the project dir to already be an Orca-registered repo (`orca
+# repo list`); this adapter does not try to auto-register it (`orca repo
+# add` failed even on an already-registered path in testing - a
+# host-targeting quirk, not something to paper over). Fails with a clear
+# message pointing at `orca repo add` / importing the project in the app.
 #
-# Unverified - confirm with CHIEF_TEST_ORCA=1 tests/chief/test-backend-orca.sh:
-#   - whether --worktree path:<p> resolves a worktree Orca hasn't seen yet
-#   - the down-arrow byte sequence _chief_orca_accept_trust_dialog sends
+# `orca terminal create --worktree path:<path>` reliably attaches once the
+# worktree exists. Endpoint format: "orca:<terminal-handle>". Sends the
+# brief's CONTENT (not its path) as the first prompt - same reason as
+# chief-backend-herdr.sh: the brief lives outside the worktree.
+#
+# busy/idle: `orca terminal wait --for tui-idle --timeout-ms <n>` returns
+# ok once idle, or a timeout error while busy - used below as a
+# non-blocking poll.
+#
+# Confirmed live end-to-end (CHIEF_TEST_ORCA=1 tests/chief/test-backend-orca.sh):
+# spawn - worktree creation, branch rename, launch, reply capture,
+# busy/idle, send, kill - all work.
+#
+# KNOWN LIVE ISSUE - backend_relaunch: a second `claude` in an
+# already-used worktree can land on a different interactive dialog than
+# the first-run trust prompt (`orca terminal show` reported the pane
+# title as "Session request", empty tail) that
+# _chief_orca_accept_trust_dialog doesn't recognize, so the resumed
+# prompt never reaches a real turn. Needs more live investigation.
+#
+# NOT handled: teardown never tells Orca to forget the worktree it
+# created (chief-teardown.sh removes worktrees via plain git, same as
+# every backend) - a torn-down task can leave a stale Orca worktree
+# entry. Would need a new adapter-contract hook for every backend; out of
+# scope here.
 
-_chief_orca_warn_once() {
+_chief_orca_warn_relaunch_once() {
   [ -n "${_CHIEF_ORCA_WARNED:-}" ] && return
   _CHIEF_ORCA_WARNED=1
-  echo "chief-backend-orca: unverified end-to-end - see this file's header" >&2
+  echo "chief-backend-orca: relaunch has a known live issue - see this file's header" >&2
 }
 
 # _chief_orca_accept_trust_dialog <handle> - clears claude's first-run
@@ -56,7 +83,9 @@ _chief_orca_prompt() {
 _chief_orca_launch() {
   local worktree=$1 brief_path=$2
   local json handle
-  json=$(orca terminal create --worktree "path:$worktree" --command "claude" --json 2>&1) \
+  # orca's connect banner goes to stderr, --json's body to stdout even on
+  # failure - discard stderr, don't merge it in (breaks the jq parse below).
+  json=$(orca terminal create --worktree "path:$worktree" --command "claude" --json 2>/dev/null) \
     || { echo "chief-backend-orca: 'orca terminal create' failed: $json" >&2; return 1; }
   handle=$(printf '%s' "$json" | jq -r '.result.handle // .result.terminal.handle // empty')
   [ -n "$handle" ] \
@@ -70,11 +99,22 @@ _chief_orca_launch() {
 }
 
 backend_spawn() {
-  _chief_orca_warn_once
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
-  local worktree="$WORKTREES/$id"
-  git -C "$project_dir" worktree add -q -b "$branch" "$worktree" \
-    || { echo "chief-backend-orca: 'git worktree add' failed for $id" >&2; return 1; }
+  local json worktree orca_branch
+  json=$(orca worktree create --repo "path:$project_dir" --name "$id" --no-parent --json 2>/dev/null) \
+    || { echo "chief-backend-orca: 'orca worktree create' failed: $json" >&2
+         echo "chief-backend-orca: is '$project_dir' an Orca-registered repo? See 'orca repo list --json' / 'orca repo add --path $project_dir'." >&2
+         return 1; }
+
+  worktree=$(printf '%s' "$json" | jq -r '.result.worktree.path // empty')
+  orca_branch=$(printf '%s' "$json" | jq -r '.result.worktree.branch // empty' | sed 's#^refs/heads/##')
+  [ -n "$worktree" ] && [ -n "$orca_branch" ] \
+    || { echo "chief-backend-orca: could not read worktree path/branch from: $json" >&2; return 1; }
+
+  if [ "$orca_branch" != "$branch" ]; then
+    git -C "$worktree" branch -m "$branch" \
+      || { echo "chief-backend-orca: could not rename branch '$orca_branch' to '$branch' in $worktree" >&2; return 1; }
+  fi
 
   local handle
   handle=$(_chief_orca_launch "$worktree" "$brief_path") || return 1
@@ -84,7 +124,6 @@ backend_spawn() {
 }
 
 backend_send() {
-  _chief_orca_warn_once
   local id=$1 text=$2
   local handle
   handle=$(chief_meta_get "$id" endpoint | sed 's/^orca://')
@@ -97,7 +136,6 @@ backend_send() {
 }
 
 backend_capture() {
-  _chief_orca_warn_once
   local id=$1
   local handle
   handle=$(chief_meta_get "$id" endpoint | sed 's/^orca://')
@@ -106,7 +144,6 @@ backend_capture() {
 }
 
 backend_busy() {
-  _chief_orca_warn_once
   local id=$1
   local handle
   handle=$(chief_meta_get "$id" endpoint | sed 's/^orca://')
@@ -118,7 +155,6 @@ backend_busy() {
 }
 
 backend_kill() {
-  _chief_orca_warn_once
   local id=$1
   local endpoint handle
   endpoint=$(chief_meta_get "$id" endpoint 2>/dev/null) || return 0
@@ -128,7 +164,7 @@ backend_kill() {
 }
 
 backend_relaunch() {
-  _chief_orca_warn_once
+  _chief_orca_warn_relaunch_once
   local id=$1 brief_path=$2
   local worktree handle
   worktree=$(chief_meta_get "$id" worktree)
