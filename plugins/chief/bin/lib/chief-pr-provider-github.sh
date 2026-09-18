@@ -83,6 +83,13 @@ pr_approve() {
   gh pr review "$url" --approve
 }
 
+pr_merged() {
+  local url=$1
+  command -v gh >/dev/null 2>&1 || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  [ "$(gh pr view "$url" --json state 2>/dev/null | jq -r .state)" = "MERGED" ]
+}
+
 pr_merge() {
   local url=$1
   shift

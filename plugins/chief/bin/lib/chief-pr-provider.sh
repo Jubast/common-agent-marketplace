@@ -9,7 +9,7 @@
 #     pr_provider in the task's .meta (written by chief-pr-open.sh): they
 #     LOAD that exact adapter directly (chief_pr_load_provider), no detection.
 #
-# Adapter contract - each chief-pr-provider-<name>.sh must define all six:
+# Adapter contract - each chief-pr-provider-<name>.sh must define all seven:
 #   pr_open <branch> <base> <title> <body>
 #     -> creates the PR/MR. MUST be called with CWD inside the project's git
 #        checkout (the task's worktree) - this is the only function that
@@ -29,6 +29,11 @@
 #   pr_merge <pr-url> [--squash|--merge|--rebase]
 #     -> re-checks live preconditions (open, non-draft, mergeable, checks
 #        green at the current head) and refuses if any fails, then merges.
+#   pr_merged <pr-url>
+#     -> exit 0 if the PR/MR is merged, exit 1 otherwise (including "can't
+#        tell"). Used by chief-teardown.sh: a squash or rebase merge leaves
+#        the branch with no local git ancestry back to the default branch,
+#        so this is the fallback proof of landing when ancestry can't be.
 # Every function but pr_open takes a full PR/MR URL and re-derives whatever
 # provider-specific identity it needs (owner/repo/number, or org/project/repo
 # for Azure DevOps) from that URL alone - never from cached state - matching

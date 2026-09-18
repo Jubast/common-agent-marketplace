@@ -148,6 +148,14 @@ pr_approve() {
   az repos pr set-vote --organization "https://dev.azure.com/$_CHIEF_ADO_ORG" --id "$_CHIEF_ADO_ID" --vote approve
 }
 
+pr_merged() {
+  local url=$1
+  command -v az >/dev/null 2>&1 || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  _chief_ado_parse_url "$url" || return 1
+  [ "$(az repos pr show --organization "https://dev.azure.com/$_CHIEF_ADO_ORG" --id "$_CHIEF_ADO_ID" --output json 2>/dev/null | jq -r .status)" = "completed" ]
+}
+
 pr_merge() {
   local url=$1
   shift

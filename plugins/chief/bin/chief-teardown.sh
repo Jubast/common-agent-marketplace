@@ -5,12 +5,19 @@
 # unconditionally - its deliverable is the report at $DATA/<id>/report.md,
 # outside the worktree, untouched either way.
 #
+# A ship whose PR was squash- or rebase-merged has a branch that's never a
+# local ancestor of the default branch (both methods create new commits
+# with no ancestry back to it) - so when the ancestry check fails, this
+# also asks the provider directly whether the recorded PR is merged before
+# refusing.
+#
 # Usage: chief-teardown.sh <id> [--abandon]
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
 . "$CHIEF_ROOT/bin/lib/chief-meta.sh"
 . "$CHIEF_ROOT/bin/lib/chief-backend.sh"
+. "$CHIEF_ROOT/bin/lib/chief-pr-provider.sh"
 
 fail() { echo "chief-teardown: $*" >&2; exit 1; }
 
@@ -57,6 +64,13 @@ DEFAULT=$(git -C "$PROJECT" symbolic-ref --quiet --short refs/remotes/origin/HEA
 [ -n "$DEFAULT" ] || DEFAULT=$(git -C "$PROJECT" symbolic-ref --quiet --short HEAD 2>/dev/null || echo main)
 
 if ! git -C "$PROJECT" merge-base --is-ancestor "$BRANCH" "$DEFAULT" 2>/dev/null; then
+  PR_URL=$(chief_meta_get "$ID" pr_url 2>/dev/null || true)
+  PR_PROVIDER=$(chief_meta_get "$ID" pr_provider 2>/dev/null || true)
+  if [ -n "$PR_URL" ] && [ -n "$PR_PROVIDER" ] \
+    && chief_pr_load_provider "$PR_PROVIDER" 2>/dev/null && pr_merged "$PR_URL"; then
+    _chief_discard "landed via merged PR $PR_URL ($PR_PROVIDER) - not a local ancestor (squash/rebase merge), confirmed with the provider instead"
+    exit 0
+  fi
   fail "REFUSED: $BRANCH is not reachable from $DEFAULT - the work has not landed. Run chief-local-merge.sh $ID --confirm first, or merge it by hand, then retry. If it was merged via chief-pr-merge.sh, that lands on the remote's default branch - fetch/update $DEFAULT locally (e.g. git -C $PROJECT fetch origin $DEFAULT && git -C $PROJECT merge --ff-only origin/$DEFAULT) and retry. To discard it instead of landing it, use --abandon."
 fi
 

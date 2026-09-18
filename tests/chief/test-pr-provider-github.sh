@@ -39,6 +39,7 @@ case "$1" in
           failing) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[{"name":"ci","conclusion":"FAILURE"}]}' ;;
           checks_failing) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[{"name":"ci","conclusion":"FAILURE"}]}' ;;
           changes_requested) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"CHANGES_REQUESTED","headRefOid":"abc123","statusCheckRollup":[]}' ;;
+          merged) echo '{"state":"MERGED","isDraft":false,"mergeable":"UNKNOWN","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[]}' ;;
         esac
         ;;
       "pr review") echo '{"ok":true}' ;;
@@ -137,6 +138,18 @@ assert_contains "$(cat "$GH_MOCK_LOG")" "pr view https://github.com/acme/widgets
   "pr_review_line reads the current head live before posting"
 assert_contains "$(cat "$GH_MOCK_LOG")" "api repos/acme/widgets/pulls/42/comments -f body=off by one -f commit_id=abc123 -f path=src/limiter.go -F line=42 -f side=RIGHT" \
   "pr_review_line posts to the pulls/comments endpoint with body, the live head as commit_id, path, line, and side"
+unset GH_MOCK_VIEW
+
+: > "$GH_MOCK_LOG"
+export GH_MOCK_VIEW=merged
+pr_merged "https://github.com/acme/widgets/pull/42"
+assert_eq "$?" "0" "pr_merged reports merged when gh reports state MERGED"
+unset GH_MOCK_VIEW
+
+: > "$GH_MOCK_LOG"
+export GH_MOCK_VIEW=open
+pr_merged "https://github.com/acme/widgets/pull/42"
+assert_eq "$?" "1" "pr_merged reports not-merged for an open PR"
 unset GH_MOCK_VIEW
 
 harness_summary

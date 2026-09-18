@@ -78,4 +78,31 @@ assert_success "spawn: second ship task" -- \
 "$BIN/chief-local-merge.sh" b-2 --confirm >/dev/null
 assert_success "teardown: a landed ship tears down without --abandon, as before" -- "$BIN/chief-teardown.sh" b-2
 
+# --- a squash/rebase-merged PR: the branch is never a local ancestor of --
+# --- the default branch, but the provider confirms it's merged ---------
+. "$BIN/lib/chief-paths.sh"
+. "$BIN/lib/chief-meta.sh"
+
+assert_success "backlog: file a third ship" -- "$BIN/chief-backlog.sh" add b-3 "Add moon.txt"
+assert_success "spawn: third ship task" -- \
+  timeout 10 "$BIN/chief-spawn.sh" b-3 "$WORK/project" --mode ship --intent "Add moon.txt" --spec "content: moon"
+(
+  cd "$CHIEF_HOME/worktrees/b-3"
+  echo moon > moon.txt
+  git add moon.txt
+  git -c user.email=t@t -c user.name=t commit -q -m "add moon.txt"
+)
+chief_meta_set b-3 pr_url "https://example.invalid/mock/pr/99"
+chief_meta_set b-3 pr_provider mock
+
+assert_failure "teardown: still refuses when the recorded PR isn't reported merged" -- "$BIN/chief-teardown.sh" b-3
+assert_file_exists "$CHIEF_HOME/worktrees/b-3" "teardown refusal (PR not merged): worktree is untouched"
+
+export CHIEF_PR_MOCK_MERGED=1
+assert_success "teardown: a PR the provider reports merged lands even though the branch isn't a local ancestor" -- \
+  "$BIN/chief-teardown.sh" b-3
+unset CHIEF_PR_MOCK_MERGED
+assert_file_missing "$CHIEF_HOME/worktrees/b-3" "teardown (PR merged): worktree removed"
+assert_contains "$("$BIN/chief-backlog.sh" show b-3)" "[done]" "teardown (PR merged): backlog item marked done"
+
 harness_summary

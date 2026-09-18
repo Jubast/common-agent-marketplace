@@ -78,6 +78,13 @@ pr_approve() {
   glab mr approve "$url"
 }
 
+pr_merged() {
+  local url=$1
+  command -v glab >/dev/null 2>&1 || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  [ "$(glab mr view "$url" -F json 2>/dev/null | jq -r .state)" = "merged" ]
+}
+
 pr_merge() {
   local url=$1
   shift

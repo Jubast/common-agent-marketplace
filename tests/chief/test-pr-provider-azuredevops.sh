@@ -32,6 +32,7 @@ case "$1 $2 $3" in
       active) echo '{"status":"active","isDraft":false,"mergeStatus":"succeeded","repository":{"id":"repo-guid-1"}}' ;;
       draft) echo '{"status":"active","isDraft":true,"mergeStatus":"succeeded"}' ;;
       conflicts) echo '{"status":"active","isDraft":false,"mergeStatus":"conflicts"}' ;;
+      completed) echo '{"status":"completed","isDraft":false,"mergeStatus":"succeeded"}' ;;
     esac
     ;;
   "repos pr set-vote") echo "voted" ;;
@@ -145,6 +146,18 @@ assert_contains "$REST_LINE" "rest --method post --uri https://dev.azure.com/acm
 assert_contains "$REST_LINE" '"filePath":"/src/limiter.cs"' "the thread payload names the file"
 assert_contains "$REST_LINE" '"line":42' "the thread payload names the line"
 assert_contains "$REST_LINE" '"content":"off by one"' "the thread payload carries the comment body"
+unset AZ_MOCK_SHOW
+
+: > "$AZ_MOCK_LOG"
+export AZ_MOCK_SHOW=completed
+pr_merged "$PR_URL"
+assert_eq "$?" "0" "pr_merged reports merged when az reports status completed"
+unset AZ_MOCK_SHOW
+
+: > "$AZ_MOCK_LOG"
+export AZ_MOCK_SHOW=active
+pr_merged "$PR_URL"
+assert_eq "$?" "1" "pr_merged reports not-merged for an active PR"
 unset AZ_MOCK_SHOW
 
 harness_summary

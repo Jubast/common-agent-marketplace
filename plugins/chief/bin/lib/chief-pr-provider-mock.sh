@@ -8,6 +8,7 @@
 #   CHIEF_PR_MOCK_STATE      - newline-separated lines pr_state prints
 #   CHIEF_PR_MOCK_MERGE_FAIL - when "1", pr_merge refuses (simulates a
 #                              precondition failure) instead of succeeding
+#   CHIEF_PR_MOCK_MERGED     - when "1", pr_merged reports merged
 
 _chief_pr_mock_log() {
   [ -n "${CHIEF_PR_MOCK_LOG:-}" ] && printf '%s\n' "$*" >> "$CHIEF_PR_MOCK_LOG"
@@ -52,4 +53,10 @@ pr_merge() {
     echo "chief-pr-provider-mock: simulated merge refusal" >&2
     return 1
   fi
+}
+
+pr_merged() {
+  local url=$1
+  _chief_pr_mock_log "pr_merged $url"
+  [ "${CHIEF_PR_MOCK_MERGED:-0}" = "1" ]
 }
