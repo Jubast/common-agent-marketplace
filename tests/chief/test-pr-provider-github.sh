@@ -33,6 +33,7 @@ case "$1 $2" in
       draft) echo '{"state":"OPEN","isDraft":true,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[]}' ;;
       failing) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[{"name":"ci","conclusion":"FAILURE"}]}' ;;
       checks_failing) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"","headRefOid":"abc123","statusCheckRollup":[{"name":"ci","conclusion":"FAILURE"}]}' ;;
+      changes_requested) echo '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","reviewDecision":"CHANGES_REQUESTED","headRefOid":"abc123","statusCheckRollup":[]}' ;;
     esac
     ;;
   "pr review") echo '{"ok":true}' ;;
@@ -108,6 +109,17 @@ assert_contains "$(cat "$WORK/err")" "blocking checks" "pr_merge names the block
 PR_VIEW_LINE=$(grep '^pr view' "$GH_MOCK_LOG")
 assert_contains "$PR_VIEW_LINE" "statusCheckRollup" \
   "pr_merge's gh pr view call actually requests statusCheckRollup in --json"
+unset GH_MOCK_VIEW
+
+: > "$GH_MOCK_LOG"
+export GH_MOCK_VIEW=changes_requested
+pr_merge "https://github.com/acme/widgets/pull/42" >/dev/null 2>"$WORK/err"
+assert_eq "$?" "1" "pr_merge refuses a PR with an outstanding changes-requested review, even with no failing checks and mergeable=true"
+assert_contains "$(cat "$WORK/err")" "changes requested" "pr_merge names the changes-requested refusal"
+assert_not_contains "$(cat "$GH_MOCK_LOG")" "pr merge" "pr_merge never calls gh pr merge when changes are requested"
+PR_VIEW_LINE2=$(grep '^pr view' "$GH_MOCK_LOG")
+assert_contains "$PR_VIEW_LINE2" "reviewDecision" \
+  "pr_merge's gh pr view call actually requests reviewDecision in --json"
 unset GH_MOCK_VIEW
 
 harness_summary
