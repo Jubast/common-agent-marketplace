@@ -40,7 +40,8 @@ pr_approve() {
 pr_merge() {
   local url=$1
   shift
-  local method=${1:---squash}
+  # No default here - chief-pr-merge.sh always passes one explicitly.
+  local method=${1:?chief-pr-provider-mock: pr_merge called with no method}
   _chief_pr_mock_log "pr_merge $url $method"
   if [ "${CHIEF_PR_MOCK_MERGE_FAIL:-0}" = "1" ]; then
     echo "chief-pr-provider-mock: simulated merge refusal" >&2

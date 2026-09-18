@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # chief-pr-open.sh - push a task's branch and open a PR/MR for it, then
 # record the result on the task so review/approve/state/merge can find it.
-# Operator-invoked only, like every other chief-*.sh lifecycle script; ship
-# agents are explicitly told never to do this themselves (see
+# Requires --confirm - only pass it once the operator has explicitly said to
+# open a PR for <id>. Ship agents never do this themselves (see
 # templates/brief-ship.md rule 1).
 #
-# Usage: chief-pr-open.sh <id> [--title "..."] [--body "..."]
+# Usage: chief-pr-open.sh <id> --confirm [--title "..."] [--body "..."]
 #   Defaults title/body from the task's brief.md '## Operator's intent'
 #   section when not given explicitly.
 set -euo pipefail
@@ -17,22 +17,28 @@ set -euo pipefail
 fail() { echo "chief-pr-open: $*" >&2; exit 1; }
 
 ID=${1:-}
-[ -n "$ID" ] || fail "usage: chief-pr-open.sh <id> [--title \"...\"] [--body \"...\"]"
+[ -n "$ID" ] || fail "usage: chief-pr-open.sh <id> --confirm [--title \"...\"] [--body \"...\"]"
 chief_meta_exists "$ID" || fail "no such task: $ID"
 shift
 
 TITLE=""
 BODY=""
+CONFIRMED=0
 while [ $# -gt 0 ]; do
   case "$1" in
+    --confirm) CONFIRMED=1; shift ;;
     --title) TITLE=${2:-}; shift 2 ;;
     --body) BODY=${2:-}; shift 2 ;;
     *) fail "unknown argument: $1" ;;
   esac
 done
+[ "$CONFIRMED" -eq 1 ] || fail "refusing to open a PR without --confirm - only pass it once the operator has explicitly said to open a PR for $ID in this conversation"
 
 EXISTING=$(chief_meta_get "$ID" pr_url 2>/dev/null || true)
 [ -z "$EXISTING" ] || fail "PR already open: $EXISTING - use chief-pr-state.sh to check it"
+
+MODE=$(chief_meta_get "$ID" mode 2>/dev/null || true)
+[ "$MODE" = "ship" ] || fail "$ID is not a ship task (mode=${MODE:-unknown}) - only a ship task's branch is meant to be pushed and opened as a PR/MR"
 
 PROJECT=$(chief_meta_require "$ID" project)
 BRANCH=$(chief_meta_require "$ID" branch)

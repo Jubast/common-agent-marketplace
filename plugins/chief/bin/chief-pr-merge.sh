@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
 # chief-pr-merge.sh - merge a task's already-opened PR/MR, across whichever
-# provider it was opened against. Always operator-invoked; there is no
-# yolo/auto-merge in this plugin, on purpose - a human runs this command.
-# Replaces chief-merge.sh's old --pr mode (which was GitHub-only); for a
-# local-only fast-forward merge with no PR at all, use chief-merge.sh.
+# provider it was opened against. Requires --confirm - only pass it once the
+# operator has explicitly said to merge <id>'s PR. Defaults to --squash,
+# applied uniformly regardless of provider. For a local-only fast-forward
+# merge with no PR at all, use chief-local-merge.sh instead.
 #
-# The default merge method (no flag given) is provider-specific: GitHub
-# squashes by default, GitLab and Azure DevOps do a plain merge by default -
-# don't rely on the bare no-flag form behaving the same across providers.
-#
-# Usage: chief-pr-merge.sh <id> [--squash|--merge|--rebase]
+# Usage: chief-pr-merge.sh <id> --confirm [--squash|--merge|--rebase]
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
@@ -19,25 +15,26 @@ set -euo pipefail
 fail() { echo "chief-pr-merge: $*" >&2; exit 1; }
 
 ID=${1:-}
-[ -n "$ID" ] || fail "usage: chief-pr-merge.sh <id> [--squash|--merge|--rebase]"
+[ -n "$ID" ] || fail "usage: chief-pr-merge.sh <id> --confirm [--squash|--merge|--rebase]"
 chief_meta_exists "$ID" || fail "no such task: $ID"
 shift
 
 METHOD=""
-case "${1:-}" in
-  --squash|--merge|--rebase) METHOD=$1; shift ;;
-  "") ;;
-  *) fail "unknown argument: $1" ;;
-esac
+CONFIRMED=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --confirm) CONFIRMED=1; shift ;;
+    --squash|--merge|--rebase) METHOD=$1; shift ;;
+    *) fail "unknown argument: $1" ;;
+  esac
+done
+[ "$CONFIRMED" -eq 1 ] || fail "refusing to merge without --confirm - only pass it once the operator has explicitly said to merge $ID's PR in this conversation"
+METHOD="${METHOD:---squash}"
 
 URL=$(chief_meta_require "$ID" pr_url)
 PROVIDER=$(chief_meta_require "$ID" pr_provider)
 chief_pr_load_provider "$PROVIDER" || exit 1
 
-if [ -n "$METHOD" ]; then
-  pr_merge "$URL" "$METHOD" || fail "merge failed"
-else
-  pr_merge "$URL" || fail "merge failed"
-fi
+pr_merge "$URL" "$METHOD" || fail "merge failed"
 
 echo "merged: $ID via $PROVIDER PR $URL"

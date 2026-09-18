@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
-# chief-merge.sh - local-only fast-forward merge. Always operator-invoked;
-# there is no yolo/auto-merge in this plugin, on purpose - a human runs this
-# command. For merging an opened PR/MR (any provider), use chief-pr-merge.sh
-# instead.
+# chief-local-merge.sh - local-only fast-forward merge. Requires --confirm -
+# only pass it once the operator has explicitly said to merge <id>. Use
+# chief-pr-merge.sh instead to merge an open PR/MR.
 #
-# Usage: chief-merge.sh <id>   -> local git merge --ff-only
+# Usage: chief-local-merge.sh <id> --confirm   -> local git merge --ff-only
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
 . "$CHIEF_ROOT/bin/lib/chief-meta.sh"
 
-fail() { echo "chief-merge: $*" >&2; exit 1; }
+fail() { echo "chief-local-merge: $*" >&2; exit 1; }
 
 ID=${1:-}
-[ -n "$ID" ] || fail "usage: chief-merge.sh <id>"
+[ -n "$ID" ] || fail "usage: chief-local-merge.sh <id> --confirm"
 chief_meta_exists "$ID" || fail "no such task: $ID"
 shift
 
 if [ "${1:-}" = "--pr" ]; then
   fail "--pr was removed - use chief-pr-merge.sh $ID instead"
 fi
+
+[ "${1:-}" = "--confirm" ] || fail "refusing to merge without --confirm - only pass it once the operator has explicitly said to merge $ID in this conversation"
 
 PROJECT=$(chief_meta_require "$ID" project)
 BRANCH=$(chief_meta_require "$ID" branch)
