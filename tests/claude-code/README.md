@@ -81,6 +81,20 @@ checking that a real `invoice/invoice.md` file gets produced with the
 expected content. **Currently a documented, intentional failure** — see the
 comment at the top of the script and `docs/testing.md` for why.
 
+### `test-using-chief.sh`, `test-dispatch.sh`, `test-reviewer.sh`, `test-chief-setup.sh` (fast)
+
+Four checks each against the chief plugin's four skills' documented claims
+(`using-chief`, `dispatch`, `reviewer`, and `setup` — named `test-chief-setup.sh`
+here since "setup" alone is too generic across plugins): identity and the
+don't-implement/don't-merge-inline rules, ship-vs-scout defaults and the
+never-auto-merge/escalate-cheapest-first rules, the review checklist's first
+item and its PASS/FAIL-with-reason report format, and setup's
+once-only/herdr-or-orca/idempotent/dispatch-takes-over-after rules. No
+integration counterpart here — exercising a real spawn against a real
+backend is `tests/chief/test-backend-herdr.sh`'s job instead (real tokens,
+opt-in, gated separately since it needs a real herdr install, not just
+`claude`).
+
 ## Adding a New Test
 
 1. Create `test-<skill-name>.sh` (and `test-<skill-name>-integration.sh` if
