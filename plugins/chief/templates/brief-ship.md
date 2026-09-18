@@ -19,6 +19,7 @@ Nothing outside this worktree is yours to touch.
    `echo "{state}: {one short line}" >> {STATUS_FILE}`
    States: `working`, `needs-decision`, `blocked`, `done`, `failed`.
    Report sparingly - only phase changes worth Chief's attention, not step-by-step narration.
+   Chief only reads your LAST line. After `done`, `blocked`, `needs-decision`, or `failed`, report `working: resuming` again before acting on a new instruction.
 4. Use `needs-decision: {summary of options}` for any choice that belongs to a human (product tradeoffs, destructive actions, ambiguous scope) and then stop until answered.
 5. Use `blocked: {why}` if you hit the same obstacle twice in a row, and stop.
 6. When finished, run the review checklist (see below) on your own diff before reporting `done`.

@@ -30,6 +30,7 @@ assert_contains "$("$BIN/chief-backlog.sh" show t-1)" "[in-flight]" "spawn: mark
 assert_file_exists "$CHIEF_HOME/worktrees/t-1" "spawn: worktree exists"
 assert_file_exists "$CHIEF_HOME/data/t-1/brief.md" "spawn: brief exists"
 assert_contains "$(cat "$CHIEF_HOME/data/t-1/brief.md")" "Add hello.txt" "spawn: intent is rendered into the brief"
+assert_contains "$(cat "$CHIEF_HOME/data/t-1/brief.md")" "report \`working" "spawn: the ship brief tells it to re-announce working after resuming from a terminal status"
 
 # Simulate the builder actually doing its job - a real commit in its worktree.
 (
@@ -45,7 +46,8 @@ assert_contains "$("$BIN/chief-crew-state.sh" t-1)" "state: done" "crew-state: r
 assert_failure "teardown: refuses before the branch has landed anywhere" -- "$BIN/chief-teardown.sh" t-1
 assert_file_exists "$CHIEF_HOME/worktrees/t-1" "teardown refusal: worktree is untouched"
 
-assert_success "merge: local fast-forward succeeds" -- "$BIN/chief-merge.sh" t-1
+assert_failure "merge: refuses without --confirm" -- "$BIN/chief-local-merge.sh" t-1
+assert_success "merge: local fast-forward succeeds once confirmed" -- "$BIN/chief-local-merge.sh" t-1 --confirm
 assert_file_exists "$WORK/project/hello.txt" "merge: the file is now in the main checkout"
 assert_eq "$(cat "$WORK/project/hello.txt")" "hello" "merge: the file content is correct"
 

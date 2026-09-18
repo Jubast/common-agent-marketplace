@@ -27,40 +27,43 @@ Don't launch a scout to resolve ordinary ambiguity - ask one concise question in
    Keep `--intent` narrow - it becomes the acceptance criteria. Keep `--spec` to only what's needed; a generalization or extra hardening nobody asked for is a note for later, not something to build now.
    This creates an isolated worktree+branch, renders the brief, and launches the builder. It also marks the backlog item in-flight if it exists.
 
-3. **It runs on its own.** Between your turns, `chief-watch.sh` (armed by a Stop hook, at zero model cost) polls it in the background and only interrupts you when something needs attention - the task finished, failed, is blocked, or needs a decision.
+3. **It runs on its own.** `chief-watch.sh` (armed by a Stop hook, zero model cost) polls it between your turns and only interrupts you when it's finished, failed, blocked, or needs a decision. On `blocked` or `needs-decision`, run `bin/chief-backlog.sh hold <id> "<why, one line>"`.
 
 4. **Check on it anytime:**
    `bin/chief-crew-state.sh <id>` - deterministic current state (working/done/blocked/needs-decision/failed/stale).
 
 5. **Steer it if needed:**
-   `bin/chief-send.sh <id> "<instruction>"` - delivered through a durable inbox the builder acknowledges; safe to send even while it's mid-task.
+   `bin/chief-send.sh <id> "<instruction>"` - delivered through a durable inbox the builder acknowledges; safe to send mid-task. If the item is `held`, move it back with `bin/chief-backlog.sh status <id> in-flight` once you've sent the unblocking instruction.
 
-6. **If it's stuck**, escalate in order - cheapest first:
+6. **If it's stuck**, escalate cheapest first:
    - `bin/chief-control.sh <id> interrupt` (nudge; it keeps running) + a corrective `chief-send.sh`
-   - `bin/chief-control.sh <id> relaunch --note "<progress so far>"` only if genuinely wedged (looping, unresponsive, truly dead) - the replacement gets the same worktree and commits but NONE of the conversation, so the note is the only thing carrying context forward. Write it accordingly.
+   - `bin/chief-control.sh <id> relaunch --note "<progress so far>"` only if genuinely wedged - the replacement gets the same worktree and commits but none of the conversation, so the note is all it has.
 
-7. **Review and report.** Once a task reports `done`:
-   - If it's a ship, load the `reviewer` skill against its diff, then report the outcome to the operator plainly.
-   - If it's a scout, relay its report as-is.
+7. **Review and report.** Once a task reports `done`, check its current mode via `chief-crew-state.sh <id>`'s `[mode: ...]` tag (promotion can change it after spawn):
+   - `ship` - load the `reviewer` skill against its diff, then report the outcome to the operator plainly.
+   - `scout` - relay its report as-is.
 
-   That's the end of the lifecycle above for this task until the operator responds.
+   End of the lifecycle for this task until the operator responds.
 
 ## After the operator responds
 
-Whatever they decide, do exactly that and nothing more - never on your own initiative:
+Do exactly what they decide, nothing more:
 
-- **Not satisfied** - fix it: `bin/chief-send.sh <id> "<instruction>"` back to the builder, or send the scout to investigate further.
-- **Ready to land** (ship only) - `bin/chief-pr-open.sh <id>` to push the branch and open a PR/MR for the operator to review. Skip this if they want a local-only merge instead.
-- **Accepted** - for a ship: `bin/chief-merge.sh <id>` for a local fast-forward, or `bin/chief-pr-merge.sh <id>` to merge the open PR. For a scout: `bin/chief-promote.sh <id> --intent "<the operator's ask for the ship task>" [--spec "<build instructions>"]` - converts it to a ship task in place (same worktree, same branch, same running agent) and sends it the new instructions through its steering inbox; its findings become supporting context, not the deliverable.
+- **Not satisfied** - `bin/chief-send.sh <id> "<instruction>"` back to the builder, or send the scout to investigate further.
+- **Ready to land** (ship only) - `bin/chief-pr-open.sh <id> --confirm` to push and open a PR/MR. Skip if they want a local-only merge.
+- **Accepted** - ship: `bin/chief-local-merge.sh <id> --confirm` (local fast-forward) or `bin/chief-pr-merge.sh <id> --confirm` (merges the open PR, defaults to squash). Scout to become a ship: `bin/chief-promote.sh <id> --intent "<ask>" [--spec "<instructions>"]` - converts it in place; its findings become context, not the deliverable.
+- **Accepted, no ship needed** (scout only) - `bin/chief-backlog.sh done <id>` then `bin/chief-teardown.sh <id>` discards the worktree; the report at `.chief/data/<id>/report.md` survives.
+
+`chief-pr-open.sh`, `chief-local-merge.sh`, and `chief-pr-merge.sh` all require `--confirm` - pass it only once the operator has explicitly said so in this conversation.
 
 ## Once a PR is open
 
-- **Check it** - `bin/chief-pr-state.sh <id>` for its current state (open/draft/mergeable/checks) across whichever provider it was opened against.
-- **Review it** - `bin/chief-pr-review.sh <id> --comment "<text>"` to leave a comment, or `bin/chief-pr-review.sh <id> --request-changes "<text>"` to request changes.
+- **Check it** - `bin/chief-pr-state.sh <id>` for its current state (open/draft/mergeable/checks).
+- **Review it** - `bin/chief-pr-review.sh <id> --comment "<text>"` or `--request-changes "<text>"`. Add `--file <path> --line <N>` to a `--comment` call to attach it to a specific line instead of posting top-level (only valid with `--comment`, not `--request-changes`).
 - **Approve it** - `bin/chief-pr-approve.sh <id>`.
-- **Merge it** - `bin/chief-pr-merge.sh <id>` (replaces chief-merge.sh's old `--pr` mode, which no longer exists).
-- **Abandon** - `bin/chief-control.sh <id> exit` stops the worker without discarding its worktree or commits, in case it's needed later.
-- **Landed** - clean up: `bin/chief-backlog.sh done <id>` (if not already updated), then `bin/chief-teardown.sh <id>`. Teardown refuses unless the branch is already reachable from the project's default branch - it will not discard unlanded work.
+- **Merge it** - `bin/chief-pr-merge.sh <id> --confirm`. Defaults to `--squash` - the recommended strategy, and applied uniformly by this script itself rather than left to each provider's own default (GitHub already defaults to squash; GitLab and Azure DevOps default to a plain merge). Pass `--merge` or `--rebase` explicitly only if the operator asks for one of those instead.
+- **Abandon** - `bin/chief-control.sh <id> exit` stops the worker without discarding its worktree or commits. To discard the work too, `bin/chief-teardown.sh <id> --abandon` force-discards it even though nothing landed - only on the operator's explicit instruction.
+- **Landed** - `bin/chief-backlog.sh done <id>` (if not already), then `bin/chief-teardown.sh <id>`. Without `--abandon`, teardown refuses unless the branch is reachable from the default branch.
 
 ## Backlog reference
 

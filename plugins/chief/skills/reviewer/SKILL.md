@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Use before merging a builder's ship task - review its diff against a short fixed checklist. Also usable by a builder on its own work before reporting done. Placeholder checklist; expand as real review needs become clear.
+description: Use before merging a builder's ship task - review its diff against a short fixed checklist. Also usable by a builder on its own work before reporting done.
 ---
 
 # Chief: reviewer
@@ -16,6 +16,4 @@ Report one of:
 - `PASS` - safe to merge.
 - `FAIL: <checklist item> - <one-line reason>` for each failed check.
 
-If the task already has a PR/MR open (`pr_url` set), post this verdict to it: `chief-pr-review.sh <id> --comment "<verdict>"` for a PASS, or `chief-pr-review.sh <id> --request-changes "<verdict>"` for a FAIL.
-
-This is intentionally thin. As real review needs surface (security patterns, project-specific conventions, etc.), add them here rather than building a separate pipeline.
+If the task already has a PR/MR open (`pr_url` set), post the verdict to it. For each FAIL you can point at a specific line, post it as an inline comment first: `chief-pr-review.sh <id> --comment "<reason>" --file <path> --line <N>`. Then post the overall verdict with no file/line: `chief-pr-review.sh <id> --comment "<verdict>"` for a PASS, or `chief-pr-review.sh <id> --request-changes "<verdict>"` for a FAIL.
