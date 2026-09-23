@@ -31,7 +31,7 @@ digest="## Configuration"$'\n'
 if [ -f "$BACKEND_CONFIG" ]; then
   digest+="backend: $(cat "$BACKEND_CONFIG") (from .chief/config/backend)"$'\n'
 else
-  digest+="NOT CONFIGURED YET - load the 'setup' skill before dispatching anything in this project."$'\n'
+  digest+="NOT CONFIGURED YET at CHIEF_HOME ($CHIEF_HOME) - load the 'setup' skill once here before dispatching anything. This is a one-time step for this CHIEF_HOME, not something to repeat inside each project you dispatch into."$'\n'
 fi
 
 digest+=$'\n'"## Backlog and in-flight tasks"$'\n'
@@ -56,7 +56,7 @@ if [ -d "$STATE" ]; then
   done
   [ "$any" -eq 0 ] && digest+="(none)"$'\n'
 else
-  digest+=$'\n'"(.chief/ not created yet in this project - it will be on first use)"$'\n'
+  digest+=$'\n'"(.chief/ not created yet at CHIEF_HOME - it will be on first use)"$'\n'
 fi
 
 escape_for_json() {
@@ -71,7 +71,7 @@ escape_for_json() {
 
 combined="$(cat "$SKILL_FILE")"$'\n\n'"$digest"
 escaped=$(escape_for_json "<EXTREMELY_IMPORTANT>
-You MUST follow the 'using-chief' identity and job description below for this project:
+You MUST follow the 'using-chief' identity and job description below. It applies to this Chief session's CHIEF_HOME (typically your top-level workspace root) - a single shared home, not something to set up separately inside each project you dispatch into:
 
 $combined
 </EXTREMELY_IMPORTANT>")

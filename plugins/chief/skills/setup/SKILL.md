@@ -1,11 +1,11 @@
 ---
 name: setup
-description: Use when Chief has not been configured yet in this project (no .chief/config/backend) - walks the operator through the one-time setup of choosing a backend and gitignoring runtime state. Do not use once Chief is already configured; dispatch owns everything after that.
+description: Use when Chief has not been configured yet at CHIEF_HOME (no .chief/config/backend at the operator's workspace root) - walks the operator through the one-time setup of choosing a backend and gitignoring runtime state. This is a one-time step for the whole CHIEF_HOME, not something to repeat inside each project you dispatch into. Do not use once Chief is already configured; dispatch owns everything after that.
 ---
 
 # Chief: setup
 
-Only needed once per project, when `.chief/config/backend` doesn't exist yet.
+Only needed once per `CHIEF_HOME` - the operator's single shared home, typically their top-level workspace root, not each individual project you dispatch into - when `.chief/config/backend` doesn't exist there yet.
 
 All commands live in `${CLAUDE_PLUGIN_ROOT}/bin/`.
 
