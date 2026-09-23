@@ -37,4 +37,9 @@ chief_pr_load_provider "$PROVIDER" || exit 1
 
 pr_merge "$URL" "$METHOD" || fail "merge failed"
 
+# The merge is the normal flow acting on this task - take it out of
+# chief-watch.sh's in_flight_ids so it stops re-notifying about the same
+# already-surfaced terminal state on every subsequent Stop hook.
+chief_meta_set "$ID" status merged
+
 echo "merged: $ID via $PROVIDER PR $URL"

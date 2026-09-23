@@ -20,6 +20,7 @@ export CHIEF_HOME="$WORK/.chief"
 chief_meta_set t1 project /irrelevant
 chief_meta_set t1 pr_url "https://example.invalid/mock/pr/7"
 chief_meta_set t1 pr_provider mock
+chief_meta_set t1 status working
 
 export CHIEF_PR_MOCK_LOG="$WORK/mock.log"
 : > "$CHIEF_PR_MOCK_LOG"
@@ -33,6 +34,7 @@ OUT=$("$CHIEF_BIN/chief-pr-merge.sh" t1 --confirm)
 assert_eq "$OUT" "merged: t1 via mock PR https://example.invalid/mock/pr/7" "reports the merged PR and provider"
 assert_contains "$(cat "$CHIEF_PR_MOCK_LOG")" "pr_merge https://example.invalid/mock/pr/7 --squash" \
   "defaults to --squash (the recommended strategy) when no method is given, uniformly - not left to whatever each provider defaults to on its own"
+assert_eq "$(chief_meta_get t1 status)" "merged" "advances the task's meta status away from working once merged"
 
 : > "$CHIEF_PR_MOCK_LOG"
 "$CHIEF_BIN/chief-pr-merge.sh" t1 --confirm --rebase >/dev/null
