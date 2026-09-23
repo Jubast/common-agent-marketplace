@@ -26,6 +26,7 @@ Don't launch a scout to resolve ordinary ambiguity - ask one concise question in
    `bin/chief-spawn.sh <id> <project-dir> --mode ship|scout --intent "<the operator's own ask, close to verbatim>" --spec "<your build instructions, only what the intent requires>"`
    Keep `--intent` narrow - it becomes the acceptance criteria. Keep `--spec` to only what's needed; a generalization or extra hardening nobody asked for is a note for later, not something to build now.
    This creates an isolated worktree+branch, renders the brief, and launches the builder. It also marks the backlog item in-flight if it exists.
+   Can block synchronously for minutes - it waits on a live backend round-trip for the builder's first turn to settle. Run it in the background (e.g. `run_in_background` on the Bash tool, or your host's equivalent) rather than the foreground.
 
 3. **It runs on its own.** `chief-watch.sh` (armed by a Stop hook, zero model cost) polls it between your turns and only interrupts you when it's finished, failed, blocked, or needs a decision. On `blocked` or `needs-decision`, run `bin/chief-backlog.sh hold <id> "<why, one line>"`.
 
@@ -37,7 +38,7 @@ Don't launch a scout to resolve ordinary ambiguity - ask one concise question in
 
 6. **If it's stuck**, escalate cheapest first:
    - `bin/chief-control.sh <id> interrupt` (nudge; it keeps running) + a corrective `chief-send.sh`
-   - `bin/chief-control.sh <id> relaunch --note "<progress so far>"` only if genuinely wedged - the replacement gets the same worktree and commits but none of the conversation, so the note is all it has.
+   - `bin/chief-control.sh <id> relaunch --note "<progress so far>"` only if genuinely wedged - the replacement gets the same worktree and commits but none of the conversation, so the note is all it has. Same backend round-trip as spawn (step 2) - run it in the background too.
 
 7. **Review and report.** Once a task reports `done`, check its current mode via `chief-crew-state.sh <id>`'s `[mode: ...]` tag (promotion can change it after spawn):
    - `ship` - load the `reviewer` skill against its diff, then report the outcome to the operator plainly.
@@ -51,7 +52,7 @@ Do exactly what they decide, nothing more:
 
 - **Not satisfied** - `bin/chief-send.sh <id> "<instruction>"` back to the builder, or send the scout to investigate further.
 - **Ready to land** (ship only) - `bin/chief-pr-open.sh <id> --confirm` to push and open a PR/MR. Skip if they want a local-only merge.
-- **Accepted** - ship: `bin/chief-local-merge.sh <id> --confirm` (local fast-forward) or `bin/chief-pr-merge.sh <id> --confirm` (merges the open PR, defaults to squash). Scout to become a ship: `bin/chief-promote.sh <id> --intent "<ask>" [--spec "<instructions>"]` - converts it in place; its findings become context, not the deliverable.
+- **Accepted** - ship: `bin/chief-local-merge.sh <id> --confirm` (local fast-forward) or `bin/chief-pr-merge.sh <id> --confirm` (merges the open PR, defaults to squash). Scout to become a ship: `bin/chief-promote.sh <id> --intent "<ask>" [--spec "<instructions>"]` - converts it in place; its findings become context, not the deliverable. Same backend round-trip as spawn (step 2) - run it in the background too.
 - **Accepted, no ship needed** (scout only) - `bin/chief-backlog.sh done <id>` then `bin/chief-teardown.sh <id>` discards the worktree; the report at `.chief/data/<id>/report.md` survives.
 
 `chief-pr-open.sh`, `chief-local-merge.sh`, and `chief-pr-merge.sh` all require `--confirm` - pass it only once the operator has explicitly said so in this conversation.
