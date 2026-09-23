@@ -47,16 +47,27 @@ mkdir -p "$INBOX_DIR/handled"
 TEMPLATE="$CHIEF_ROOT/templates/brief-$MODE.md"
 [ -f "$TEMPLATE" ] || fail "no template for mode $MODE at $TEMPLATE"
 
-# Plain sed substitution, not a heredoc generator - the template is the only
-# source of truth for a brief's prose; this script only fills placeholders.
-sed \
-  -e "s|{TASK}|$INTENT|g" \
-  -e "s|{SPEC}|$SPEC|g" \
-  -e "s|{BRANCH}|$BRANCH|g" \
-  -e "s|{STATUS_FILE}|$STATUS_FILE|g" \
-  -e "s|{INBOX_DIR}|$INBOX_DIR|g" \
-  -e "s|{REPORT_FILE}|$REPORT_FILE|g" \
-  "$TEMPLATE" > "$BRIEF"
+# Bash pattern substitution, not sed - a --spec/--intent value can contain
+# literal newlines or sed-delimiter characters, which would break a sed `s`
+# expression. Bash's ${var//pattern/replacement} takes the placeholder and
+# replacement as plain strings (no per-line processing), but it still treats
+# a literal `&` in the replacement as "insert the matched text" and `\` as
+# an escape lead-in, so both must be escaped first.
+brief_escape() {
+  local value=$1
+  value=${value//\\/\\\\}
+  value=${value//&/\\&}
+  printf '%s' "$value"
+}
+
+BRIEF_CONTENT=$(cat "$TEMPLATE")
+BRIEF_CONTENT=${BRIEF_CONTENT//\{TASK\}/$(brief_escape "$INTENT")}
+BRIEF_CONTENT=${BRIEF_CONTENT//\{SPEC\}/$(brief_escape "$SPEC")}
+BRIEF_CONTENT=${BRIEF_CONTENT//\{BRANCH\}/$(brief_escape "$BRANCH")}
+BRIEF_CONTENT=${BRIEF_CONTENT//\{STATUS_FILE\}/$(brief_escape "$STATUS_FILE")}
+BRIEF_CONTENT=${BRIEF_CONTENT//\{INBOX_DIR\}/$(brief_escape "$INBOX_DIR")}
+BRIEF_CONTENT=${BRIEF_CONTENT//\{REPORT_FILE\}/$(brief_escape "$REPORT_FILE")}
+printf '%s\n' "$BRIEF_CONTENT" > "$BRIEF"
 
 # backend_spawn prints exactly two lines (worktree path, then endpoint id).
 # Capture both from ONE call - calling it twice would launch the worker twice.
