@@ -18,6 +18,18 @@ shift 2
 [ -d "$PROJECT" ] || fail "no such project directory: $PROJECT"
 chief_meta_exists "$ID" && fail "task $ID already has a meta record - use a fresh id"
 
+# Atomic spawn lock: guards the window between the chief_meta_exists check
+# above and chief_meta_set below (meta isn't written until backend_spawn
+# has fully succeeded) - without it, a second chief-spawn.sh for the same
+# id (accidental double-dispatch, a naive retry wrapper) would pass the
+# same check and race this one's backend_spawn/backend_spawn_cleanup over
+# the same worktree path/branch/pane label. `set -C` (noclobber) makes the
+# create-if-absent atomic; the trap releases it on any exit, success or
+# failure.
+LOCK="$STATE/.$ID.spawning"
+( set -C; : > "$LOCK" ) 2>/dev/null || fail "task $ID is already being spawned (lock $LOCK exists)"
+trap 'rm -f "$LOCK"' EXIT
+
 MODE=""
 INTENT=""
 SPEC="(none given - use your own judgement within the intent above.)"
@@ -60,10 +72,19 @@ sed \
 
 # backend_spawn prints exactly two lines (worktree path, then endpoint id).
 # Capture both from ONE call - calling it twice would launch the worker twice.
-SPAWN_OUTPUT=$(backend_spawn "$ID" "$PROJECT" "$BRIEF" "$BRANCH") || fail "backend_spawn failed"
+# On either failure below, no meta record has been written yet, so nothing
+# else would ever find/clean up whatever backend_spawn may have already
+# created - roll it back here, best-effort, before reporting the failure.
+SPAWN_OUTPUT=$(backend_spawn "$ID" "$PROJECT" "$BRIEF" "$BRANCH") || {
+  backend_spawn_cleanup "$ID" "$PROJECT" "$BRANCH" 2>/dev/null || true
+  fail "backend_spawn failed"
+}
 WORKTREE=$(printf '%s\n' "$SPAWN_OUTPUT" | sed -n 1p)
 ENDPOINT=$(printf '%s\n' "$SPAWN_OUTPUT" | sed -n 2p)
-[ -n "$WORKTREE" ] && [ -n "$ENDPOINT" ] || fail "backend_spawn returned malformed output: $SPAWN_OUTPUT"
+[ -n "$WORKTREE" ] && [ -n "$ENDPOINT" ] || {
+  backend_spawn_cleanup "$ID" "$PROJECT" "$BRANCH" 2>/dev/null || true
+  fail "backend_spawn returned malformed output: $SPAWN_OUTPUT"
+}
 
 chief_meta_set "$ID" project "$PROJECT"
 chief_meta_set "$ID" mode "$MODE"
