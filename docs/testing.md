@@ -17,9 +17,12 @@ instead of one:
 - **`tests/marketplace/`** — does the marketplace actually install? Real,
   live `claude plugin marketplace add` + `install` and
   `copilot plugin marketplace add` + `install` runs, one per platform,
-  each isolated to a throwaway `$HOME` so a test run never touches your
-  real global Claude Code or Copilot CLI config. Plugin names are read
-  from the manifests at run time, so a new plugin is covered
+  each isolated to a throwaway `$HOME` **and** the CLI's own config-dir
+  override (`CLAUDE_CONFIG_DIR` / `COPILOT_HOME`) so a test run doesn't
+  touch your real global Claude Code or Copilot CLI config, plus a
+  control-throwaway safety net as a backstop (see "Isolation guarantee"
+  below) that never reads or touches your real config either. Plugin names
+  are read from the manifests at run time, so a new plugin is covered
   automatically — no test file to update.
 
 ## Running
@@ -55,6 +58,47 @@ quicker, non-isolated alternative.
 # Marketplace install tests (needs both `claude` and `copilot` on PATH)
 ./tests/marketplace/run-marketplace-tests.sh
 ```
+
+## Isolation guarantee for `tests/marketplace/`
+
+`tests/marketplace/test-claude-install.sh` and `test-copilot-install.sh`
+used to isolate their real installs by overriding `$HOME` alone, on the
+assumption that a CLI's config always lives under `$HOME`. That assumption
+doesn't hold: **as of 2026-09**, Claude Code resolves its config directory
+from `$CLAUDE_CONFIG_DIR` when that env var is set, ignoring `$HOME`
+entirely. This repo's own devcontainers (`.devcontainer/chief`,
+`.devcontainer/orca`) set `CLAUDE_CONFIG_DIR` globally, so a `HOME`-only
+override there silently installed test plugins into the real, shared
+Claude Code config — confirmed by reproducing it directly (installing a
+plugin under a throwaway `$HOME` and watching it appear in
+`claude plugin list` under the real `$HOME` immediately after).
+
+The fix has two layers:
+
+- **Both `$HOME` and the CLI's own config-dir override are pointed at the
+  same throwaway directory.** `test-claude-install.sh` now sets both
+  `HOME` and `CLAUDE_CONFIG_DIR`; `test-copilot-install.sh` sets both
+  `HOME` and `COPILOT_HOME` (GitHub's documented override for Copilot
+  CLI's `~/.copilot` config dir — the same class of HOME-independent
+  override, though not empirically reproduced here since `copilot` wasn't
+  on `PATH` in the environment this was diagnosed in).
+- **A control-throwaway safety net runs regardless, and never touches the
+  real config.** Each script also creates a second, disposable throwaway
+  HOME/config dir that nothing ever installs into, and checks it once at
+  the end of the run. If isolation is working, it's still empty; if
+  anything shows up there, the override wasn't actually confining installs
+  and the test fails loudly (exit 1, the leaked plugin ids printed to
+  stderr). This is deliberate defense in depth, even if a future CLI
+  version resolves its config directory some other way.
+
+  Note: an earlier draft of this fix had the safety net snapshot/diff/revert
+  against the **real** config instead of a control throwaway, on the theory
+  that it should actively clean up anything that leaked. In practice, an
+  unattended repro-and-revert pass against that real config left it worse
+  off than it started (an incidental `marketplace remove`/`add` round-trip
+  deregistered unrelated plugins). The control-throwaway design gives the
+  same leak-detection guarantee without ever reading or writing anything
+  real, which is the right tradeoff for a test run's blast radius.
 
 ## Prerequisite: the plugin must actually be installed
 
