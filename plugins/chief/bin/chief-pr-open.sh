@@ -57,7 +57,15 @@ extract_intent() {
 
 BRIEF="$DATA/$ID/brief.md"
 if [ -z "$TITLE" ]; then
-  TITLE=$(extract_intent "$BRIEF" | sed -n '1{s/^[[:space:]]*//p}')
+  # Default from the branch's own commit history, not the intent text - a
+  # title that just echoes the intent duplicates what BODY already says.
+  SUBJECTS=$(git -C "$WORKTREE" log --reverse --format=%s "$DEFAULT..$BRANCH" 2>/dev/null || true)
+  SUBJECT_COUNT=$(printf '%s\n' "$SUBJECTS" | grep -c . || true)
+  if [ "$SUBJECT_COUNT" -eq 1 ]; then
+    TITLE=$SUBJECTS
+  elif [ "$SUBJECT_COUNT" -gt 1 ]; then
+    TITLE="$(printf '%s\n' "$SUBJECTS" | head -n1) (+$((SUBJECT_COUNT - 1)) more)"
+  fi
   [ -n "$TITLE" ] || TITLE="chief: $ID"
 fi
 if [ -z "$BODY" ]; then
@@ -80,6 +88,10 @@ esac
 
 chief_meta_set "$ID" pr_url "$URL"
 chief_meta_set "$ID" pr_provider "$PROVIDER"
+# Opening the PR is the normal flow acting on this task - take it out of
+# chief-watch.sh's in_flight_ids so it stops re-notifying about the same
+# already-surfaced terminal state on every subsequent Stop hook.
+chief_meta_set "$ID" status pr-opened
 "$CHIEF_ROOT/bin/chief-backlog.sh" note "$ID" "opened PR: $URL" 2>/dev/null || true
 
 echo "opened: $ID -> $URL ($PROVIDER)"
