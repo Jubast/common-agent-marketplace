@@ -33,9 +33,40 @@
 # this error (real risk of the text going in twice) - but a bare follow-up
 # Enter keypress (no text) safely submits whatever's already pending;
 # confirmed live that this recovers the stall. See _chief_herdr_prompt.
+#
+# CHIEF_HERDR_INITIAL_TIMEOUT_MS governs how long a fresh claude process's
+# very first turn (backend_spawn/backend_relaunch's initial brief, handled
+# by _chief_herdr_prompt) is allowed to run before it's treated as hung.
+# Only that first turn uses this - backend_send's ordinary mid-task turns
+# don't --wait at all. Configurable and defaulted high because the "right"
+# budget is workload-dependent (a quick scout lookup vs. a builder kicking
+# off a large refactor) and a slow-but-successful start on a non-trivial
+# task must not look identical to a genuine hang.
+CHIEF_HERDR_INITIAL_TIMEOUT_MS="${CHIEF_HERDR_INITIAL_TIMEOUT_MS:-300000}"
 
 _chief_herdr_workspace_id() {  # <pane-id> -> workspace id ("w2:p1" -> "w2")
   printf '%s' "$1" | cut -d: -f1
+}
+
+# _chief_herdr_close_pane_by_label <id> - best-effort: find and close
+# whatever herdr workspace carries the fixed "chief-<id>" label (the label
+# passed to both `herdr worktree create` and `herdr worktree open`) - the
+# only id-derived handle guaranteed to survive a failure with no parsed
+# pane id. Used by callers that need to clean up a pane before any meta
+# record (and so no stored endpoint) exists.
+_chief_herdr_close_pane_by_label() {
+  local id=$1
+  local ws
+  ws=$(herdr workspace list 2>/dev/null \
+    | jq -r --arg label "chief-$id" '.result.workspaces[]? | select(.label == $label) | .workspace_id' 2>/dev/null) || true
+  [ -n "$ws" ] || return 0
+  # The trailing `|| true` matters under the caller's `set -e`: without it,
+  # a failed `herdr workspace close` on the loop's last line would make the
+  # whole pipeline's exit status non-zero and abort the caller right here.
+  printf '%s\n' "$ws" | while read -r w; do
+    [ -n "$w" ] && herdr workspace close "$w" >/dev/null 2>&1
+  done || true
+  return 0
 }
 
 # _chief_herdr_start_agent <id> <pane-id> - start claude in <pane-id> under
@@ -67,7 +98,7 @@ _chief_herdr_start_agent() {
 _chief_herdr_prompt() {
   local id=$1 text=$2
   local err
-  err=$(herdr agent prompt "$id" "$text" --wait --timeout 120000 2>&1) && return 0
+  err=$(herdr agent prompt "$id" "$text" --wait --timeout "$CHIEF_HERDR_INITIAL_TIMEOUT_MS" 2>&1) && return 0
   case "$err" in
     *agent_prompt_stalled*)
       # A stray "--until idle" wait right after send-keys could match the
@@ -77,7 +108,7 @@ _chief_herdr_prompt() {
       herdr agent send-keys "$id" enter >/dev/null 2>&1
       herdr agent wait "$id" --until working --timeout 15000 >/dev/null 2>&1 \
         || { echo "chief-backend-herdr: prompt for $id stalled and a follow-up Enter didn't start a turn" >&2; return 1; }
-      herdr agent wait "$id" --until idle --until done --until blocked --timeout 120000 >/dev/null 2>&1 \
+      herdr agent wait "$id" --until idle --until done --until blocked --timeout "$CHIEF_HERDR_INITIAL_TIMEOUT_MS" >/dev/null 2>&1 \
         || { echo "chief-backend-herdr: prompt for $id started after recovery but never settled" >&2; return 1; }
       return 0
       ;;
@@ -106,6 +137,18 @@ backend_spawn() {
 
   printf '%s\n' "$worktree"
   printf 'herdr:%s\n' "$pane_id"
+}
+
+# backend_spawn_cleanup <id> <project-dir> <branch> - best-effort rollback
+# after backend_spawn itself failed, or chief-spawn.sh couldn't parse its
+# output, before any meta record exists. See chief-backend.sh's contract
+# header for the calling convention.
+backend_spawn_cleanup() {
+  local id=$1 project_dir=$2 branch=$3
+  local worktree="$WORKTREES/$id"
+  _chief_herdr_close_pane_by_label "$id"
+  git -C "$project_dir" worktree remove --force "$worktree" >/dev/null 2>&1 || rm -rf "$worktree"
+  git -C "$project_dir" branch -D "$branch" >/dev/null 2>&1 || true
 }
 
 backend_send() {
@@ -147,15 +190,27 @@ backend_relaunch() {
   # repo against ambient server state instead of this specific project -
   # confirmed live to pick up a stale, unrelated repo when omitted.
   json=$(herdr worktree open --cwd "$project" --path "$worktree" --label "chief-$id" --trust-repository --no-focus 2>&1) \
-    || { echo "chief-backend-herdr: 'herdr worktree open' failed: $json" >&2; return 1; }
+    || { echo "chief-backend-herdr: 'herdr worktree open' failed: $json" >&2
+         _chief_herdr_close_pane_by_label "$id"
+         return 1; }
   pane_id=$(printf '%s' "$json" | jq -r '.result.root_pane.pane_id // empty')
   [ -n "$pane_id" ] \
-    || { echo "chief-backend-herdr: could not read pane id from: $json" >&2; return 1; }
+    || { echo "chief-backend-herdr: could not read pane id from: $json" >&2
+         _chief_herdr_close_pane_by_label "$id"
+         return 1; }
 
   _chief_herdr_start_agent "$id" "$pane_id" \
-    || { echo "chief-backend-herdr: 'herdr agent start' did not become ready for $id" >&2; return 1; }
+    || { echo "chief-backend-herdr: 'herdr agent start' did not become ready for $id" >&2
+         _chief_herdr_close_pane_by_label "$id"
+         return 1; }
 
-  _chief_herdr_prompt "$id" "$(cat "$brief_path")" || return 1
+  _chief_herdr_prompt "$id" "$(cat "$brief_path")" || {
+    # The OLD pane was already killed by chief-control.sh before relaunch
+    # was called - a failure here leaves the NEW one orphaned with meta's
+    # endpoint still pointing at the dead old one.
+    _chief_herdr_close_pane_by_label "$id"
+    return 1
+  }
 
   chief_meta_set "$id" endpoint "herdr:$pane_id"
 }

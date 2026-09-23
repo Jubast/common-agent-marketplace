@@ -26,6 +26,20 @@
 #                        (recorded in state/<id>.meta) pointed at the given
 #                        brief, after backend_kill already stopped the old
 #                        one. Does not create a new worktree or branch.
+#   backend_spawn_cleanup <id> <project-dir> <branch>
+#                     -> best-effort rollback of whatever backend_spawn may
+#                        have created before failing, or before
+#                        chief-spawn.sh could parse its output - worktree,
+#                        branch, terminal/pane. Called ONLY by chief-spawn.sh
+#                        on those two failure paths, always wrapped in
+#                        `|| true` so a cleanup failure never masks the
+#                        original error. Must not depend on any meta record
+#                        (none exists yet at this point) - only on the
+#                        id/project-dir/branch already known to the caller
+#                        before backend_spawn was ever invoked. A backend
+#                        that hasn't implemented this yet simply leaves the
+#                        call a no-op (command-not-found, swallowed by the
+#                        caller's `|| true`) rather than erroring.
 #
 # Selection: $CHIEF_BACKEND env var, else $CONFIG/backend, else "herdr".
 
