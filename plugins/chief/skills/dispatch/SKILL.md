@@ -50,7 +50,7 @@ Don't launch a scout to resolve ordinary ambiguity - ask one concise question in
 Do exactly what they decide, nothing more:
 
 - **Not satisfied** - `bin/chief-send.sh <id> "<instruction>"` back to the builder, or send the scout to investigate further.
-- **Ready to land** (ship only) - `bin/chief-pr-open.sh <id> --confirm` to push and open a PR/MR. Skip if they want a local-only merge.
+- **Ready to land** (ship only) - compose a conventional-commit-style title and a structured body yourself (the same way this project's own PR conventions - a `conventional-pull-requests`-style skill if installed, or its CLAUDE.md/AGENTS.md rules - would produce), then `bin/chief-pr-open.sh <id> --confirm --title "<title>" --body "<body>"` to push and open a PR/MR. Always pass `--title`/`--body` explicitly; don't rely on the script's auto-derived fallback. Skip if they want a local-only merge.
 - **Accepted** - ship: `bin/chief-local-merge.sh <id> --confirm` (local fast-forward) or `bin/chief-pr-merge.sh <id> --confirm` (merges the open PR, defaults to squash). Scout to become a ship: `bin/chief-promote.sh <id> --intent "<ask>" [--spec "<instructions>"]` - converts it in place; its findings become context, not the deliverable.
 - **Accepted, no ship needed** (scout only) - `bin/chief-backlog.sh done <id>` then `bin/chief-teardown.sh <id>` discards the worktree; the report at `.chief/data/<id>/report.md` survives.
 
