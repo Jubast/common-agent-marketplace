@@ -27,6 +27,9 @@ Nothing outside this worktree is yours to touch.
 # Self-review
 Before reporting `done`, follow the `reviewer` skill's checklist against your own diff. Fix anything it flags, or report it honestly in your `done` line if you can't.
 
+# Project docs
+Check this project's root (and `docs/adr/`) for `README.md`, `AGENTS.md` (or `CLAUDE.md`), `ARCHITECTURE.md`, `docs/adr/*.md`, `CONSUMER_GUIDE.md`. For each that exists and this task's change is relevant to, update it proportionately - skip trivial tasks with no durable project-facing change, and prefer a pointer over duplicating detail. Do not create any that are missing unless the intent/spec above explicitly asked for that file; instead, name which of the well-known ones don't exist in your `done` line so Chief and the operator see the gap instead of it passing silently.
+
 # Instruction inbox
 Chief may steer you mid-task through `{INBOX_DIR}`. When a message tells you an instruction is waiting there - or at any natural checkpoint when you're unsure what to do next - list `{INBOX_DIR}/*.msg`, read and act on each in order, then acknowledge by moving it: `mv {INBOX_DIR}/NNN.msg {INBOX_DIR}/handled/`. An empty or absent inbox needs no action.
 
