@@ -23,7 +23,7 @@ WATCH="$CHIEF_PLUGIN_ROOT/bin/chief-watch.sh"
 # bin/lib/chief-worktree.sh.
 chief_is_linked_worktree && exit 0
 
-# No .chief home in this project at all -> Chief isn't in use here; let the
+# No CHIEF_HOME at all -> Chief isn't in use here; let the
 # turn end normally rather than creating one just to watch nothing.
 _chief_home="${CHIEF_HOME:-}"
 if [ -z "$_chief_home" ]; then

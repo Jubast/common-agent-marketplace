@@ -11,12 +11,12 @@ Inspired by [Firstmate](https://github.com/kunchenguid/firstmate), which does th
 - `bin/` - the lifecycle scripts (`chief-spawn`, `chief-send`, `chief-control`, `chief-crew-state`, `chief-watch`, `chief-teardown`, `chief-local-merge`, `chief-promote`, `chief-backlog`, `chief-setup`), the PR/MR lifecycle scripts (`chief-pr-open`, `chief-pr-state`, `chief-pr-review`, `chief-pr-approve`, `chief-pr-merge`), and `bin/lib/` (path/meta/lock helpers, the backend adapters, the PR provider dispatcher `chief-pr-provider.sh` and its adapters `chief-pr-provider-{mock,github,gitlab,azuredevops}.sh`, and `chief-worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one).
 - `templates/` - the two brief templates (`brief-ship.md`, `brief-scout.md`).
 - `skills/using-chief` - the identity/job-description skill, force-injected every session via the `SessionStart` hook so Chief always knows its role without being asked.
-- `skills/setup` - one-time per-project config (backend choice + gitignoring `.chief/`); only relevant before `.chief/config/backend` exists, which the `SessionStart` digest flags explicitly.
+- `skills/setup` - one-time CHIEF_HOME config (backend choice + gitignoring `.chief/`); only relevant before `.chief/config/backend` exists, which the `SessionStart` digest flags explicitly.
 - `skills/dispatch` - the operator-facing entry point; load this to hand off work.
 - `skills/reviewer` - a short fixed review checklist, run before merging.
 - `hooks/` - `SessionStart` (injects `using-chief`, a configuration status line, and a backlog/in-flight digest) and `Stop` (the token-saving watch arm). Both stand down entirely inside a spawned builder's own worktree - see `chief-worktree.sh`.
 
-Runtime state lives at `.chief/` under the current project's git root (`state/`, `data/`, `config/`, `worktrees/`) - created on first use, not part of the plugin package. `chief-setup.sh` gitignores it for you.
+Runtime state lives at `.chief/` under `CHIEF_HOME` - the git root of wherever the Chief session itself runs, typically the operator's top-level workspace, not each project it dispatches into (`state/`, `data/`, `config/`, `worktrees/`) - created on first use, not part of the plugin package. `chief-setup.sh` gitignores it for you.
 
 ## Status
 
