@@ -11,6 +11,7 @@ A fixed, short checklist - not a pipeline. Run it against the diff between a tas
 2. **Builds/lints/tests clean.** Run whatever this project's own check command is. Don't invent new tooling for this.
 3. **No debris.** No leftover debug prints, commented-out code, stray TODOs, or scratch files that shouldn't ship.
 4. **Scope discipline.** Nothing was added beyond the brief's spec - a generalization, an unrelated refactor, or extra hardening not asked for should be flagged, not silently kept.
+5. **Doc hygiene.** If the diff touches a doc under `plugins/chief/`, check it doesn't restate a fact that already has a named owner per `README.md`'s "Maintaining these docs" note, and doesn't introduce a dead local link within `plugins/chief/**/*.md`.
 
 Report one of:
 - `PASS` - safe to merge.
