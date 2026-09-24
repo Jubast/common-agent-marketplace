@@ -39,7 +39,7 @@
     {
       "name": "chief",
       "description": "A lightweight supervisor for Claude Code: dispatches work to isolated builder/scout agents over the herdr or Orca backend, tracks a plain-markdown backlog, and supervises them with a near-zero-token watch loop.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "source": "./plugins/chief/"
     }
   ]
