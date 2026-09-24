@@ -36,4 +36,8 @@ git -C "$PROJECT" merge-base --is-ancestor "$DEFAULT" "$BRANCH" \
   || fail "REFUSED: $BRANCH is not a fast-forward of $DEFAULT (it has diverged) - rebase the builder's branch first"
 
 git -C "$PROJECT" merge --ff-only "$BRANCH" || fail "fast-forward merge failed"
+# The merge is the normal flow acting on this task - take it out of
+# chief-watch.sh's in_flight_ids so it stops re-notifying about the same
+# already-surfaced terminal state on every subsequent Stop hook.
+chief_meta_set "$ID" status merged
 echo "merged: $ID -> $DEFAULT in $PROJECT (fast-forward)"

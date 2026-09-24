@@ -20,6 +20,7 @@ set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
 . "$CHIEF_ROOT/bin/lib/chief-lock.sh"
+. "$CHIEF_ROOT/bin/lib/chief-meta.sh"
 
 BACKLOG="$DATA/backlog.md"
 LOCK="$STATE/.backlog.lock"
@@ -92,10 +93,18 @@ cmd_hold() {
   local id=$1 reason=$2
   cmd_status "$id" held
   cmd_note "$id" "$reason"
+  # A held/done backlog item has been acted on by the normal flow - take it
+  # out of chief-watch.sh's in_flight_ids so it stops re-notifying about the
+  # same already-surfaced terminal state on every subsequent Stop hook.
+  chief_meta_exists "$id" && chief_meta_set "$id" status held
+  return 0
 }
 
 cmd_done() {
-  cmd_status "$1" done
+  local id=$1
+  cmd_status "$id" done
+  chief_meta_exists "$id" && chief_meta_set "$id" status done
+  return 0
 }
 
 cmd_list() {

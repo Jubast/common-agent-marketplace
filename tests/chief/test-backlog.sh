@@ -4,13 +4,16 @@ set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
-BL="$REPO_ROOT/plugins/chief/bin/chief-backlog.sh"
+CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
+BL="$CHIEF_BIN/chief-backlog.sh"
 . "$TEST_DIR/lib/harness.sh"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 cd "$WORK" && git init -q
 export CHIEF_HOME="$WORK/.chief"
+. "$CHIEF_BIN/lib/chief-paths.sh"
+. "$CHIEF_BIN/lib/chief-meta.sh"
 BACKLOG="$CHIEF_HOME/data/backlog.md"
 
 echo "test-backlog:"
@@ -27,6 +30,7 @@ assert_eq "$("$BL" next)" "t-2" "next skips the now in-flight record"
 assert_success "hold sets status and note together" -- "$BL" hold t-1 "blocked on captain - which limiter lib?"
 assert_contains "$("$BL" show t-1)" "[held]" "hold sets status to held"
 assert_contains "$("$BL" show t-1)" "note: blocked on captain" "hold records the reason"
+assert_eq "$(chief_meta_get t-1 status 2>/dev/null || true)" "" "hold is a no-op on task meta when t-1 has no meta record yet"
 
 assert_success "note overwrites the existing note, not appends" -- "$BL" note t-1 "operator said: token-bucket"
 assert_contains "$(cat "$BACKLOG")" "note: operator said: token-bucket" "the new note text is present"
@@ -36,6 +40,19 @@ assert_eq "$(grep -c '^note:' "$BACKLOG")" "1" "exactly one note line exists for
 assert_success "done marks a record done" -- "$BL" done t-2
 assert_contains "$("$BL" list done)" "t-2" "list done filters correctly"
 assert_eq "$("$BL" next)" "" "next returns nothing once no record is queued"
+
+# --- a record whose task DOES have a chief-meta record -------------------
+# (i.e. it was actually spawned) - hold/done must advance its meta status
+# away from "working" so chief-watch.sh's in_flight_ids stops including it.
+assert_success "add a third record" -- "$BL" add t-3 "Third task"
+chief_meta_set t-3 status working
+assert_success "hold on a spawned task also advances its meta status" -- "$BL" hold t-3 "needs a decision"
+assert_eq "$(chief_meta_get t-3 status)" "held" "hold advances a spawned task's meta status away from working"
+
+assert_success "add a fourth record" -- "$BL" add t-4 "Fourth task"
+chief_meta_set t-4 status working
+assert_success "done on a spawned task also advances its meta status" -- "$BL" done t-4
+assert_eq "$(chief_meta_get t-4 status)" "done" "done advances a spawned task's meta status away from working"
 
 assert_failure "add refuses a duplicate id" -- "$BL" add t-1 "dup"
 assert_failure "status refuses an unknown id" -- "$BL" status nope queued

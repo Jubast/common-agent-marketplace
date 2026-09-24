@@ -25,6 +25,7 @@ export CHIEF_HOME="$WORK/.chief"
 
 chief_meta_set t1 project "$WORK/project"
 chief_meta_set t1 branch chief/t1
+chief_meta_set t1 status working
 
 "$CHIEF_BIN/chief-local-merge.sh" t1 >/dev/null 2>"$WORK/err-noconfirm"
 assert_eq "$?" "1" "refuses to merge without --confirm"
@@ -38,6 +39,7 @@ assert_contains "$OUT" "merged: t1 -> main in $WORK/project (fast-forward)" "fas
 HEAD_MAIN=$(git -C "$WORK/project" rev-parse main)
 HEAD_BRANCH=$(git -C "$WORK/worktrees/t1" rev-parse chief/t1)
 assert_eq "$HEAD_MAIN" "$HEAD_BRANCH" "main now points at the task branch's commit"
+assert_eq "$(chief_meta_get t1 status)" "merged" "advances the task's meta status away from working once merged"
 
 "$CHIEF_BIN/chief-local-merge.sh" t1 --pr "https://example.invalid/pr/1" >/dev/null 2>"$WORK/err"
 assert_eq "$?" "1" "refuses the removed --pr flag"
