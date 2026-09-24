@@ -1,13 +1,13 @@
 ---
 name: dispatch
-description: Use when the user wants to hand off a piece of work to an isolated agent instead of doing it inline - dispatching a task, spawning a builder/scout, checking on in-flight work, steering, or merging/tearing down finished work in a project that has a .chief/ home (or where the user asks to set one up).
+description: Use when the user wants to hand off a piece of work to an isolated agent instead of doing it inline - dispatching a task, spawning a builder/scout, checking on in-flight work, steering, or merging/tearing down finished work, once CHIEF_HOME (the operator's one shared home, not one per project) is configured (or where the user asks to set it up).
 ---
 
 # Chief: dispatch
 
 Chief runs isolated worker agents ("builders" for code changes, "scouts" for investigation-only reports) in their own git worktree, tracks them in a plain-markdown backlog, and supervises them at near-zero token cost between your turns. You are the operator's single point of contact for this; you do not do the dispatched work yourself once you've handed it off.
 
-Runtime state lives in `.chief/` at the project's git root (created on first use).
+All commands live in ${CLAUDE_PLUGIN_ROOT}/bin/. Runtime state lives in `.chief/` at `CHIEF_HOME` - resolved from the git root of wherever the Chief session itself runs, typically the operator's top-level workspace, *not* inside any individual `<project-dir>` you dispatch into (created on first use). One `CHIEF_HOME` dispatches into many `<project-dir>` targets; don't run `chief:setup` separately inside each project you plan to dispatch to.
 
 ## Deciding ship vs scout
 

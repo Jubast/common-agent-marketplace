@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# chief-setup.sh - one-time per-project setup: pick a backend, verify it's on
+# chief-setup.sh - one-time CHIEF_HOME setup: pick a backend, verify it's on
 # PATH, gitignore runtime state. Safe to re-run (idempotent).
 #
 # Usage: chief-setup.sh --backend herdr|orca
@@ -44,4 +44,4 @@ else
   echo "gitignore: no git repo found here, skipped"
 fi
 
-echo "done: Chief is configured for this project"
+echo "done: Chief is configured at this CHIEF_HOME"

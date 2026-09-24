@@ -6,9 +6,11 @@
 #               read-only, resolved from this script's own location so it
 #               works whether Claude Code installed the plugin or a developer
 #               is running it straight out of a checkout.
-#   CHIEF_HOME  the per-project runtime home (state/, data/) - defaults to
-#               <repo-root>/.chief, override with the CHIEF_HOME env var.
-#               This is gitignored working state, never plugin code.
+#   CHIEF_HOME  the operator's one shared runtime home (state/, data/) -
+#               resolved from the git root of wherever the Chief session
+#               itself runs, not per-project; defaults to <repo-root>/.chief,
+#               override with the CHIEF_HOME env var. This is gitignored
+#               working state, never plugin code.
 #
 # Every top-level bin/chief-*.sh script sources this before anything else:
 #   . "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
