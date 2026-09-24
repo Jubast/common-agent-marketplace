@@ -34,6 +34,7 @@ JSON output (skipped gracefully if absent).
 | `test-setup.sh` | `chief-setup.sh`: backend config, idempotent gitignore, no-git-repo case |
 | `test-hooks.sh` | `session-start.sh` and `stop-watch-arm.sh`'s own bash logic across fresh/configured/in-flight/builder-worktree scenarios |
 | `test-lifecycle.sh` | The full happy path: backlog → spawn → simulated work → crew-state → teardown-refuses-before-merge → merge → teardown-succeeds |
+| `test-spawn-cleanup.sh` | `chief-spawn.sh`'s rollback on a failed/malformed `backend_spawn` (`backend_spawn_cleanup`, no orphaned worktree/branch/meta) and the atomic spawn lock, against the mock backend's `CHIEF_MOCK_SPAWN_FAIL`/`CHIEF_MOCK_SPAWN_MALFORMED` injectors |
 | `test-backend-herdr.sh` | `chief-backend-herdr.sh` against a REAL herdr install and a real (trivial) claude turn: spawn, capture, busy, send, kill, relaunch. **Not zero-cost** - opt in with `CHIEF_TEST_HERDR=1`; skips cleanly otherwise. See below. |
 | `test-backend-orca-mock.sh` | `chief-backend-orca.sh`'s argument-building and JSON-parsing against a fake `orca` CLI stub: spawn, capture, busy, send, kill, relaunch. Zero cost. |
 | `test-backend-orca.sh` | `chief-backend-orca.sh` against a REAL live Orca instance and a real (trivial) claude turn, targeting this repo itself: spawn, capture, busy, send, kill, relaunch. **Not zero-cost** - opt in with `CHIEF_TEST_ORCA=1`; skips cleanly otherwise. See below. |

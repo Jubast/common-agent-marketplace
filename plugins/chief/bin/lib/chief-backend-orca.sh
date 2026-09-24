@@ -46,6 +46,14 @@
 # every backend) - a torn-down task can leave a stale Orca worktree
 # entry. Would need a new adapter-contract hook for every backend; out of
 # scope here.
+#
+# NOT handled: this adapter doesn't implement backend_spawn_cleanup (see
+# chief-backend.sh's contract header) - a backend_spawn failure here still
+# leaves whatever Orca worktree/terminal it created orphaned with no meta
+# record, same gap issue #16 fixed for the herdr adapter. chief-spawn.sh's
+# call is harmless (command-not-found, swallowed by its own `|| true`) but
+# doesn't clean anything up. Out of scope here; give this the same
+# treatment as chief-backend-herdr.sh's backend_spawn_cleanup if picked up.
 
 _chief_orca_warn_relaunch_once() {
   [ -n "${_CHIEF_ORCA_WARNED:-}" ] && return
