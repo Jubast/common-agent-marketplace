@@ -1,16 +1,20 @@
 # conventional-changes
 
-Commits changes using micro commits with conventional commit messages,
-then creates or updates a pull/merge request with a conventional-commit-
-style title and structured body — the two skills are used back to back in
-one workflow, so they ship as a single plugin. Enforced via a
-`SessionStart` hook that force-injects a reminder to use them, so the
-guidance doesn't depend on the model choosing to read a skill file.
+Files or updates the issue/task the work is tracked against, commits
+changes using micro commits with conventional commit messages, then
+creates or updates a pull/merge request with a conventional-commit-style
+title and structured body — the three skills are used back to back in one
+workflow, so they ship as a single plugin. Enforced via a `SessionStart`
+hook that force-injects a reminder to use them, so the guidance doesn't
+depend on the model choosing to read a skill file.
 
 ## What's in here
 
 - `.claude-plugin/plugin.json` — the plugin manifest, read directly by
   both Claude Code and Copilot CLI.
+- `skills/conventional-issues/` — writes the issue/task/ticket title with a
+  conventional type prefix and a structured description, then files or
+  updates it with the project's own tooling.
 - `skills/conventional-commits/` — analyzes the diff, groups related
   files, and commits each group with a conventional commit message, then
   offers to push and continue into `conventional-pull-requests`.
@@ -19,7 +23,7 @@ guidance doesn't depend on the model choosing to read a skill file.
   and structured body, and creates or updates the PR/MR with the
   project's own tooling.
 - `skills/using-conventional-changes/` — a short trigger skill pointing
-  at both of the above for their full procedures.
+  at all of the above for their full procedures.
 - `hooks/` — the `SessionStart` hook, which force-injects
   `skills/using-conventional-changes/SKILL.md` as `additionalContext` on
   every session start, so the guidance doesn't depend on the model

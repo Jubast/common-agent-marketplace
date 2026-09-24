@@ -46,10 +46,11 @@ GitHub.)
 - [`using-orca`](plugins/using-orca/) — teaches Claude Code to recognize
   and require the orca-cli and orchestration skills for worktree/agent-
   dispatch work in Orca-managed environments.
-- [`conventional-changes`](plugins/conventional-changes/) — commits
-  changes using micro commits with conventional commit messages, then
-  creates or updates a pull/merge request with a conventional-commit-style
-  title and structured body.
+- [`conventional-changes`](plugins/conventional-changes/) — files or
+  updates the issue the work is tracked against, commits changes using
+  micro commits with conventional commit messages, then creates or updates
+  a pull/merge request with a conventional-commit-style title and
+  structured body.
 
 ## Adding a plugin
 
