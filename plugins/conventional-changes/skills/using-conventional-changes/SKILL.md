@@ -1,7 +1,13 @@
 ---
 name: using-conventional-changes
-description: Use when about to commit changes, or open/update a pull request or merge request, in this repository - teaches when the conventional-commits and conventional-pull-requests skills are required over doing either directly.
+description: Use when about to file or update an issue/task/ticket, commit changes, or open/update a pull request or merge request, in this repository - teaches when the conventional-issues, conventional-commits, and conventional-pull-requests skills are required over doing any of those directly.
 ---
+
+If the user asks to open, create, or update an issue, task, or ticket, or
+invokes any issue-creation or issue-update command, you MUST use the
+`conventional-issues` skill instead of doing it directly with an arbitrary
+title/body — regardless of which tracker the project uses (GitHub, GitLab,
+Jira, Linear, Azure Boards, or otherwise).
 
 If the user asks to commit changes, or invokes `/commit`, you MUST use the
 `conventional-commits` skill instead of running `git commit` directly with
@@ -13,6 +19,9 @@ use the `conventional-pull-requests` skill instead of doing it directly
 with an arbitrary title/body — regardless of which hosting platform or CLI
 the project uses (GitHub, GitLab, Bitbucket, Azure DevOps, or otherwise).
 
+- **conventional-issues** — writes the issue/task/ticket title with a
+  conventional type prefix and a structured description, then files or
+  updates it with the project's own tooling.
 - **conventional-commits** — analyzes the diff, groups related files, and
   commits each group with a conventional commit message (`feat:`, `fix:`,
   `docs:`, etc.), then offers to push and continue into

@@ -74,6 +74,17 @@ nine reference-file slugs), and review mode's `ReportFindings` tool plus its
 empty-findings behavior. No integration counterpart — the skill is pure
 guidance with no executable code.
 
+### `test-conventional-issues.sh` (fast)
+
+Four checks against SKILL.md's documented claims: the issue/task/ticket
+open-create-update trigger wording, the type-prefix title grammar it defines
+(rather than leaving the title convention unspecified), the default
+description template's section set (Repro and Environment present, Out of
+Scope absent), and the absence of any Definition of Ready/Done gating step.
+No integration counterpart - the skill is pure guidance with no executable
+code, and it deliberately specifies content only, not which tracker/tool
+files the issue.
+
 ### `test-convert-pdf-to-md-integration.sh` (`--integration`)
 
 Application and Pressure scenarios, each generating a fixture PDF and
