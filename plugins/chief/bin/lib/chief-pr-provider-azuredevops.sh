@@ -184,5 +184,5 @@ pr_merge() {
   blocking=$(printf '%s' "$policies" | jq -r '.[]? | select(.status=="rejected" or .status=="queued" or .status=="running") | "\(.configuration.type.displayName // "policy") \(.status)"')
   [ -z "$blocking" ] || { echo "chief-pr-provider-azuredevops: PR has blocking policies: $blocking" >&2; return 1; }
   az repos pr update --organization "https://dev.azure.com/$_CHIEF_ADO_ORG" --id "$_CHIEF_ADO_ID" \
-    --status completed --squash "$squash"
+    --status completed --squash "$squash" --delete-source-branch true
 }

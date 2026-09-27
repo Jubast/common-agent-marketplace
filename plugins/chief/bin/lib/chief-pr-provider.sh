@@ -28,7 +28,8 @@
 #     -> submits an approving review/vote.
 #   pr_merge <pr-url> [--squash|--merge|--rebase]
 #     -> re-checks live preconditions (open, non-draft, mergeable, checks
-#        green at the current head) and refuses if any fails, then merges.
+#        green at the current head) and refuses if any fails, then merges,
+#        deleting the source branch on the remote as part of the merge.
 #   pr_merged <pr-url>
 #     -> exit 0 if the PR/MR is merged, exit 1 otherwise (including "can't
 #        tell"). Used by chief-teardown.sh: a squash or rebase merge leaves

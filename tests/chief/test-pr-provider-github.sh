@@ -96,6 +96,9 @@ pr_merge "https://github.com/acme/widgets/pull/42" >/dev/null
 assert_eq "$?" "0" "pr_merge succeeds when open/non-draft/mergeable"
 assert_contains "$(cat "$GH_MOCK_LOG")" "pr merge https://github.com/acme/widgets/pull/42 --squash --match-head-commit abc123" \
   "pr_merge defaults to --squash and matches the current head"
+MERGE_LINE=$(grep '^pr merge' "$GH_MOCK_LOG")
+assert_contains "$MERGE_LINE" "--delete-branch" \
+  "pr_merge asks gh to delete the remote branch on merge"
 unset GH_MOCK_VIEW
 
 : > "$GH_MOCK_LOG"

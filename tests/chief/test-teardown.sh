@@ -105,4 +105,32 @@ unset CHIEF_PR_MOCK_MERGED
 assert_file_missing "$CHIEF_HOME/worktrees/b-3" "teardown (PR merged): worktree removed"
 assert_contains "$("$BIN/chief-backlog.sh" show b-3)" "[done]" "teardown (PR merged): backlog item marked done"
 
+# --- discard best-effort deletes the remote branch too -------------------
+# Every teardown above ran with no 'origin' remote on $WORK/project at all,
+# so their `git push origin --delete` call already failed every time and
+# was silently ignored (asserted success regardless) - covering the
+# "provider deletion unavailable/fails" backstop case. This one adds a real
+# origin with the branch pushed, to confirm the delete actually happens
+# when it can.
+BARE="$WORK/origin.git"
+git init -q --bare "$BARE"
+git -C "$WORK/project" remote add origin "$BARE"
+git -C "$WORK/project" push -q origin master
+
+assert_success "backlog: file a fourth ship" -- "$BIN/chief-backlog.sh" add b-4 "Add sun.txt"
+assert_success "spawn: fourth ship task" -- \
+  timeout 10 "$BIN/chief-spawn.sh" b-4 "$WORK/project" --mode ship --intent "Add sun.txt" --spec "content: sun"
+(
+  cd "$CHIEF_HOME/worktrees/b-4"
+  echo sun > sun.txt
+  git add sun.txt
+  git -c user.email=t@t -c user.name=t commit -q -m "add sun.txt"
+  git push -q origin chief/b-4
+)
+assert_contains "$(git -C "$BARE" branch --list chief/b-4)" "chief/b-4" "setup: chief/b-4 pushed to origin before teardown"
+
+"$BIN/chief-local-merge.sh" b-4 --confirm >/dev/null
+assert_success "teardown: a landed ship deletes its now-merged remote branch" -- "$BIN/chief-teardown.sh" b-4
+assert_eq "$(git -C "$BARE" branch --list chief/b-4)" "" "teardown: remote branch chief/b-4 deleted from origin"
+
 harness_summary

@@ -116,5 +116,5 @@ pr_merge() {
   local blocking
   blocking=$(printf '%s' "$json" | jq -r '.statusCheckRollup[]? | select(.conclusion=="FAILURE" or .conclusion=="CANCELLED" or (.status=="IN_PROGRESS")) | "\(.name) \(.conclusion // .status)"')
   [ -z "$blocking" ] || { echo "chief-pr-provider-github: PR has blocking checks: $blocking" >&2; return 1; }
-  gh pr merge "$url" "$method" --match-head-commit "$head"
+  gh pr merge "$url" "$method" --match-head-commit "$head" --delete-branch
 }
