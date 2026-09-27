@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# chief-lock.sh - a directory-based mutex. `mkdir` is atomic on every POSIX
+# lock.sh - a directory-based mutex. `mkdir` is atomic on every POSIX
 # filesystem, which is the whole reason this needs no flock/fcntl dependency.
 #
 # chief_lock_acquire <lock-dir> [timeout-seconds, default 10]

@@ -12,8 +12,8 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 cd "$WORK" && git init -q
 export CHIEF_HOME="$WORK/.chief"
-. "$CHIEF_BIN/lib/chief-paths.sh"
-. "$CHIEF_BIN/lib/chief-meta.sh"
+. "$CHIEF_BIN/lib/paths.sh"
+. "$CHIEF_BIN/lib/meta.sh"
 BACKLOG="$CHIEF_HOME/data/backlog.md"
 
 echo "test-backlog:"

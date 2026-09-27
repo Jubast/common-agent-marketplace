@@ -18,9 +18,9 @@
 #   chief-backlog.sh show <id>                               -> print one record
 set -euo pipefail
 
-. "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
-. "$CHIEF_ROOT/bin/lib/chief-lock.sh"
-. "$CHIEF_ROOT/bin/lib/chief-meta.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
+. "$CHIEF_ROOT/bin/lib/lock.sh"
+. "$CHIEF_ROOT/bin/lib/meta.sh"
 
 BACKLOG="$DATA/backlog.md"
 LOCK="$STATE/.backlog.lock"

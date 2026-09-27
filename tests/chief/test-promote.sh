@@ -18,7 +18,7 @@ export CHIEF_BACKEND=mock
 echo "test-promote:"
 
 assert_failure "promote: refuses an unknown id" -- \
-  "$BIN/chief-promote.sh" nope --intent "x"
+  "$BIN/task/chief-promote.sh" nope --intent "x"
 
 assert_success "backlog: file the scout" -- "$BIN/chief-backlog.sh" add s-1 "Investigate rate limiting options"
 assert_success "spawn: scout task" -- \
@@ -33,10 +33,10 @@ assert_contains "$SCOUT_BRIEF" "report \`working" "spawn: the scout brief tells 
 assert_success "spawn: a ship task, to prove promote rejects non-scouts" -- \
   timeout 10 "$BIN/chief-spawn.sh" b-1 "$WORK/project" --mode ship --intent "Add hello.txt"
 assert_failure "promote: refuses a ship task" -- \
-  "$BIN/chief-promote.sh" b-1 --intent "x"
+  "$BIN/task/chief-promote.sh" b-1 --intent "x"
 
 assert_success "promote: succeeds on the scout" -- \
-  "$BIN/chief-promote.sh" s-1 --intent "Add token-bucket rate limiting" --spec "Use the existing http middleware layer"
+  "$BIN/task/chief-promote.sh" s-1 --intent "Add token-bucket rate limiting" --spec "Use the existing http middleware layer"
 
 assert_contains "$(cat "$CHIEF_HOME/state/s-1.meta")" "mode=ship" "promote: meta flips mode to ship"
 assert_file_exists "$CHIEF_HOME/worktrees/s-1" "promote: same worktree still exists, nothing new was created"
@@ -53,6 +53,6 @@ assert_contains "$(cat "$CHIEF_HOME/state/s-1.term.log")" "instruction waiting i
 assert_contains "$("$BIN/chief-backlog.sh" show s-1)" "note: promoted from scout to ship" "promote: the backlog note records the promotion"
 
 assert_failure "promote: refuses a task already promoted" -- \
-  "$BIN/chief-promote.sh" s-1 --intent "again"
+  "$BIN/task/chief-promote.sh" s-1 --intent "again"
 
 harness_summary

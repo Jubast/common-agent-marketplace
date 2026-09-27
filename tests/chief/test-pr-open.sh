@@ -27,8 +27,8 @@ git -C "$WORK/project" worktree add -q -b chief/t1 "$WORK/worktrees/t1"
     && git -c user.email=t@t -c user.name=t commit -q -m work )
 
 export CHIEF_HOME="$WORK/.chief"
-. "$CHIEF_BIN/lib/chief-paths.sh"
-. "$CHIEF_BIN/lib/chief-meta.sh"
+. "$CHIEF_BIN/lib/paths.sh"
+. "$CHIEF_BIN/lib/meta.sh"
 
 mkdir -p "$DATA/t1"
 cat > "$DATA/t1/brief.md" <<'EOF'
@@ -52,14 +52,14 @@ export CHIEF_PR_MOCK_LOG="$WORK/mock.log"
 export CHIEF_PR_MOCK_URL="https://example.invalid/mock/pr/7"
 : > "$CHIEF_PR_MOCK_LOG"
 
-"$CHIEF_BIN/chief-pr-open.sh" t1 >/dev/null 2>"$WORK/err-noconfirm"
+"$CHIEF_BIN/pr/chief-pr-open.sh" t1 >/dev/null 2>"$WORK/err-noconfirm"
 assert_eq "$?" "1" "refuses to open a PR without --confirm"
 assert_contains "$(cat "$WORK/err-noconfirm")" "--confirm" "names the missing-confirm refusal"
 assert_eq "$(cat "$CHIEF_PR_MOCK_LOG")" "" "never calls the provider without --confirm"
 assert_eq "$(git -C "$WORK/remote.git" rev-parse --verify chief/t1 2>/dev/null || echo MISSING)" "MISSING" \
   "never pushes the branch without --confirm"
 
-OUT=$("$CHIEF_BIN/chief-pr-open.sh" t1 --confirm)
+OUT=$("$CHIEF_BIN/pr/chief-pr-open.sh" t1 --confirm)
 RC=$?
 assert_eq "$RC" "0" "chief-pr-open.sh succeeds once confirmed"
 assert_eq "$OUT" "opened: t1 -> https://example.invalid/mock/pr/7 (mock)" "prints the opened PR's URL and provider"
@@ -75,7 +75,7 @@ REMOTE_HEAD=$(git -C "$WORK/remote.git" rev-parse chief/t1 2>/dev/null || echo M
 LOCAL_HEAD=$(git -C "$WORK/worktrees/t1" rev-parse chief/t1)
 assert_eq "$REMOTE_HEAD" "$LOCAL_HEAD" "the branch was actually pushed to origin"
 
-"$CHIEF_BIN/chief-pr-open.sh" t1 --confirm >/dev/null 2>"$WORK/err-dup"
+"$CHIEF_BIN/pr/chief-pr-open.sh" t1 --confirm >/dev/null 2>"$WORK/err-dup"
 assert_eq "$?" "1" "refuses to open a second PR for the same task"
 assert_contains "$(cat "$WORK/err-dup")" "PR already open" "names the existing PR in the refusal"
 
@@ -88,7 +88,7 @@ chief_meta_set t2 worktree "$WORK/worktrees/t2"
 chief_meta_set t2 mode ship
 echo dirty > "$WORK/worktrees/t2/scratch.txt"
 
-"$CHIEF_BIN/chief-pr-open.sh" t2 --confirm >/dev/null 2>"$WORK/err-dirty"
+"$CHIEF_BIN/pr/chief-pr-open.sh" t2 --confirm >/dev/null 2>"$WORK/err-dirty"
 assert_eq "$?" "1" "refuses a dirty worktree"
 assert_contains "$(cat "$WORK/err-dirty")" "uncommitted changes" "names the dirty-worktree refusal"
 
@@ -108,7 +108,7 @@ chief_meta_set t3 mode ship
 export CHIEF_PR_MOCK_URL="https://example.invalid/mock/pr/8"
 : > "$CHIEF_PR_MOCK_LOG"
 
-OUT3=$("$CHIEF_BIN/chief-pr-open.sh" t3 --confirm)
+OUT3=$("$CHIEF_BIN/pr/chief-pr-open.sh" t3 --confirm)
 RC3=$?
 assert_eq "$RC3" "0" "chief-pr-open.sh succeeds even when brief.md is missing"
 assert_contains "$(cat "$CHIEF_PR_MOCK_LOG")" "pr_open chief/t3 main work (see $DATA/t3/report.md)" \
@@ -132,7 +132,7 @@ chief_meta_set t4 mode ship
 export CHIEF_PR_MOCK_URL=$'https://example.invalid/mock/pr/9\nsome stray extra line'
 : > "$CHIEF_PR_MOCK_LOG"
 
-"$CHIEF_BIN/chief-pr-open.sh" t4 --confirm >/dev/null 2>"$WORK/err-multiline"
+"$CHIEF_BIN/pr/chief-pr-open.sh" t4 --confirm >/dev/null 2>"$WORK/err-multiline"
 assert_eq "$?" "1" "refuses a multi-line URL from the provider"
 assert_contains "$(cat "$WORK/err-multiline")" "more than one line" "names the malformed-URL refusal"
 assert_eq "$(chief_meta_get t4 pr_url 2>/dev/null || true)" "" "does not record the malformed URL in task meta"
@@ -148,7 +148,7 @@ chief_meta_set t5 mode scout
 
 export CHIEF_PR_MOCK_URL="https://example.invalid/mock/pr/10"
 : > "$CHIEF_PR_MOCK_LOG"
-"$CHIEF_BIN/chief-pr-open.sh" t5 --confirm >/dev/null 2>"$WORK/err-scout"
+"$CHIEF_BIN/pr/chief-pr-open.sh" t5 --confirm >/dev/null 2>"$WORK/err-scout"
 assert_eq "$?" "1" "refuses a scout task - its deliverable is a report, not a branch"
 assert_contains "$(cat "$WORK/err-scout")" "not a ship task" "names the mode refusal"
 assert_eq "$(chief_meta_get t5 pr_url 2>/dev/null || true)" "" "does not record a pr_url for the refused scout"
@@ -167,7 +167,7 @@ chief_meta_set t6 mode ship
 
 export CHIEF_PR_MOCK_URL="https://example.invalid/mock/pr/11"
 : > "$CHIEF_PR_MOCK_LOG"
-"$CHIEF_BIN/chief-pr-open.sh" t6 --confirm >/dev/null
+"$CHIEF_BIN/pr/chief-pr-open.sh" t6 --confirm >/dev/null
 assert_contains "$(cat "$CHIEF_PR_MOCK_LOG")" "pr_open chief/t6 main chief: t6 Sixth thing." \
   "falls back to the 'chief: <id>' title when the branch has no commits of its own"
 
@@ -187,7 +187,7 @@ chief_meta_set t7 mode ship
 
 export CHIEF_PR_MOCK_URL="https://example.invalid/mock/pr/12"
 : > "$CHIEF_PR_MOCK_LOG"
-"$CHIEF_BIN/chief-pr-open.sh" t7 --confirm >/dev/null
+"$CHIEF_BIN/pr/chief-pr-open.sh" t7 --confirm >/dev/null
 assert_contains "$(cat "$CHIEF_PR_MOCK_LOG")" "pr_open chief/t7 main first change (+1 more) Seventh thing." \
   "summarizes multiple commits into the title using the first one plus a count"
 

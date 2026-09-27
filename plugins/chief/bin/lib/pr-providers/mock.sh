@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# chief-pr-provider-mock.sh - DEV/TEST ONLY fake PR provider. No network, no
+# mock.sh - DEV/TEST ONLY fake PR provider. No network, no
 # real CLI. Every call is appended to $CHIEF_PR_MOCK_LOG (if set) so tests can
 # assert exactly what each chief-pr-*.sh script asked the provider to do.
 # Behavior is steered by env vars so a test can simulate blockers/failures

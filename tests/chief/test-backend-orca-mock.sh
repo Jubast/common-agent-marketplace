@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-backend-orca-mock.sh - zero-cost unit test of chief-backend-orca.sh's
+# test-backend-orca-mock.sh - zero-cost unit test of orca.sh's
 # argument-building and JSON-parsing, against a FAKE `orca` CLI stub (see
 # below). No real Orca instance, no claude turn, no tokens.
 #
@@ -16,7 +16,7 @@ CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
 echo "test-backend-orca-mock:"
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "  (skipped - jq not on PATH, required by chief-backend-orca.sh)"
+  echo "  (skipped - jq not on PATH, required by backends/orca.sh)"
   exit 0
 fi
 
@@ -87,9 +87,9 @@ mkdir -p "$ORCA_MOCK_WORKTREES"
 : > "$ORCA_MOCK_LOG"
 
 export CHIEF_HOME="$WORK/.chief"
-. "$CHIEF_BIN/lib/chief-paths.sh"
-. "$CHIEF_BIN/lib/chief-meta.sh"
-. "$CHIEF_BIN/lib/chief-backend-orca.sh"
+. "$CHIEF_BIN/lib/paths.sh"
+. "$CHIEF_BIN/lib/meta.sh"
+. "$CHIEF_BIN/lib/backends/orca.sh"
 
 ID=t-orca-1
 BRANCH="chief/$ID"

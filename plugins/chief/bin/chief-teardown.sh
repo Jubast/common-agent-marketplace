@@ -5,9 +5,9 @@
 # unconditionally - its deliverable is the report at $DATA/<id>/report.md,
 # outside the worktree, untouched either way.
 #
-# Discard also best-effort deletes the remote branch: a backstop for the
-# chief-local-merge.sh path (no PR/provider involved to delete it) and for
-# when provider-side deletion in pr_merge is unavailable or fails.
+# Discard also best-effort deletes the remote branch: a backstop for when
+# the work landed without a recorded PR/provider (e.g. merged by hand) and
+# for when provider-side deletion in pr_merge is unavailable or fails.
 #
 # A ship whose PR was squash- or rebase-merged has a branch that's never a
 # local ancestor of the default branch (both methods create new commits
@@ -18,10 +18,10 @@
 # Usage: chief-teardown.sh <id> [--abandon]
 set -euo pipefail
 
-. "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
-. "$CHIEF_ROOT/bin/lib/chief-meta.sh"
-. "$CHIEF_ROOT/bin/lib/chief-backend.sh"
-. "$CHIEF_ROOT/bin/lib/chief-pr-provider.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
+. "$CHIEF_ROOT/bin/lib/meta.sh"
+. "$CHIEF_ROOT/bin/lib/backends/backend.sh"
+. "$CHIEF_ROOT/bin/lib/pr-providers/pr-provider.sh"
 
 fail() { echo "chief-teardown: $*" >&2; exit 1; }
 
@@ -76,7 +76,7 @@ if ! git -C "$PROJECT" merge-base --is-ancestor "$BRANCH" "$DEFAULT" 2>/dev/null
     _chief_discard "landed via merged PR $PR_URL ($PR_PROVIDER) - not a local ancestor (squash/rebase merge), confirmed with the provider instead"
     exit 0
   fi
-  fail "REFUSED: $BRANCH is not reachable from $DEFAULT - the work has not landed. Run chief-local-merge.sh $ID --confirm first, or merge it by hand, then retry. If it was merged via chief-pr-merge.sh, that lands on the remote's default branch - fetch/update $DEFAULT locally (e.g. git -C $PROJECT fetch origin $DEFAULT && git -C $PROJECT merge --ff-only origin/$DEFAULT) and retry. To discard it instead of landing it, use --abandon."
+  fail "REFUSED: $BRANCH is not reachable from $DEFAULT - the work has not landed. Merge it by hand, or open a PR with chief-pr-open.sh and merge it with chief-pr-merge.sh, then retry. If it was merged via chief-pr-merge.sh, that lands on the remote's default branch - fetch/update $DEFAULT locally (e.g. git -C $PROJECT fetch origin $DEFAULT && git -C $PROJECT merge --ff-only origin/$DEFAULT) and retry. To discard it instead of landing it, use --abandon."
 fi
 
 _chief_discard "landed on $DEFAULT, worktree removed"

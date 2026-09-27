@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-pr-provider.sh - chief-pr-provider.sh's detection and loading logic.
+# test-pr-provider.sh - pr-provider.sh's detection and loading logic.
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,7 +10,7 @@ CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
 echo "test-pr-provider:"
 
 export CHIEF_ROOT="$REPO_ROOT/plugins/chief"
-. "$CHIEF_BIN/lib/chief-pr-provider.sh"
+. "$CHIEF_BIN/lib/pr-providers/pr-provider.sh"
 
 WORK=$(mktemp -d)
 cleanup() { rm -rf "$WORK"; }

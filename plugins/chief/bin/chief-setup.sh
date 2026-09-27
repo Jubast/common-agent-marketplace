@@ -5,7 +5,7 @@
 # Usage: chief-setup.sh --backend herdr|orca
 set -euo pipefail
 
-. "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
 
 fail() { echo "chief-setup: $*" >&2; exit 1; }
 

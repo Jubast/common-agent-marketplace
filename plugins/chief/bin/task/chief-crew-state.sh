@@ -17,9 +17,9 @@
 # scout to ship mid-task, same id.
 set -euo pipefail
 
-. "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
-. "$CHIEF_ROOT/bin/lib/chief-meta.sh"
-. "$CHIEF_ROOT/bin/lib/chief-backend.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
+. "$CHIEF_ROOT/bin/lib/meta.sh"
+. "$CHIEF_ROOT/bin/lib/backends/backend.sh"
 
 STALE_AFTER_SECS="${CHIEF_STALE_AFTER_SECS:-120}"
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# chief-pr-provider.sh - loads one PR/MR provider adapter and nothing else.
-# Mirrors chief-backend.sh's dispatch shape, but split into two entry points
+# pr-provider.sh - loads one PR/MR provider adapter and nothing else.
+# Mirrors backend.sh's dispatch shape, but split into two entry points
 # instead of one at-source-time selection, because PR provider selection has
 # two different call patterns:
 #   - chief-pr-open.sh doesn't know the provider yet: it must DETECT it from
@@ -9,7 +9,7 @@
 #     pr_provider in the task's .meta (written by chief-pr-open.sh): they
 #     LOAD that exact adapter directly (chief_pr_load_provider), no detection.
 #
-# Adapter contract - each chief-pr-provider-<name>.sh must define all seven:
+# Adapter contract - each pr-providers/<name>.sh must define all seven:
 #   pr_open <branch> <base> <title> <body>
 #     -> creates the PR/MR. MUST be called with CWD inside the project's git
 #        checkout (the task's worktree) - this is the only function that
@@ -37,8 +37,8 @@
 #        so this is the fallback proof of landing when ancestry can't be.
 # Every function but pr_open takes a full PR/MR URL and re-derives whatever
 # provider-specific identity it needs (owner/repo/number, or org/project/repo
-# for Azure DevOps) from that URL alone - never from cached state - matching
-# chief-local-merge.sh's existing "read live at merge time" precondition style.
+# for Azure DevOps) from that URL alone - never from cached state - so every
+# precondition check stays live at call time.
 
 # chief_pr_detect_provider <repo-dir> -> prints the provider name and exits 0,
 # or exits 1 with a message on stderr. Honors CHIEF_PR_PROVIDER as an
@@ -67,7 +67,7 @@ chief_pr_detect_provider() {
   esac
 }
 
-# chief_pr_load_provider <name> -> sources chief-pr-provider-<name>.sh, or
+# chief_pr_load_provider <name> -> sources pr-providers/<name>.sh, or
 # fails loudly if <name> isn't one of the known adapters.
 chief_pr_load_provider() {
   local name=$1
@@ -79,5 +79,5 @@ chief_pr_load_provider() {
       ;;
   esac
   # shellcheck source=/dev/null
-  . "$CHIEF_ROOT/bin/lib/chief-pr-provider-$name.sh"
+  . "$CHIEF_ROOT/bin/lib/pr-providers/$name.sh"
 }

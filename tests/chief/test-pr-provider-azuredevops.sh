@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-pr-provider-azuredevops.sh - chief-pr-provider-azuredevops.sh's
+# test-pr-provider-azuredevops.sh - azuredevops.sh's
 # command construction, against a FAKE `az` CLI stub. No network, no real PR.
 set -uo pipefail
 
@@ -11,7 +11,7 @@ CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
 echo "test-pr-provider-azuredevops:"
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "  (skipped - jq not on PATH, required by chief-pr-provider-azuredevops.sh)"
+  echo "  (skipped - jq not on PATH, required by pr-providers/azuredevops.sh)"
   exit 0
 fi
 
@@ -58,7 +58,7 @@ export PATH="$WORK/bin:$PATH"
 export AZ_MOCK_LOG="$WORK/az.log"
 : > "$AZ_MOCK_LOG"
 
-. "$CHIEF_BIN/lib/chief-pr-provider-azuredevops.sh"
+. "$CHIEF_BIN/lib/pr-providers/azuredevops.sh"
 
 mkdir -p "$WORK/repo"
 git -C "$WORK/repo" init -q

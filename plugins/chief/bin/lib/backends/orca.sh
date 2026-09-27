@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# chief-backend-orca.sh - Orca backend adapter, matched against a live Orca
+# orca.sh - Orca backend adapter, matched against a live Orca
 # CLI (`orca --help` / `orca agent-context --json`, schema v1).
 #
 # Confirmed live: Orca only resolves a worktree selector (path:/id:/...)
@@ -24,7 +24,7 @@
 # `orca terminal create --worktree path:<path>` reliably attaches once the
 # worktree exists. Endpoint format: "orca:<terminal-handle>". Sends the
 # brief's CONTENT (not its path) as the first prompt - same reason as
-# chief-backend-herdr.sh: the brief lives outside the worktree.
+# herdr.sh: the brief lives outside the worktree.
 #
 # busy/idle: `orca terminal wait --for tui-idle --timeout-ms <n>` returns
 # ok once idle, or a timeout error while busy - used below as a
@@ -48,12 +48,12 @@
 # scope here.
 #
 # NOT handled: this adapter doesn't implement backend_spawn_cleanup (see
-# chief-backend.sh's contract header) - a backend_spawn failure here still
+# backend.sh's contract header) - a backend_spawn failure here still
 # leaves whatever Orca worktree/terminal it created orphaned with no meta
 # record, same gap issue #16 fixed for the herdr adapter. chief-spawn.sh's
 # call is harmless (command-not-found, swallowed by its own `|| true`) but
 # doesn't clean anything up. Out of scope here; give this the same
-# treatment as chief-backend-herdr.sh's backend_spawn_cleanup if picked up.
+# treatment as herdr.sh's backend_spawn_cleanup if picked up.
 
 _chief_orca_warn_relaunch_once() {
   [ -n "${_CHIEF_ORCA_WARNED:-}" ] && return

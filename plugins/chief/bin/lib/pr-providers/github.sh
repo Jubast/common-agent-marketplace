@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# chief-pr-provider-github.sh - GitHub adapter, backed by `gh`.
+# github.sh - GitHub adapter, backed by `gh`.
 #
 # pr_merge re-checks live, immediately before merging: open, non-draft,
 # mergeable, no outstanding changes-requested review, and checks green. The

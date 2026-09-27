@@ -75,13 +75,13 @@ assert_success "spawn: second ship task" -- \
   git add world.txt
   git -c user.email=t@t -c user.name=t commit -q -m "add world.txt"
 )
-"$BIN/chief-local-merge.sh" b-2 --confirm >/dev/null
+git -C "$WORK/project" merge --ff-only chief/b-2 >/dev/null
 assert_success "teardown: a landed ship tears down without --abandon, as before" -- "$BIN/chief-teardown.sh" b-2
 
 # --- a squash/rebase-merged PR: the branch is never a local ancestor of --
 # --- the default branch, but the provider confirms it's merged ---------
-. "$BIN/lib/chief-paths.sh"
-. "$BIN/lib/chief-meta.sh"
+. "$BIN/lib/paths.sh"
+. "$BIN/lib/meta.sh"
 
 assert_success "backlog: file a third ship" -- "$BIN/chief-backlog.sh" add b-3 "Add moon.txt"
 assert_success "spawn: third ship task" -- \
@@ -129,7 +129,7 @@ assert_success "spawn: fourth ship task" -- \
 )
 assert_contains "$(git -C "$BARE" branch --list chief/b-4)" "chief/b-4" "setup: chief/b-4 pushed to origin before teardown"
 
-"$BIN/chief-local-merge.sh" b-4 --confirm >/dev/null
+git -C "$WORK/project" merge --ff-only chief/b-4 >/dev/null
 assert_success "teardown: a landed ship deletes its now-merged remote branch" -- "$BIN/chief-teardown.sh" b-4
 assert_eq "$(git -C "$BARE" branch --list chief/b-4)" "" "teardown: remote branch chief/b-4 deleted from origin"
 

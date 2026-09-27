@@ -7,9 +7,9 @@
 #        chief-send.sh <id> --key Enter|Escape|C-c
 set -euo pipefail
 
-. "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
-. "$CHIEF_ROOT/bin/lib/chief-meta.sh"
-. "$CHIEF_ROOT/bin/lib/chief-backend.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
+. "$CHIEF_ROOT/bin/lib/meta.sh"
+. "$CHIEF_ROOT/bin/lib/backends/backend.sh"
 
 fail() { echo "chief-send: $*" >&2; exit 1; }
 

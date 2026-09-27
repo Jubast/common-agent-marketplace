@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# chief-meta.sh - read/write flat key=value task records at $STATE/<id>.meta.
-# Sourced by scripts that already sourced chief-paths.sh (needs $STATE).
+# meta.sh - read/write flat key=value task records at $STATE/<id>.meta.
+# Sourced by scripts that already sourced paths.sh (needs $STATE).
 #
 # A meta file is one key=value pair per line, no quoting, no nesting.
 # That's the whole format - deliberately too simple to need a parser.

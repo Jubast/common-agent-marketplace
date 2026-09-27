@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# chief-pr-provider-azuredevops.sh - Azure DevOps adapter, using `az repos
+# azuredevops.sh - Azure DevOps adapter, using `az repos
 # pr` (the `azure-devops` az CLI extension).
 #
 # Azure DevOps has no single canonical PR URL the CLI accepts back as input
@@ -15,7 +15,7 @@
 # reviewers/status checks, so a PR can report mergeStatus=succeeded while a
 # required policy (e.g. a build) is still running or has failed. The policy
 # list is the Azure DevOps equivalent of GitHub's statusCheckRollup check in
-# chief-pr-provider-github.sh's pr_merge.
+# github.sh's pr_merge.
 #
 # pr_review_line is an UNVERIFIED DRAFT - built from Azure DevOps's
 # documented REST shape, not run against a live install. `az repos pr thread

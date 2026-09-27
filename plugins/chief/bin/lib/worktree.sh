@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# chief-worktree.sh - the ONE guard that keeps Chief's identity/supervision
+# worktree.sh - the ONE guard that keeps Chief's identity/supervision
 # hooks from misfiring inside a spawned builder's own Claude Code session.
 #
 # A linked git worktree's --git-dir differs from its --git-common-dir (which

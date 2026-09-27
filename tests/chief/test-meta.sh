@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-meta.sh - chief-meta.sh's key=value read/write helpers.
+# test-meta.sh - meta.sh's key=value read/write helpers.
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,7 +9,7 @@ CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
 
 STATE=$(mktemp -d)
 trap 'rm -rf "$STATE"' EXIT
-. "$CHIEF_BIN/lib/chief-meta.sh"
+. "$CHIEF_BIN/lib/meta.sh"
 
 echo "test-meta:"
 
