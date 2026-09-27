@@ -96,6 +96,9 @@ pr_merge "https://gitlab.com/acme/widgets/-/merge_requests/9" >/dev/null
 assert_eq "$?" "0" "pr_merge succeeds when opened/non-draft/mergeable"
 assert_contains "$(cat "$GLAB_MOCK_LOG")" "mr merge https://gitlab.com/acme/widgets/-/merge_requests/9 --yes" \
   "pr_merge defaults to a plain merge"
+MERGE_LINE=$(grep '^mr merge' "$GLAB_MOCK_LOG")
+assert_contains "$MERGE_LINE" "--remove-source-branch" \
+  "pr_merge asks glab to remove the source branch on merge"
 unset GLAB_MOCK_VIEW
 
 : > "$GLAB_MOCK_LOG"

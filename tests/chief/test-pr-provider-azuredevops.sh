@@ -100,6 +100,9 @@ export AZ_MOCK_SHOW=active
 pr_merge "$PR_URL" >/dev/null
 assert_eq "$?" "0" "pr_merge succeeds when active/non-draft/succeeded"
 assert_contains "$(cat "$AZ_MOCK_LOG")" "repos pr update --organization https://dev.azure.com/acme --id 55" "pr_merge completes the PR via az repos pr update"
+UPDATE_LINE=$(grep '^repos pr update' "$AZ_MOCK_LOG")
+assert_contains "$UPDATE_LINE" "--delete-source-branch true" \
+  "pr_merge asks az to delete the source branch on merge"
 unset AZ_MOCK_SHOW
 
 : > "$AZ_MOCK_LOG"

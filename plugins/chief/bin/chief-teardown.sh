@@ -5,6 +5,10 @@
 # unconditionally - its deliverable is the report at $DATA/<id>/report.md,
 # outside the worktree, untouched either way.
 #
+# Discard also best-effort deletes the remote branch: a backstop for the
+# chief-local-merge.sh path (no PR/provider involved to delete it) and for
+# when provider-side deletion in pr_merge is unavailable or fails.
+#
 # A ship whose PR was squash- or rebase-merged has a branch that's never a
 # local ancestor of the default branch (both methods create new commits
 # with no ancestry back to it) - so when the ancestry check fails, this
@@ -42,6 +46,7 @@ _chief_discard() {  # <reason-for-the-echo-line>
   backend_kill "$ID"
   git -C "$PROJECT" worktree remove --force "$WORKTREE" 2>/dev/null || rm -rf "$WORKTREE"
   git -C "$PROJECT" branch -D "$BRANCH" >/dev/null 2>&1 || true
+  git -C "$PROJECT" push origin --delete "$BRANCH" >/dev/null 2>&1 || true
   chief_meta_set "$ID" status torn-down
   "$CHIEF_ROOT/bin/chief-backlog.sh" done "$ID" 2>/dev/null || true
   echo "torn down: $ID ($1)"
