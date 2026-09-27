@@ -40,4 +40,11 @@ Silently keeps unasked-for scope: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
 assert_contains "$output" "Silently keeps unasked-for scope:.*no" "Flags unasked-for scope rather than silently keeping it"
 echo ""
 
+echo "Test 5: No-op when the project defines no commit/PR conventions..."
+output=$(run_claude "According to the reviewer skill's commit/PR conventions checklist item, if the target project defines no commit or PR conventions at all, is that check a no-op, or does it still fail the review? Answer using exactly this structure:
+No-op when no conventions are defined: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
+
+assert_contains "$output" "No-op when no conventions are defined:.*yes" "No-op when the project defines no conventions"
+echo ""
+
 echo "=== All reviewer skill tests passed ==="

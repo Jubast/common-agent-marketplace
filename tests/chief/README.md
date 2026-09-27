@@ -28,7 +28,6 @@ JSON output (skipped gracefully if absent).
 | `test-lock.sh` | `chief-lock.sh` mutex: acquire/release/timeout/stale-lock reclaim |
 | `test-backlog.sh` | `chief-backlog.sh`: add/status/note/hold/done/list/next/show, error cases |
 | `test-worktree-guard.sh` | `chief_is_linked_worktree` - main checkout vs. a linked worktree vs. a non-git dir |
-| `test-attribution.sh` | `chief-attribution.sh`'s `chief_detect_ai_attribution`: detects Co-Authored-By/generated-by lines naming an AI, leaves human trailers and tool-name mentions in ordinary prose alone, never rewrites anything |
 | `test-crew-state.sh` | `chief-crew-state.sh`'s state classification across all six states |
 | `test-send.sh` | `chief-send.sh`: durable inbox numbering, handled-file awareness, key sends |
 | `test-control.sh` | `chief-control.sh`: interrupt (agent keeps running), exit, relaunch with checkpoint note |
