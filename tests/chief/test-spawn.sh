@@ -32,4 +32,10 @@ assert_contains "$(cat "$BRIEF")" "$SPEC" "spawn: the multi-line spec is rendere
 assert_not_contains "$(cat "$BRIEF")" "{TASK}" "spawn: the {TASK} placeholder was filled"
 assert_not_contains "$(cat "$BRIEF")" "{SPEC}" "spawn: the {SPEC} placeholder was filled"
 
+LIFECYCLE="$CHIEF_HOME/state/t-1.lifecycle"
+assert_file_exists "$LIFECYCLE" "spawn: lifecycle checklist was written"
+assert_contains "$(cat "$LIFECYCLE")" "t-1" "spawn: the {TASK_ID} placeholder was filled with the task id"
+assert_not_contains "$(cat "$LIFECYCLE")" "{TASK_ID}" "spawn: no unfilled {TASK_ID} placeholder remains"
+assert_contains "$(cat "$LIFECYCLE")" "- [ ] filed" "spawn: the ship lifecycle checklist's first step is present"
+
 harness_summary

@@ -9,6 +9,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
 . "$CHIEF_ROOT/bin/lib/meta.sh"
 . "$CHIEF_ROOT/bin/lib/backends/backend.sh"
+. "$CHIEF_ROOT/bin/lib/git-sync.sh"
 
 fail() { echo "chief-spawn: $*" >&2; exit 1; }
 
@@ -80,6 +81,16 @@ BRIEF_CONTENT=${BRIEF_CONTENT//\{STATUS_FILE\}/$(brief_escape "$STATUS_FILE")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{INBOX_DIR\}/$(brief_escape "$INBOX_DIR")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{REPORT_FILE\}/$(brief_escape "$REPORT_FILE")}
 printf '%s\n' "$BRIEF_CONTENT" > "$BRIEF"
+
+LIFECYCLE_TEMPLATE="$CHIEF_ROOT/templates/lifecycle-$MODE.md"
+[ -f "$LIFECYCLE_TEMPLATE" ] || fail "no lifecycle template for mode $MODE at $LIFECYCLE_TEMPLATE"
+LIFECYCLE_CONTENT=$(cat "$LIFECYCLE_TEMPLATE")
+LIFECYCLE_CONTENT=${LIFECYCLE_CONTENT//\{TASK_ID\}/$(brief_escape "$ID")}
+printf '%s\n' "$LIFECYCLE_CONTENT" > "$STATE/$ID.lifecycle"
+
+# Best-effort freshen of the project's default-branch checkout before
+# branching a new task off it - never fails this script either way.
+chief_sync_default_branch "$PROJECT"
 
 # backend_spawn prints exactly two lines (worktree path, then endpoint id).
 # Capture both from ONE call - calling it twice would launch the worker twice.

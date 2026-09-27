@@ -52,6 +52,19 @@ assert_eq "$(chief_meta_get t-3 status)" "held" "hold advances a spawned task's 
 assert_success "add a fourth record" -- "$BL" add t-4 "Fourth task"
 chief_meta_set t-4 status working
 assert_success "done on a spawned task also advances its meta status" -- "$BL" done t-4
+
+# --- un-holding via status in-flight must restore watcher tracking (#31) --
+assert_success "add a fifth record" -- "$BL" add t-5 "Fifth task"
+chief_meta_set t-5 status working
+assert_success "hold t-5" -- "$BL" hold t-5 "needs a decision"
+assert_eq "$(chief_meta_get t-5 status)" "held" "t-5 meta status is held after hold"
+assert_success "status in-flight un-holds t-5" -- "$BL" status t-5 in-flight
+assert_contains "$("$BL" show t-5)" "[in-flight]" "backlog show reflects in-flight"
+assert_eq "$(chief_meta_get t-5 status)" "working" \
+  "the documented un-hold step (status in-flight) restores meta status to working, so chief-watch.sh's in_flight_ids picks it back up"
+
+assert_success "status in-flight is a no-op on task meta when the task has no meta record yet" -- "$BL" status t-2 in-flight
+assert_eq "$(chief_meta_get t-2 status 2>/dev/null || true)" "" "no meta record was created for t-2 by the in-flight transition"
 assert_eq "$(chief_meta_get t-4 status)" "done" "done advances a spawned task's meta status away from working"
 
 assert_failure "add refuses a duplicate id" -- "$BL" add t-1 "dup"
