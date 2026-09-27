@@ -14,13 +14,13 @@ set -euo pipefail
 
 CHIEF_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WATCH="$CHIEF_PLUGIN_ROOT/bin/chief-watch.sh"
-# shellcheck source=../bin/lib/chief-worktree.sh
-. "$CHIEF_PLUGIN_ROOT/bin/lib/chief-worktree.sh"
+# shellcheck source=../bin/lib/worktree.sh
+. "$CHIEF_PLUGIN_ROOT/bin/lib/worktree.sh"
 
 # A spawned builder's own session must never arm a watcher on itself - only
 # the primary (operator-facing) session supervises. This check is race-free
 # even against Orca's create-and-launch-in-one-call spawn; see
-# bin/lib/chief-worktree.sh.
+# bin/lib/worktree.sh.
 chief_is_linked_worktree && exit 0
 
 # No CHIEF_HOME at all -> Chief isn't in use here; let the

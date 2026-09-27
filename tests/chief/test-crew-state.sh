@@ -15,7 +15,7 @@ trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/project" && cd "$WORK/project" && git init -q -b master
 export CHIEF_HOME="$WORK/.chief"
 export CHIEF_BACKEND=mock
-CS="$BIN/chief-crew-state.sh"
+CS="$BIN/task/chief-crew-state.sh"
 
 echo "test-crew-state:"
 

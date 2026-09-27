@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# chief-backend-mock.sh - DEV/TEST ONLY fake terminal backend.
+# mock.sh - DEV/TEST ONLY fake terminal backend.
 #
 # Real backends launch `claude` in a real terminal. This one launches a
 # harmless placeholder background process instead, so the rest of Chief's

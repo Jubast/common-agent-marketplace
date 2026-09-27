@@ -8,9 +8,9 @@
 # Usage: chief-watch.sh   (runs until something actionable happens, or forever)
 set -euo pipefail
 
-. "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
-. "$CHIEF_ROOT/bin/lib/chief-meta.sh"
-. "$CHIEF_ROOT/bin/lib/chief-backend.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
+. "$CHIEF_ROOT/bin/lib/meta.sh"
+. "$CHIEF_ROOT/bin/lib/backends/backend.sh"
 
 POLL="${CHIEF_POLL:-15}"
 BEACON="$STATE/.last-watcher-beat"
@@ -31,7 +31,7 @@ while true; do
   while IFS= read -r id; do
     [ -n "$id" ] || continue
     any_in_flight=1
-    line=$("$CHIEF_ROOT/bin/chief-crew-state.sh" "$id" 2>/dev/null) || continue
+    line=$("$CHIEF_ROOT/bin/task/chief-crew-state.sh" "$id" 2>/dev/null) || continue
     case "$line" in
       "state: done"*|"state: failed"*|"state: blocked"*|"state: needs-decision"*|"state: stale"*)
         echo "$id: $line"

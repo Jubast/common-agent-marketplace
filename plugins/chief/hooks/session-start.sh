@@ -2,12 +2,12 @@
 # session-start.sh - force-injects the using-chief identity skill as
 # additionalContext, plus a backlog/in-flight digest when one exists. Stands
 # down entirely inside a spawned builder's own worktree/session - see
-# bin/lib/chief-worktree.sh for why that check is race-free.
+# bin/lib/worktree.sh for why that check is race-free.
 set -euo pipefail
 
 CHIEF_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=../bin/lib/chief-worktree.sh
-. "$CHIEF_PLUGIN_ROOT/bin/lib/chief-worktree.sh"
+# shellcheck source=../bin/lib/worktree.sh
+. "$CHIEF_PLUGIN_ROOT/bin/lib/worktree.sh"
 
 if chief_is_linked_worktree; then
   echo '{}'

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# chief-backend-herdr.sh - herdr backend adapter, verified against a live
+# herdr.sh - herdr backend adapter, verified against a live
 # herdr 0.9.0 install (see `herdr --skill` for herdr's own authoritative
 # usage guide - re-check it after a herdr upgrade in case the CLI shape
 # below has moved on).
@@ -36,13 +36,11 @@
 #
 # CHIEF_HERDR_SUBMIT_TIMEOUT_MS governs how long backend_spawn/
 # backend_relaunch wait for a fresh claude process's very first turn to
-# START (reach `working` or `blocked`), handled by _chief_herdr_prompt.
-# It does NOT wait for that turn to finish - a first turn on a large task
-# can legitimately run for a long time, and treating "still working" as
-# "hung" used to make chief-spawn.sh force-destroy real in-progress work
-# (worktree/branch/pane) on a plain timeout. backend_send's ordinary
-# mid-task turns don't wait at all, same as before. Kept short since it
-# only needs to cover submission + the agent visibly starting.
+# START (reach `working` or `blocked`), handled by _chief_herdr_prompt. It
+# does NOT wait for that turn to finish - a first turn on a large task can
+# legitimately run long, so this only needs to cover submission and the
+# agent visibly starting. backend_send's ordinary mid-task turns don't wait
+# at all.
 CHIEF_HERDR_SUBMIT_TIMEOUT_MS="${CHIEF_HERDR_SUBMIT_TIMEOUT_MS:-30000}"
 
 _chief_herdr_workspace_id() {  # <pane-id> -> workspace id ("w2:p1" -> "w2")
@@ -141,7 +139,7 @@ backend_spawn() {
 
 # backend_spawn_cleanup <id> <project-dir> <branch> - best-effort rollback
 # after backend_spawn itself failed, or chief-spawn.sh couldn't parse its
-# output, before any meta record exists. See chief-backend.sh's contract
+# output, before any meta record exists. See backend.sh's contract
 # header for the calling convention.
 backend_spawn_cleanup() {
   local id=$1 project_dir=$2 branch=$3

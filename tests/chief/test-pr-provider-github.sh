@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-pr-provider-github.sh - chief-pr-provider-github.sh's command
+# test-pr-provider-github.sh - github.sh's command
 # construction, against a FAKE `gh` CLI stub. No network, no real PR.
 set -uo pipefail
 
@@ -11,7 +11,7 @@ CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
 echo "test-pr-provider-github:"
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "  (skipped - jq not on PATH, required by chief-pr-provider-github.sh)"
+  echo "  (skipped - jq not on PATH, required by pr-providers/github.sh)"
   exit 0
 fi
 
@@ -57,7 +57,7 @@ export PATH="$WORK/bin:$PATH"
 export GH_MOCK_LOG="$WORK/gh.log"
 : > "$GH_MOCK_LOG"
 
-. "$CHIEF_BIN/lib/chief-pr-provider-github.sh"
+. "$CHIEF_BIN/lib/pr-providers/github.sh"
 
 : > "$GH_MOCK_LOG"
 URL=$(pr_open "chief/t1" "main" "My title" "My body")

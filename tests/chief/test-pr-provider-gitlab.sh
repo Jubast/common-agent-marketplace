@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-pr-provider-gitlab.sh - chief-pr-provider-gitlab.sh's command
+# test-pr-provider-gitlab.sh - gitlab.sh's command
 # construction, against a FAKE `glab` CLI stub. No network, no real MR.
 set -uo pipefail
 
@@ -11,7 +11,7 @@ CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
 echo "test-pr-provider-gitlab:"
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "  (skipped - jq not on PATH, required by chief-pr-provider-gitlab.sh)"
+  echo "  (skipped - jq not on PATH, required by pr-providers/gitlab.sh)"
   exit 0
 fi
 
@@ -57,7 +57,7 @@ export PATH="$WORK/bin:$PATH"
 export GLAB_MOCK_LOG="$WORK/glab.log"
 : > "$GLAB_MOCK_LOG"
 
-. "$CHIEF_BIN/lib/chief-pr-provider-gitlab.sh"
+. "$CHIEF_BIN/lib/pr-providers/gitlab.sh"
 
 : > "$GLAB_MOCK_LOG"
 URL=$(pr_open "chief/t1" "main" "My title" "My body")

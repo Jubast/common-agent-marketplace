@@ -41,13 +41,13 @@ assert_contains "$(cat "$CHIEF_HOME/data/t-1/brief.md")" "report \`working" "spa
 )
 echo "done: added hello.txt" >> "$CHIEF_HOME/state/t-1.status"
 
-assert_contains "$("$BIN/chief-crew-state.sh" t-1)" "state: done" "crew-state: reports done once the builder reports it"
+assert_contains "$("$BIN/task/chief-crew-state.sh" t-1)" "state: done" "crew-state: reports done once the builder reports it"
 
 assert_failure "teardown: refuses before the branch has landed anywhere" -- "$BIN/chief-teardown.sh" t-1
 assert_file_exists "$CHIEF_HOME/worktrees/t-1" "teardown refusal: worktree is untouched"
 
-assert_failure "merge: refuses without --confirm" -- "$BIN/chief-local-merge.sh" t-1
-assert_success "merge: local fast-forward succeeds once confirmed" -- "$BIN/chief-local-merge.sh" t-1 --confirm
+assert_success "merge: fast-forward the task branch into the default branch" -- \
+  git -C "$WORK/project" merge --ff-only chief/t-1
 assert_file_exists "$WORK/project/hello.txt" "merge: the file is now in the main checkout"
 assert_eq "$(cat "$WORK/project/hello.txt")" "hello" "merge: the file content is correct"
 

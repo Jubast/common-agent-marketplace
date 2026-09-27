@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-backend-orca.sh - exercises chief-backend-orca.sh's five adapter
+# test-backend-orca.sh - exercises orca.sh's five adapter
 # functions against a REAL live Orca instance and a real (minimal) claude
 # turn, targeting this repo itself as the project (must be an
 # Orca-registered repo - see `orca repo list --json` - since Orca only
@@ -39,7 +39,7 @@ if ! command -v claude >/dev/null 2>&1; then
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "  (skipped - jq not on PATH, required by chief-backend-orca.sh)"
+  echo "  (skipped - jq not on PATH, required by backends/orca.sh)"
   exit 0
 fi
 
@@ -70,9 +70,9 @@ cleanup() {
 trap cleanup EXIT
 
 export CHIEF_HOME="$WORK/.chief"
-. "$CHIEF_BIN/lib/chief-paths.sh"
-. "$CHIEF_BIN/lib/chief-meta.sh"
-. "$CHIEF_BIN/lib/chief-backend-orca.sh"
+. "$CHIEF_BIN/lib/paths.sh"
+. "$CHIEF_BIN/lib/meta.sh"
+. "$CHIEF_BIN/lib/backends/orca.sh"
 
 BRIEF="$WORK/brief.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF"

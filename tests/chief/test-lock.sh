@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-lock.sh - chief-lock.sh's mkdir-based mutex.
+# test-lock.sh - lock.sh's mkdir-based mutex.
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,7 +9,7 @@ CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-. "$CHIEF_BIN/lib/chief-lock.sh"
+. "$CHIEF_BIN/lib/lock.sh"
 
 echo "test-lock:"
 

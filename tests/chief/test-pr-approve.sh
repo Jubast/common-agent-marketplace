@@ -14,8 +14,8 @@ cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
 export CHIEF_HOME="$WORK/.chief"
-. "$CHIEF_BIN/lib/chief-paths.sh"
-. "$CHIEF_BIN/lib/chief-meta.sh"
+. "$CHIEF_BIN/lib/paths.sh"
+. "$CHIEF_BIN/lib/meta.sh"
 
 chief_meta_set t1 project /irrelevant
 chief_meta_set t1 pr_url "https://example.invalid/mock/pr/7"
@@ -24,12 +24,12 @@ chief_meta_set t1 pr_provider mock
 export CHIEF_PR_MOCK_LOG="$WORK/mock.log"
 : > "$CHIEF_PR_MOCK_LOG"
 
-OUT=$("$CHIEF_BIN/chief-pr-approve.sh" t1)
+OUT=$("$CHIEF_BIN/pr/chief-pr-approve.sh" t1)
 assert_eq "$OUT" "approved: t1 -> https://example.invalid/mock/pr/7" "reports the approved PR"
 assert_contains "$(cat "$CHIEF_PR_MOCK_LOG")" "pr_approve https://example.invalid/mock/pr/7" "calls pr_approve with the task's PR URL"
 
 chief_meta_set t2 project /irrelevant
-"$CHIEF_BIN/chief-pr-approve.sh" t2 >/dev/null 2>"$WORK/err"
+"$CHIEF_BIN/pr/chief-pr-approve.sh" t2 >/dev/null 2>"$WORK/err"
 assert_eq "$?" "1" "refuses a task with no recorded PR"
 
 harness_summary

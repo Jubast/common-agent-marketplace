@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-backend-herdr.sh - exercises chief-backend-herdr.sh's five adapter
+# test-backend-herdr.sh - exercises herdr.sh's five adapter
 # functions against a REAL herdr install and a real (minimal) claude turn.
 #
 # Unlike every other file in this directory, this one is NOT zero-cost: it
@@ -36,7 +36,7 @@ if ! command -v claude >/dev/null 2>&1; then
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "  (skipped - jq not on PATH, required by chief-backend-herdr.sh)"
+  echo "  (skipped - jq not on PATH, required by backends/herdr.sh)"
   exit 0
 fi
 
@@ -79,9 +79,9 @@ git init -q -b main
 git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
 
 export CHIEF_HOME="$WORK/.chief"
-. "$CHIEF_BIN/lib/chief-paths.sh"
-. "$CHIEF_BIN/lib/chief-meta.sh"
-. "$CHIEF_BIN/lib/chief-backend-herdr.sh"
+. "$CHIEF_BIN/lib/paths.sh"
+. "$CHIEF_BIN/lib/meta.sh"
+. "$CHIEF_BIN/lib/backends/herdr.sh"
 
 BRIEF="$WORK/brief.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF"

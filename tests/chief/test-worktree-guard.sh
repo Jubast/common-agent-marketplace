@@ -9,7 +9,7 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
 . "$TEST_DIR/lib/harness.sh"
-. "$CHIEF_BIN/lib/chief-worktree.sh"
+. "$CHIEF_BIN/lib/worktree.sh"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT

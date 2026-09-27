@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# chief-pr-provider-gitlab.sh - GitLab adapter, backed by `glab`.
+# gitlab.sh - GitLab adapter, backed by `glab`.
 #
 # GitLab's MR model has no GitHub-style "request changes" review state - an
 # MR either has approvals or it doesn't, and reviewer feedback is just a

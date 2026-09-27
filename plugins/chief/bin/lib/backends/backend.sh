@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# chief-backend.sh - loads the configured backend adapter and nothing else.
+# backend.sh - loads the configured backend adapter and nothing else.
 # Every chief-*.sh script that needs a worker terminal sources this (after
-# chief-paths.sh AND chief-meta.sh - the herdr/orca adapters call
+# paths.sh AND meta.sh - the herdr/orca adapters call
 # chief_meta_get to recover their own endpoint identifier); nothing above
 # this file should know whether it's talking to herdr or Orca.
 #
-# Adapter contract - each backend-<name>.sh must define all five:
+# Adapter contract - each backends/<name>.sh must define all five:
 #   backend_spawn   <id> <project-dir> <brief-path> <branch>
 #                     -> creates the worktree + terminal, launches claude in
 #                        it pointed at the brief, prints the worktree path on
@@ -63,4 +63,4 @@ case "$CHIEF_BACKEND" in
 esac
 
 # shellcheck source=/dev/null
-. "$CHIEF_ROOT/bin/lib/chief-backend-$CHIEF_BACKEND.sh"
+. "$CHIEF_ROOT/bin/lib/backends/$CHIEF_BACKEND.sh"

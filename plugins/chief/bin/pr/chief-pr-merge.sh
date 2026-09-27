@@ -2,15 +2,14 @@
 # chief-pr-merge.sh - merge a task's already-opened PR/MR, across whichever
 # provider it was opened against. Requires --confirm - only pass it once the
 # operator has explicitly said to merge <id>'s PR. Defaults to --squash,
-# applied uniformly regardless of provider. For a local-only fast-forward
-# merge with no PR at all, use chief-local-merge.sh instead.
+# applied uniformly regardless of provider.
 #
 # Usage: chief-pr-merge.sh <id> --confirm [--squash|--merge|--rebase]
 set -euo pipefail
 
-. "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
-. "$CHIEF_ROOT/bin/lib/chief-meta.sh"
-. "$CHIEF_ROOT/bin/lib/chief-pr-provider.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
+. "$CHIEF_ROOT/bin/lib/meta.sh"
+. "$CHIEF_ROOT/bin/lib/pr-providers/pr-provider.sh"
 
 fail() { echo "chief-pr-merge: $*" >&2; exit 1; }
 

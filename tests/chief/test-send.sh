@@ -13,7 +13,7 @@ mkdir -p "$WORK/project" && cd "$WORK/project" && git init -q -b master
 git commit --allow-empty -q -m init
 export CHIEF_HOME="$WORK/.chief"
 export CHIEF_BACKEND=mock
-SEND="$BIN/chief-send.sh"
+SEND="$BIN/task/chief-send.sh"
 SPAWN="$BIN/chief-spawn.sh"
 
 echo "test-send:"

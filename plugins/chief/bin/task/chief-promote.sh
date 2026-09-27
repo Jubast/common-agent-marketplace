@@ -10,8 +10,8 @@
 # Usage: chief-promote.sh <id> --intent "<operator's ask>" [--spec "..."]
 set -euo pipefail
 
-. "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
-. "$CHIEF_ROOT/bin/lib/chief-meta.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
+. "$CHIEF_ROOT/bin/lib/meta.sh"
 
 fail() { echo "chief-promote: $*" >&2; exit 1; }
 
@@ -55,7 +55,7 @@ EOF
 NOTICE=$(printf "$NOTICE_FMT" "$(date -u +%Y-%m-%dT%H:%MZ)" "$BRANCH" "$INTENT" "$SPEC" "$REPORT")
 
 printf '%s\n' "$NOTICE" >> "$DATA/$ID/brief.md"
-"$CHIEF_ROOT/bin/chief-send.sh" "$ID" "$NOTICE"
+"$CHIEF_ROOT/bin/task/chief-send.sh" "$ID" "$NOTICE"
 
 chief_meta_set "$ID" mode ship
 "$CHIEF_ROOT/bin/chief-backlog.sh" note "$ID" "promoted from scout to ship" 2>/dev/null || true

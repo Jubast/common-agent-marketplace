@@ -14,9 +14,9 @@
 #        chief-pr-review.sh <id> --request-changes "<body>"
 set -euo pipefail
 
-. "$(dirname "${BASH_SOURCE[0]}")/lib/chief-paths.sh"
-. "$CHIEF_ROOT/bin/lib/chief-meta.sh"
-. "$CHIEF_ROOT/bin/lib/chief-pr-provider.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
+. "$CHIEF_ROOT/bin/lib/meta.sh"
+. "$CHIEF_ROOT/bin/lib/pr-providers/pr-provider.sh"
 
 fail() { echo "chief-pr-review: $*" >&2; exit 1; }
 
