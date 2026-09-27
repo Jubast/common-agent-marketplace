@@ -34,15 +34,16 @@
 # Enter keypress (no text) safely submits whatever's already pending;
 # confirmed live that this recovers the stall. See _chief_herdr_prompt.
 #
-# CHIEF_HERDR_INITIAL_TIMEOUT_MS governs how long a fresh claude process's
-# very first turn (backend_spawn/backend_relaunch's initial brief, handled
-# by _chief_herdr_prompt) is allowed to run before it's treated as hung.
-# Only that first turn uses this - backend_send's ordinary mid-task turns
-# don't --wait at all. Configurable and defaulted high because the "right"
-# budget is workload-dependent (a quick scout lookup vs. a builder kicking
-# off a large refactor) and a slow-but-successful start on a non-trivial
-# task must not look identical to a genuine hang.
-CHIEF_HERDR_INITIAL_TIMEOUT_MS="${CHIEF_HERDR_INITIAL_TIMEOUT_MS:-300000}"
+# CHIEF_HERDR_SUBMIT_TIMEOUT_MS governs how long backend_spawn/
+# backend_relaunch wait for a fresh claude process's very first turn to
+# START (reach `working` or `blocked`), handled by _chief_herdr_prompt.
+# It does NOT wait for that turn to finish - a first turn on a large task
+# can legitimately run for a long time, and treating "still working" as
+# "hung" used to make chief-spawn.sh force-destroy real in-progress work
+# (worktree/branch/pane) on a plain timeout. backend_send's ordinary
+# mid-task turns don't wait at all, same as before. Kept short since it
+# only needs to cover submission + the agent visibly starting.
+CHIEF_HERDR_SUBMIT_TIMEOUT_MS="${CHIEF_HERDR_SUBMIT_TIMEOUT_MS:-30000}"
 
 _chief_herdr_workspace_id() {  # <pane-id> -> workspace id ("w2:p1" -> "w2")
   printf '%s' "$1" | cut -d: -f1
@@ -91,25 +92,24 @@ _chief_herdr_start_agent() {
   esac
 }
 
-# _chief_herdr_prompt <id> <text> - submit <text> and wait for it to settle.
-# On agent_prompt_stalled, does NOT resend <text> (risks it landing twice) -
+# _chief_herdr_prompt <id> <text> - submit <text> and wait only for the
+# turn to START (working or blocked), not for it to finish. On
+# agent_prompt_stalled, does NOT resend <text> (risks it landing twice) -
 # sends one bare Enter to submit whatever's already pending, then waits
-# again. Only fails if that doesn't get it moving either.
+# for "working" to confirm that recovered submission actually landed.
 _chief_herdr_prompt() {
   local id=$1 text=$2
   local err
-  err=$(herdr agent prompt "$id" "$text" --wait --timeout "$CHIEF_HERDR_INITIAL_TIMEOUT_MS" 2>&1) && return 0
+  err=$(herdr agent prompt "$id" "$text" --wait --until working --until blocked \
+          --timeout "$CHIEF_HERDR_SUBMIT_TIMEOUT_MS" 2>&1) && return 0
   case "$err" in
     *agent_prompt_stalled*)
       # A stray "--until idle" wait right after send-keys could match the
       # PRE-Enter idle state before it's even processed the keypress - wait
-      # for "working" first to prove the turn actually started, then wait
-      # again for it to actually settle.
+      # for "working" to prove the turn actually started.
       herdr agent send-keys "$id" enter >/dev/null 2>&1
       herdr agent wait "$id" --until working --timeout 15000 >/dev/null 2>&1 \
         || { echo "chief-backend-herdr: prompt for $id stalled and a follow-up Enter didn't start a turn" >&2; return 1; }
-      herdr agent wait "$id" --until idle --until done --until blocked --timeout "$CHIEF_HERDR_INITIAL_TIMEOUT_MS" >/dev/null 2>&1 \
-        || { echo "chief-backend-herdr: prompt for $id started after recovery but never settled" >&2; return 1; }
       return 0
       ;;
     *)

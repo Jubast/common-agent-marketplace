@@ -77,13 +77,14 @@ _chief_orca_accept_trust_dialog() {
   esac
 }
 
-# _chief_orca_prompt <handle> <text> - submit <text> to <handle> and wait for
-# the TUI to go idle again.
+# _chief_orca_prompt <handle> <text> - submit <text> to <handle> and confirm
+# it was accepted. Does NOT wait for the resulting turn to go idle - a
+# first turn on a large task can legitimately run for a long time, and
+# backend_spawn only needs to know the prompt landed, same as backend_send.
 _chief_orca_prompt() {
   local handle=$1 text=$2
   orca terminal send --terminal "$handle" --text "$text" --enter --wait-submit 5 >/dev/null 2>&1 \
     || { echo "chief-backend-orca: 'orca terminal send' failed for $handle" >&2; return 1; }
-  orca terminal wait --terminal "$handle" --for tui-idle --timeout-ms 120000 >/dev/null 2>&1
 }
 
 # _chief_orca_launch <worktree> <brief_path> -> creates a terminal, starts

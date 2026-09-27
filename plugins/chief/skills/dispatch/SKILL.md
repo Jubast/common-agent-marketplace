@@ -26,7 +26,7 @@ Don't launch a scout to resolve ordinary ambiguity - ask one concise question in
    `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <id> <project-dir> --mode ship|scout --intent "<the operator's own ask, close to verbatim>" --spec "<your build instructions, only what the intent requires>"`
    Keep `--intent` narrow - it becomes the acceptance criteria. Keep `--spec` to only what's needed; a generalization or extra hardening nobody asked for is a note for later, not something to build now.
    This creates an isolated worktree+branch, renders the brief, and launches the builder. It also marks the backlog item in-flight if it exists.
-   Can block synchronously for minutes - it waits on a live backend round-trip for the builder's first turn to settle. Run it in the background (e.g. `run_in_background` on the Bash tool, or your host's equivalent) rather than the foreground.
+   Returns once the builder's first turn has started (typically seconds) - it doesn't wait for that turn to finish. Still run it in the background (e.g. `run_in_background` on the Bash tool, or your host's equivalent) rather than the foreground as good practice.
 
 3. **It runs on its own.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-watch.sh` (armed by a Stop hook, zero model cost) polls it between your turns and only interrupts you when it's finished, failed, blocked, or needs a decision. On `blocked` or `needs-decision`, run `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "<why, one line>"`.
 
