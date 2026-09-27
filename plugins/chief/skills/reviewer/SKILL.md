@@ -14,6 +14,7 @@ A fixed, short checklist - not a pipeline. Run it against the diff between a tas
 5. **Scope discipline.** Nothing was added beyond the brief's spec - a generalization, an unrelated refactor, or extra hardening not asked for should be flagged, not silently kept.
 6. **Project docs addressed.** Per `templates/brief-ship.md`'s "Project docs" section: the `done` report either updated the relevant well-known project docs (`README.md`, `AGENTS.md`/`CLAUDE.md`, `ARCHITECTURE.md`, `docs/adr/*.md`, `CONSUMER_GUIDE.md`) for a non-trivial change, or named which ones don't exist in the project. Flag a `done` report that's silent on this instead of assuming it was considered.
 7. **Doc quality.** If a doc was touched anywhere in the diff: it reads clearly on its own, stays short and concise, and doesn't narrate development decisions or modification history (that belongs in the commit message, not the doc). Check for content duplicated elsewhere and for dead local links.
+8. **No AI-attribution trailer.** Run `chief_detect_ai_attribution <repo> <default-branch> <task-branch>` (`bin/lib/chief-attribution.sh`) against the branch's commits, worktree or already-open PR. A hit is a FAIL - the branch's owner amends the commit; never rewrite it yourself.
 
 Report one of:
 - `PASS` - safe to merge.
