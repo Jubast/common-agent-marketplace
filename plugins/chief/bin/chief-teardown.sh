@@ -22,6 +22,7 @@ set -euo pipefail
 . "$CHIEF_ROOT/bin/lib/meta.sh"
 . "$CHIEF_ROOT/bin/lib/backends/backend.sh"
 . "$CHIEF_ROOT/bin/lib/pr-providers/pr-provider.sh"
+. "$CHIEF_ROOT/bin/lib/git-sync.sh"
 
 fail() { echo "chief-teardown: $*" >&2; exit 1; }
 
@@ -74,9 +75,11 @@ if ! git -C "$PROJECT" merge-base --is-ancestor "$BRANCH" "$DEFAULT" 2>/dev/null
   if [ -n "$PR_URL" ] && [ -n "$PR_PROVIDER" ] \
     && chief_pr_load_provider "$PR_PROVIDER" 2>/dev/null && pr_merged "$PR_URL"; then
     _chief_discard "landed via merged PR $PR_URL ($PR_PROVIDER) - not a local ancestor (squash/rebase merge), confirmed with the provider instead"
+    chief_sync_default_branch "$PROJECT"
     exit 0
   fi
   fail "REFUSED: $BRANCH is not reachable from $DEFAULT - the work has not landed. Merge it by hand, or open a PR with chief-pr-open.sh and merge it with chief-pr-merge.sh, then retry. If it was merged via chief-pr-merge.sh, that lands on the remote's default branch - fetch/update $DEFAULT locally (e.g. git -C $PROJECT fetch origin $DEFAULT && git -C $PROJECT merge --ff-only origin/$DEFAULT) and retry. To discard it instead of landing it, use --abandon."
 fi
 
 _chief_discard "landed on $DEFAULT, worktree removed"
+chief_sync_default_branch "$PROJECT"

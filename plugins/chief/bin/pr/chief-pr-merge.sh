@@ -10,6 +10,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
 . "$CHIEF_ROOT/bin/lib/meta.sh"
 . "$CHIEF_ROOT/bin/lib/pr-providers/pr-provider.sh"
+. "$CHIEF_ROOT/bin/lib/git-sync.sh"
 
 fail() { echo "chief-pr-merge: $*" >&2; exit 1; }
 
@@ -40,5 +41,12 @@ pr_merge "$URL" "$METHOD" || fail "merge failed"
 # chief-watch.sh's in_flight_ids so it stops re-notifying about the same
 # already-surfaced terminal state on every subsequent Stop hook.
 chief_meta_set "$ID" status merged
+
+# Best-effort freshen of the project's default-branch checkout now that its
+# PR has landed on the remote - a squash/rebase merge never becomes a local
+# ancestor of the branch, so this is what actually keeps the local checkout
+# from drifting behind without a manual fetch+merge afterward.
+PROJECT=$(chief_meta_get "$ID" project 2>/dev/null || true)
+[ -n "$PROJECT" ] && chief_sync_default_branch "$PROJECT"
 
 echo "merged: $ID via $PROVIDER PR $URL"

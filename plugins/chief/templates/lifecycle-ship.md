@@ -1,0 +1,16 @@
+# Lifecycle checklist: {TASK_ID} (ship)
+
+- [ ] filed (chief-backlog.sh add)
+- [ ] spawned (chief-spawn.sh)
+- [ ] watching until a terminal state (done/failed/blocked/needs-decision)
+- [ ] reviewed (reviewer skill checklist run against the diff)
+- [ ] reported to operator, and held (chief-backlog.sh hold <id> "reported: ...")
+- [ ] landing path chosen - PR opened (chief-pr-open.sh)
+- [ ] PR reviewed and approved (chief-pr-review.sh, chief-pr-approve.sh)
+- [ ] merged (chief-pr-merge.sh)
+- [ ] torn down (chief-teardown.sh)
+
+## Conditional (mark N/A if it never applied)
+- [ ] steered mid-task (chief-send.sh)
+- [ ] escalated (chief-control.sh interrupt/relaunch)
+- [ ] held for an operator decision (blocked/needs-decision, chief-backlog.sh hold, moved back to in-flight once unblocked)

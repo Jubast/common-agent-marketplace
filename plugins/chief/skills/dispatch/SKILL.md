@@ -18,6 +18,8 @@ Don't launch a scout to resolve ordinary ambiguity - ask one concise question in
 
 ## The lifecycle
 
+Every task's `state/<id>.lifecycle` (rendered by `chief-spawn.sh`) is the checklist for everything below, filing through teardown - each line names the step and, for review/landing, the exact action to take. Check off each line the moment you complete it - don't batch it. Read the file before acting on an in-flight task, always, not just after a compaction, so you work from its checked state, not memory.
+
 1. **File it.**
    `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh add <id> "<short title>"`
    Pick a short id yourself (e.g. `t-001`, or a slug like `rate-limit`).
@@ -31,7 +33,7 @@ Don't launch a scout to resolve ordinary ambiguity - ask one concise question in
 3. **It runs on its own.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-watch.sh` (armed by a Stop hook, zero model cost) polls it between your turns and only interrupts you when it's finished, failed, blocked, or needs a decision. On `blocked` or `needs-decision`, run `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "<why, one line>"`.
 
 4. **Check on it anytime:**
-   `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-crew-state.sh <id>` - deterministic current state (working/done/blocked/needs-decision/failed/stale).
+   `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-crew-state.sh <id>` - deterministic current state (working/done/blocked/needs-decision/failed/stale) plus a `[mode: ship|scout]` tag (promotion can change it after spawn).
 
 5. **Steer it if needed:**
    `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <id> "<instruction>"` - delivered through a durable inbox the builder acknowledges; safe to send mid-task. If the item is `held`, move it back with `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh status <id> in-flight` once you've sent the unblocking instruction.
@@ -40,17 +42,13 @@ Don't launch a scout to resolve ordinary ambiguity - ask one concise question in
    - `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> interrupt` (nudge; it keeps running) + a corrective `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh`
    - `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> relaunch --note "<progress so far>"` only if genuinely wedged - the replacement gets the same worktree and commits but none of the conversation, so the note is all it has. Same backend round-trip as spawn (step 2) - run it in the background too.
 
-7. **Review and report.** Once a task reports `done`, check its current mode via `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-crew-state.sh <id>`'s `[mode: ...]` tag (promotion can change it after spawn):
-   - `ship` - load the `reviewer` skill against its diff, then report the outcome to the operator plainly.
-   - `scout` - relay its report as-is.
-
-   End of the lifecycle for this task until the operator responds.
+7. **Review and report** - your `state/<id>.lifecycle` has the exact next actions (review, report, hold).
 
 ## After the operator responds
 
 Do exactly what they decide, nothing more:
 
-- **Not satisfied** - `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <id> "<instruction>"` back to the builder, or send the scout to investigate further.
+- **Not satisfied** - move the task back to in-flight (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh status <id> in-flight`) before sending further instructions, then `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <id> "<instruction>"` back to the builder, or send the scout to investigate further.
 - **Ready to land** (ship only) - compose a conventional-commit-style title and a structured body yourself (the same way this project's own PR conventions - a `conventional-pull-requests`-style skill if installed, or its CLAUDE.md/AGENTS.md rules - would produce), then `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-open.sh <id> --confirm --title "<title>" --body "<body>"` to push and open a PR/MR. Always pass `--title`/`--body` explicitly; don't rely on the script's auto-derived fallback.
 - **Accepted** - ship: `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-merge.sh <id> --confirm` (merges the open PR, defaults to squash). Scout to become a ship: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-promote.sh <id> --intent "<ask>" [--spec "<instructions>"]` - converts it in place; its findings become context, not the deliverable. Same backend round-trip as spawn (step 2) - run it in the background too.
 - **Accepted, no ship needed** (scout only) - `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>` then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>` discards the worktree; the report at `.chief/data/<id>/report.md` survives.

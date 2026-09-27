@@ -26,6 +26,8 @@ echo "test-teardown:"
 assert_success "backlog: file the scout" -- "$BIN/chief-backlog.sh" add s-1 "Investigate caching options"
 assert_success "spawn: scout task" -- \
   timeout 10 "$BIN/chief-spawn.sh" s-1 "$WORK/project" --mode scout --intent "Investigate caching options"
+assert_contains "$(cat "$CHIEF_HOME/state/s-1.lifecycle")" "promoted to ship" \
+  "spawn: a scout task gets the scout lifecycle checklist, not the ship one"
 echo "findings: use an LRU cache" > "$CHIEF_HOME/data/s-1/report.md"
 
 # Simulate the scout doing exactly what its brief invites: a throwaway

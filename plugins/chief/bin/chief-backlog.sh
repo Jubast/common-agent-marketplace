@@ -73,6 +73,13 @@ cmd_status() {
     }
     { print }
   ' -v id="$id" -v new="$new"
+  # The documented un-hold step (moving a held/done task back to in-flight)
+  # must also restore chief-watch.sh's in_flight_ids tracking - mirroring
+  # what cmd_hold/cmd_done already do for their own transitions - or a task
+  # un-held this way never gets watched again.
+  if [ "$new" = "in-flight" ]; then
+    chief_meta_exists "$id" && chief_meta_set "$id" status working
+  fi
   echo "status: $id -> $new"
 }
 
