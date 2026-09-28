@@ -19,14 +19,15 @@ Early on, check this project's own commit/PR conventions - its root `AGENTS.md`/
 1. Stay inside this worktree. Never push, never open a PR, never merge - Chief does that after review.
 2. Do only what the intent and spec above ask for. A generalization, cleanup, or extra hardening nobody asked for is a note for later, not something to build now.
 3. Before writing new code, check whether the existing codebase already has something that does this or can be extended to - prefer reusing or extending it over adding a duplicate.
-4. Report status by appending exactly one line at a time:
+4. Keep everything you write for this task - code, comments, docs, skills, or anything else you touch - short and concise. State the current thing plainly; a changelog of earlier attempts or a narration of how you got there belongs in the commit message, not the file.
+5. Report status by appending exactly one line at a time:
    `echo "{state}: {one short line}" >> {STATUS_FILE}`
    States: `working`, `needs-decision`, `blocked`, `done`, `failed`.
    Report sparingly - only phase changes worth Chief's attention, not step-by-step narration.
    Chief only reads your LAST line. After `done`, `blocked`, `needs-decision`, or `failed`, report `working: resuming` again before acting on a new instruction.
-5. Use `needs-decision: {summary of options}` for any choice that belongs to a human (product tradeoffs, destructive actions, ambiguous scope) and then stop until answered.
-6. Use `blocked: {why}` if you hit the same obstacle twice in a row, and stop.
-7. When finished, run the review checklist (see below) on your own diff before reporting `done`.
+6. Use `needs-decision: {summary of options}` for any choice that belongs to a human (product tradeoffs, destructive actions, ambiguous scope) and then stop until answered.
+7. Use `blocked: {why}` if you hit the same obstacle twice in a row, and stop.
+8. When finished, run the review checklist (see below) on your own diff before reporting `done`.
 
 # Self-review
 Before reporting `done`, follow the `reviewer` skill's checklist against your own diff. Fix anything it flags - including amending your own commit if the AI-attribution check flags one - or report it honestly in your `done` line if you can't.
