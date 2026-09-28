@@ -11,12 +11,15 @@
 chief_brief_strip_section() {
   local file=$1 prefix=$2
   [ -f "$file" ] || return 0
-  local tmp
+  local tmp skip=0 line
   tmp=$(mktemp "$(dirname "$file")/.brief.XXXXXX")
-  awk -v prefix="$prefix" '
-    index($0, prefix) == 1 { skip=1 }
-    /^# / && index($0, prefix) != 1 { skip=0 }
-    !skip
-  ' "$file" > "$tmp"
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [[ "$line" == "$prefix"* ]]; then
+      skip=1
+    elif [[ "$line" == '# '* ]]; then
+      skip=0
+    fi
+    [ "$skip" = 0 ] && printf '%s\n' "$line"
+  done < "$file" > "$tmp"
   mv "$tmp" "$file"
 }
