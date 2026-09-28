@@ -25,6 +25,15 @@ pr_open() {
   printf '%s\n' "$out" | grep -Eo 'https?://[^[:space:]]+/merge_requests/[0-9]+' | tail -1
 }
 
+pr_update() {
+  local url=$1 title=$2 body=$3
+  command -v glab >/dev/null 2>&1 || { echo "chief-pr-provider-gitlab: glab is required" >&2; return 1; }
+  local -a args=(mr update "$url")
+  [ -n "$title" ] && args+=(--title "$title")
+  [ -n "$body" ] && args+=(--description "$body")
+  glab "${args[@]}" >/dev/null
+}
+
 pr_state() {
   local url=$1
   command -v glab >/dev/null 2>&1 || { echo "chief-pr-provider-gitlab: glab is required" >&2; return 1; }

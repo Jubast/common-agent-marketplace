@@ -53,10 +53,11 @@ Do exactly what they decide, nothing more:
 - **Accepted** - ship: `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-merge.sh <id> --confirm` (merges the open PR, defaults to squash). Scout to become a ship: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-promote.sh <id> --intent "<ask>" [--spec "<instructions>"]` - converts it in place; its findings become context, not the deliverable. Same backend round-trip as spawn (step 2) - run it in the background too.
 - **Accepted, no ship needed** (scout only) - `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>` then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>` discards the worktree; the report at `.chief/data/<id>/report.md` survives.
 
-`${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-open.sh` and `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-merge.sh` both require `--confirm` - pass it only once the operator has explicitly said so in this conversation.
+`${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-open.sh`, `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-update.sh`, and `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-merge.sh` all require `--confirm` - pass it only once the operator has explicitly said so in this conversation.
 
 ## Once a PR is open
 
+- **A follow-up commit lands** - push it and, if the PR's description no longer matches, refresh it: `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-update.sh <id> --confirm [--title "<title>"] [--body "<body>"]`. Always pushes the branch's new commits; `--title`/`--body` are optional here - omit both for a plain push-only update. Requires `--confirm` the same way `chief-pr-open.sh` does.
 - **Check it** - `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-state.sh <id>` for its current state (open/draft/mergeable/checks).
 - **Review it** - `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-review.sh <id> --comment "<text>"` or `--request-changes "<text>"`. Add `--file <path> --line <N>` to a `--comment` call to attach it to a specific line instead of posting top-level (only valid with `--comment`, not `--request-changes`).
 - **Approve it** - `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-approve.sh <id>`.
