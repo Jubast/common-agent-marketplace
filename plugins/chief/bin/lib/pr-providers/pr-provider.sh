@@ -15,6 +15,9 @@
 #        checkout (the task's worktree) - this is the only function that
 #        needs repo context, since it's the one call with no PR URL yet to
 #        derive it from. Prints the new PR/MR's canonical URL on stdout.
+#   pr_update <pr-url> <title> <body>
+#     -> updates the PR/MR's title/body. Either may be empty, meaning leave
+#        that field unchanged - the caller only passes both when it has both.
 #   pr_state <pr-url>
 #     -> read-only. Prints one line per visible blocker (failing/pending
 #        check, requested changes, draft, not mergeable); prints nothing when

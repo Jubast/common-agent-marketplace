@@ -89,6 +89,16 @@ pr_open() {
   printf 'https://dev.azure.com/%s/%s/_git/%s/pullrequest/%s\n' "$_CHIEF_ADO_ORG" "$_CHIEF_ADO_PROJECT" "$_CHIEF_ADO_REPO" "$id"
 }
 
+pr_update() {
+  local url=$1 title=$2 body=$3
+  command -v az >/dev/null 2>&1 || { echo "chief-pr-provider-azuredevops: az is required" >&2; return 1; }
+  _chief_ado_parse_url "$url" || return 1
+  local -a args=(repos pr update --organization "https://dev.azure.com/$_CHIEF_ADO_ORG" --id "$_CHIEF_ADO_ID")
+  [ -n "$title" ] && args+=(--title "$title")
+  [ -n "$body" ] && args+=(--description "$body")
+  az "${args[@]}" >/dev/null
+}
+
 pr_state() {
   local url=$1
   command -v az >/dev/null 2>&1 || { echo "chief-pr-provider-azuredevops: az is required" >&2; return 1; }

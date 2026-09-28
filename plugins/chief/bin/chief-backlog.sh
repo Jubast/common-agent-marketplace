@@ -77,8 +77,21 @@ cmd_status() {
   # must also restore chief-watch.sh's in_flight_ids tracking - mirroring
   # what cmd_hold/cmd_done already do for their own transitions - or a task
   # un-held this way never gets watched again.
-  if [ "$new" = "in-flight" ]; then
-    chief_meta_exists "$id" && chief_meta_set "$id" status working
+  if [ "$new" = "in-flight" ] && chief_meta_exists "$id"; then
+    local old_status
+    old_status=$(chief_meta_get "$id" status 2>/dev/null || true)
+    if [ "$old_status" = "held" ] || [ "$old_status" = "done" ]; then
+      # Resuming a held/done task re-arms in_flight_ids, and its crew state
+      # is still whatever terminal string got it held/done in the first
+      # place - chief-watch.sh would otherwise re-surface that exact,
+      # already-acted-on string on the very next Stop hook. Record it as a
+      # baseline so chief-watch.sh can recognize "nothing new yet" and hold
+      # off until the state actually moves past this point.
+      local baseline
+      baseline=$("$CHIEF_ROOT/bin/task/chief-crew-state.sh" "$id" 2>/dev/null || true)
+      [ -n "$baseline" ] && chief_meta_set "$id" notify-baseline "$baseline"
+    fi
+    chief_meta_set "$id" status working
   fi
   echo "status: $id -> $new"
 }

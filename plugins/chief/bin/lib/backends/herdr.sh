@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # herdr.sh - herdr backend adapter, verified against a live
-# herdr 0.9.0 install (see `herdr --skill` for herdr's own authoritative
+# herdr 0.9.1 install (see `herdr --skill` for herdr's own authoritative
 # usage guide - re-check it after a herdr upgrade in case the CLI shape
 # below has moved on).
 #
@@ -14,9 +14,8 @@
 #
 # A brand-new worktree path triggers Claude Code's own one-time "do you
 # trust this folder?" dialog, which leaves `agent start` reporting
-# agent_not_ready instead of idle. _chief_herdr_start_agent handles that
-# inline (accept the dialog, then wait for idle) rather than treating it as
-# a failure - a fresh worktree path hits it on every single spawn.
+# agent_not_ready instead of idle - hits on every single spawn. See
+# _chief_herdr_start_agent.
 #
 # The brief lives under $CHIEF_HOME (inside the project's main checkout),
 # never inside the per-task worktree, so telling claude to go Read it would
@@ -25,14 +24,14 @@
 # sending the brief's own CONTENT as the prompt text instead of a path for
 # claude to go read.
 #
-# `herdr agent prompt --wait` can report agent_prompt_stalled - confirmed
-# live, reproducibly, right after the trust-dialog path above: the prompt
-# text lands in the input line but the trailing Enter doesn't register as a
-# submission, so the agent is still genuinely idle with unsent text sitting
-# in front of it. herdr's own docs warn not to blindly resubmit the text on
-# this error (real risk of the text going in twice) - but a bare follow-up
-# Enter keypress (no text) safely submits whatever's already pending;
-# confirmed live that this recovers the stall. See _chief_herdr_prompt.
+# `herdr agent prompt --wait` submits text+Enter as one write, then (per
+# herdr's own docs) waits up to 5s for observed working/blocked activity
+# before reporting `agent_prompt_stalled` - that 5s race is herdr's own
+# inherent behavior, not something this adapter controls. A stall can mean
+# either of two different things, confirmed live: the text landed but the
+# Enter didn't register (safe to recover with a bare Enter), or the text
+# never reached the input line at all (a bare Enter here submits nothing;
+# only resending recovers it). See _chief_herdr_prompt.
 #
 # CHIEF_HERDR_SUBMIT_TIMEOUT_MS governs how long backend_spawn/
 # backend_relaunch wait for a fresh claude process's very first turn to
@@ -98,37 +97,41 @@ $primary"
 }
 
 # _chief_herdr_start_agent <id> <pane-id> - start claude in <pane-id> under
-# live name <id>, transparently clearing the first-run trust dialog if it's
-# what agent_not_ready turned out to be. Always started with
-# --dangerously-skip-permissions: dispatched workers are unattended - chief
-# only polls between turns, nobody is present to answer a permission
-# dialog - so this is unconditional regardless of the operator's own
-# session mode, never inherited from it.
+# live name <id>, always in bypass-permissions mode: dispatched workers are
+# unattended - chief only polls between turns, nobody is present to answer
+# a permission dialog - so this is unconditional regardless of the
+# operator's own session mode, never inherited from it. On the first-run
+# trust dialog (agent_not_ready), accept it, wait for herdr's own idle
+# state, then _chief_herdr_wait_settled - never guess readiness from a
+# fixed sleep.
 _chief_herdr_start_agent() {
   local id=$1 pane_id=$2
-  if herdr agent start "$id" --kind claude --pane "$pane_id" --timeout 30000 \
-       -- --dangerously-skip-permissions >/dev/null 2>&1; then
-    return 0
-  fi
-  local read_out
-  read_out=$(herdr agent read "$id" --source recent-unwrapped --lines 40 2>/dev/null)
-  case "$read_out" in
-    *"trust this folder"*)
-      herdr agent send-keys "$id" down >/dev/null 2>&1
-      herdr agent send-keys "$id" enter >/dev/null 2>&1
-      herdr agent wait "$id" --until idle --timeout 30000 >/dev/null 2>&1 || return 1
-      # Right after accepting the dialog, claude briefly re-execs (back to
-      # the bare shell prompt) before its TUI renders - confirmed live,
-      # `agent wait --until idle` can return during that gap, with `agent
-      # explain`'s own matched_rule null (no rule actually fired; herdr
-      # fell back to idle-by-default). Prompting into that gap reliably
-      # drops the text. Wait for a real rule to fire before moving on.
-      _chief_herdr_wait_settled "$id" || true
-      ;;
-    *)
-      return 1
-      ;;
-  esac
+  herdr agent start "$id" --kind claude --pane "$pane_id" --timeout 30000 \
+    -- --dangerously-skip-permissions >/dev/null 2>&1 && return 0
+  herdr agent read "$id" --source recent-unwrapped --lines 40 2>/dev/null | grep -q "trust this folder" || return 1
+  herdr agent send-keys "$id" down enter >/dev/null 2>&1
+  herdr agent wait "$id" --until idle --timeout 30000 >/dev/null 2>&1 || return 1
+  # Right after accepting the dialog, claude briefly re-execs (back to the
+  # bare shell prompt) before its TUI renders - confirmed live, `agent wait
+  # --until idle` can return during that gap, with `agent explain`'s own
+  # matched_rule null (no rule actually fired; herdr fell back to
+  # idle-by-default). Prompting into that gap reliably drops the text.
+  _chief_herdr_wait_settled "$id" || true
+}
+
+# _chief_herdr_prompt_box_has_text <id> <text> - true only when herdr's own
+# detection snapshot shows a recognizable prefix of <text> already sitting
+# in the live input line. Confirmed live: an untouched box isn't always
+# bare - Claude Code fills it with a dim placeholder hint ("Try \"how do I
+# ...\"") until the first real prompt, which a bare-emptiness check would
+# misread as pending text. Matching against our own submitted text sidesteps
+# that: the placeholder can never contain it.
+_chief_herdr_prompt_box_has_text() {
+  local id=$1 needle
+  needle=$(printf '%s' "$2" | tr -s '[:space:]' ' ' | cut -c1-24)
+  [ -n "$needle" ] || return 1
+  herdr agent read "$id" --source detection --lines 15 2>/dev/null \
+    | tr -s '[:space:]' ' ' | grep -qF "$needle"
 }
 
 # _chief_herdr_wait_settled <id> [timeout-ms] - best-effort: polls until
@@ -150,40 +153,42 @@ _chief_herdr_wait_settled() {
 }
 
 # _chief_herdr_prompt <id> <text> - submit <text> and wait only for the
-# turn to START (working or blocked), not for it to finish. On
-# agent_prompt_stalled, does NOT resend <text> (risks it landing twice) -
-# sends one bare Enter to submit whatever's already pending, then waits
-# for "working" to confirm that recovered submission actually landed.
+# turn to START (working or blocked), not for it to finish.
+#
+# agent_prompt_stalled means herdr's own 5s post-submission race (see file
+# header) didn't observe activity - it does not say whether <text> reached
+# the input line. Resending is only safe if it didn't (nothing pending to
+# double-submit); if it did, only the Enter needs resending.
+# _chief_herdr_prompt_box_has_text makes that call from herdr's own state,
+# not a guess, and one recovery attempt is taken - a second stall is
+# reported, not retried further.
 _chief_herdr_prompt() {
   local id=$1 text=$2
   local err
   err=$(herdr agent prompt "$id" "$text" --wait --until working --until blocked \
           --timeout "$CHIEF_HERDR_SUBMIT_TIMEOUT_MS" 2>&1) && return 0
-  case "$err" in
-    *agent_prompt_stalled*)
-      # A stray "--until idle" wait right after send-keys could match the
-      # PRE-Enter idle state before it's even processed the keypress - wait
-      # for "working" to prove the turn actually started.
-      herdr agent send-keys "$id" enter >/dev/null 2>&1
-      if herdr agent wait "$id" --until working --timeout 15000 >/dev/null 2>&1; then
-        return 0
-      fi
-      # Distinguish a stall that's actually just an unanswered
-      # permission/approval prompt (nobody's present to answer it, so the
-      # follow-up Enter never lands) from a genuinely wedged terminal -
-      # `agent get`'s state is `blocked` only for the former.
-      if herdr agent get "$id" 2>/dev/null | jq -e '.result.agent.agent_status == "blocked"' >/dev/null; then
-        echo "chief-backend-herdr: prompt for $id stalled at an unanswered permission/approval prompt - no one is present to answer it" >&2
-      else
-        echo "chief-backend-herdr: prompt for $id stalled and a follow-up Enter didn't start a turn" >&2
-      fi
-      return 1
-      ;;
-    *)
-      echo "chief-backend-herdr: 'herdr agent prompt' failed for $id: $err" >&2
-      return 1
-      ;;
-  esac
+  [[ $err == *agent_prompt_stalled* ]] || {
+    echo "chief-backend-herdr: 'herdr agent prompt' failed for $id: $err" >&2
+    return 1
+  }
+
+  if _chief_herdr_prompt_box_has_text "$id" "$text"; then
+    herdr agent send-keys "$id" enter >/dev/null 2>&1
+    herdr agent wait "$id" --until working --timeout 15000 >/dev/null 2>&1 && return 0
+  else
+    herdr agent prompt "$id" "$text" --wait --until working --until blocked \
+      --timeout "$CHIEF_HERDR_SUBMIT_TIMEOUT_MS" >/dev/null 2>&1 && return 0
+  fi
+  # Distinguish a stall that's actually just an unanswered
+  # permission/approval prompt (nobody's present to answer it) from a
+  # genuinely wedged terminal - `agent get`'s state is `blocked` only for
+  # the former.
+  if herdr agent get "$id" 2>/dev/null | jq -e '.result.agent.agent_status == "blocked"' >/dev/null; then
+    echo "chief-backend-herdr: prompt for $id stalled at an unanswered permission/approval prompt - no one is present to answer it" >&2
+  else
+    echo "chief-backend-herdr: prompt for $id stalled twice, giving up" >&2
+  fi
+  return 1
 }
 
 backend_spawn() {

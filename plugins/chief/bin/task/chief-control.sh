@@ -10,6 +10,7 @@ set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
 . "$CHIEF_ROOT/bin/lib/meta.sh"
+. "$CHIEF_ROOT/bin/lib/brief.sh"
 . "$CHIEF_ROOT/bin/lib/backends/backend.sh"
 
 fail() { echo "chief-control: $*" >&2; exit 1; }
@@ -46,9 +47,11 @@ case "$VERB" in
     BRIEF="$DATA/$ID/brief.md"
     [ -f "$BRIEF" ] || fail "no brief found at $BRIEF"
 
-    # This checkpoint + note is the only thing that carries forward across a
-    # relaunch: the new agent inherits the worktree's git state but none of
-    # the old conversation, so it has to be told what was happening.
+    # Only the latest checkpoint carries forward: the new agent inherits the
+    # worktree's git state but none of the old conversation, so this note is
+    # all it gets told. Strip any earlier checkpoint first so a repeat
+    # relaunch replaces it instead of stacking a changelog of past notes.
+    chief_brief_strip_section "$BRIEF" "# Relaunch checkpoint"
     {
       echo ""
       echo "# Relaunch checkpoint ($(date -u +%Y-%m-%dT%H:%MZ))"

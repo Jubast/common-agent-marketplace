@@ -99,9 +99,25 @@ export CHIEF_HOME="$WORK/.chief"
 BRIEF="$WORK/brief.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF"
 
+# Structural (non-racy) proof that a brand-new worktree path really does
+# trigger Claude Code's trust dialog on `agent start`, before trusting
+# backend_spawn to have exercised _chief_herdr_start_agent's handling of it
+# below. A throwaway probe pane, closed immediately - no claude turn, no
+# tokens spent.
+PROBE_ID="$ID-probe"
+PROBE_JSON=$(herdr worktree create --cwd "$WORK/project" --branch "chief/$PROBE_ID" \
+  --path "$WORK/.chief/worktrees/$PROBE_ID" --label "chief-$PROBE_ID" --trust-repository --no-focus 2>/dev/null)
+PROBE_PANE=$(printf '%s' "$PROBE_JSON" | jq -r '.result.root_pane.pane_id // empty')
+herdr agent start "$PROBE_ID" --kind claude --pane "$PROBE_PANE" --timeout 30000 >/dev/null 2>"$WORK/probe.err"
+assert_contains "$(cat "$WORK/probe.err")" "agent_not_ready" \
+  "a brand-new worktree path hits Claude Code's trust dialog on 'agent start' (not just an immediately-idle agent)"
+herdr workspace close "$(_chief_herdr_workspace_id "$PROBE_PANE")" >/dev/null 2>&1
+git -C "$WORK/project" worktree remove --force "$WORK/.chief/worktrees/$PROBE_ID" >/dev/null 2>&1 || true
+git -C "$WORK/project" branch -D "chief/$PROBE_ID" >/dev/null 2>&1 || true
+
 SPAWN_OUTPUT=$(backend_spawn "$ID" "$WORK/project" "$BRIEF" "chief/$ID" 2>"$WORK/spawn.err")
 SPAWN_RC=$?
-assert_eq "$SPAWN_RC" "0" "backend_spawn succeeds"
+assert_eq "$SPAWN_RC" "0" "backend_spawn succeeds (clears the same trust dialog internally, then delivers the brief)"
 [ "$SPAWN_RC" = "0" ] || cat "$WORK/spawn.err"
 
 WORKTREE=$(printf '%s\n' "$SPAWN_OUTPUT" | sed -n 1p)
@@ -122,6 +138,31 @@ assert_contains "$CAPTURE" "bypass permissions" "backend_spawn starts the worker
 
 backend_busy "$ID"
 assert_eq "$?" "1" "backend_busy reports idle (not busy) once the reply is done"
+
+# _chief_herdr_prompt_box_has_text against REAL herdr rendering: Claude Code
+# fills a never-yet-prompted box with a dim placeholder hint until the first
+# real turn, which a bare-emptiness check misreads as pending text (caught
+# in manual verification, not hypothetical) - confirm the needle-match
+# check doesn't do that, and does catch our own text genuinely in flight.
+assert_failure "_chief_herdr_prompt_box_has_text misses text that was never sent" -- \
+  _chief_herdr_prompt_box_has_text "$ID" "never sent to this pane xyz123"
+
+BRIEF3="$WORK/brief3.md"
+printf 'Reply with exactly the single word: done\n' > "$BRIEF3"
+( herdr agent prompt "$ID" "$(cat "$BRIEF3")" --wait --until working --until blocked --timeout 30000 \
+    >"$WORK/prompt3.json" 2>&1 ) &
+PROMPT_PID=$!
+CAUGHT=0
+for _ in $(seq 1 60); do
+  _chief_herdr_prompt_box_has_text "$ID" "$(cat "$BRIEF3")" && { CAUGHT=1; break; }
+  sleep 0.05
+done
+wait "$PROMPT_PID"
+assert_eq "$CAUGHT" "1" "_chief_herdr_prompt_box_has_text catches our own text while genuinely in flight"
+
+wait_for_idle "$ID"
+CAPTURE2=$(backend_capture "$ID")
+assert_contains "$CAPTURE2" "done" "the raced-in prompt still completed normally"
 
 assert_success "backend_send delivers a special key without erroring" -- backend_send "$ID" Escape
 

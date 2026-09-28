@@ -44,6 +44,7 @@ case "$1" in
       "mr note") echo "note posted" ;;
       "mr approve") echo "approved" ;;
       "mr merge") echo "merged" ;;
+      "mr update") echo "updated" ;;
       *)
         echo "fake-glab: unhandled invocation: $*" >&2
         exit 1
@@ -64,6 +65,17 @@ URL=$(pr_open "chief/t1" "main" "My title" "My body")
 assert_eq "$URL" "https://gitlab.com/acme/widgets/-/merge_requests/9" "pr_open extracts the MR URL from glab's output"
 assert_contains "$(cat "$GLAB_MOCK_LOG")" "mr create --source-branch chief/t1 --target-branch main --title My title --description My body --yes" \
   "pr_open calls glab mr create with source/target/title/description"
+
+: > "$GLAB_MOCK_LOG"
+pr_update "https://gitlab.com/acme/widgets/-/merge_requests/9" "New title" "New body" >/dev/null
+assert_contains "$(cat "$GLAB_MOCK_LOG")" "mr update https://gitlab.com/acme/widgets/-/merge_requests/9 --title New title --description New body" \
+  "pr_update calls glab mr update with both title and description when both are given"
+
+: > "$GLAB_MOCK_LOG"
+pr_update "https://gitlab.com/acme/widgets/-/merge_requests/9" "Title only" "" >/dev/null
+assert_contains "$(cat "$GLAB_MOCK_LOG")" "mr update https://gitlab.com/acme/widgets/-/merge_requests/9 --title Title only" \
+  "pr_update omits --description when the body is empty"
+assert_not_contains "$(cat "$GLAB_MOCK_LOG")" "--description" "pr_update never passes an empty --description"
 
 : > "$GLAB_MOCK_LOG"
 export GLAB_MOCK_VIEW=open
