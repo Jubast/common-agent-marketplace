@@ -25,14 +25,22 @@
 # sending the brief's own CONTENT as the prompt text instead of a path for
 # claude to go read.
 #
-# `herdr agent prompt --wait` can report agent_prompt_stalled - confirmed
-# live, reproducibly, right after the trust-dialog path above: the prompt
-# text lands in the input line but the trailing Enter doesn't register as a
-# submission, so the agent is still genuinely idle with unsent text sitting
-# in front of it. herdr's own docs warn not to blindly resubmit the text on
-# this error (real risk of the text going in twice) - but a bare follow-up
-# Enter keypress (no text) safely submits whatever's already pending;
-# confirmed live that this recovers the stall. See _chief_herdr_prompt.
+# `herdr agent prompt --wait` can report agent_prompt_stalled for two
+# different underlying failures that read identically from the CLI error
+# alone, both confirmed live right after the trust-dialog path above:
+#   1. the prompt text lands in the input line but the trailing Enter
+#      doesn't register as a submission - the agent is genuinely idle with
+#      unsent text sitting in front of it. A bare follow-up Enter keypress
+#      (no text) safely submits whatever's already pending.
+#   2. the prompt text never reaches the input line at all - the box is
+#      still empty. A bare Enter here submits nothing; only resending the
+#      text recovers it.
+# herdr's own docs warn not to blindly resubmit text on this error (real
+# risk of it going in twice), which is only a risk for case 1 - so
+# _chief_herdr_prompt tells the two apart via herdr's own agent-detection
+# state (`herdr agent explain --json`'s "live_prompt_box" rule, which
+# renders the box's actual current content) before choosing bare Enter vs.
+# resend. See _chief_herdr_prompt and _chief_herdr_prompt_box_empty.
 #
 # CHIEF_HERDR_SUBMIT_TIMEOUT_MS governs how long backend_spawn/
 # backend_relaunch wait for a fresh claude process's very first turn to
@@ -90,31 +98,69 @@ _chief_herdr_start_agent() {
   esac
 }
 
+# _chief_herdr_prompt_box_empty <id> - true (exit 0) only when herdr's own
+# agent-detection state affirmatively shows the live input line empty right
+# now. Reads the "live_prompt_box" detection rule's region_preview (herdr's
+# own rendering of exactly what's in the box, e.g. "❯\n" when empty vs
+# "❯ some text\n" when not) via `herdr agent explain --json`. Anything short
+# of an affirmative empty reading (the rule is missing, herdr's JSON can't
+# be parsed, etc.) returns false - callers must treat "can't tell" as "has
+# text", since that's the side with the safe (non-double-submitting)
+# recovery.
+_chief_herdr_prompt_box_empty() {
+  local id=$1
+  local body
+  body=$(herdr agent explain "$id" --json 2>/dev/null \
+    | jq -r '.evaluated_rules[]? | select(.id == "live_prompt_box") | .evidence.region_preview // empty' 2>/dev/null) || return 1
+  [ -n "$body" ] || return 1
+  body=$(printf '%s' "$body" | tr -d '[:space:]')
+  body=${body#❯}
+  [ -z "$body" ]
+}
+
 # _chief_herdr_prompt <id> <text> - submit <text> and wait only for the
-# turn to START (working or blocked), not for it to finish. On
-# agent_prompt_stalled, does NOT resend <text> (risks it landing twice) -
-# sends one bare Enter to submit whatever's already pending, then waits
-# for "working" to confirm that recovered submission actually landed.
+# turn to START (working or blocked), not for it to finish.
+#
+# `agent_prompt_stalled` covers two genuinely different failures that look
+# identical from the CLI error alone (see the file header): <text> never
+# reached the pane's input line at all, or it landed but the trailing Enter
+# didn't register as a submission. Resending <text> is only safe in the
+# first case - in the second it would double-submit. Recovery uses
+# _chief_herdr_prompt_box_empty to tell the two apart via herdr's own
+# detection state, resending text only when the input line is confirmed
+# empty and falling back to the always-safe bare Enter otherwise. Bounded
+# to two recovery attempts so a repeat stall fails loudly instead of
+# looping forever.
 _chief_herdr_prompt() {
   local id=$1 text=$2
-  local err
+  local err attempt
   err=$(herdr agent prompt "$id" "$text" --wait --until working --until blocked \
           --timeout "$CHIEF_HERDR_SUBMIT_TIMEOUT_MS" 2>&1) && return 0
   case "$err" in
-    *agent_prompt_stalled*)
-      # A stray "--until idle" wait right after send-keys could match the
-      # PRE-Enter idle state before it's even processed the keypress - wait
-      # for "working" to prove the turn actually started.
-      herdr agent send-keys "$id" enter >/dev/null 2>&1
-      herdr agent wait "$id" --until working --timeout 15000 >/dev/null 2>&1 \
-        || { echo "chief-backend-herdr: prompt for $id stalled and a follow-up Enter didn't start a turn" >&2; return 1; }
-      return 0
-      ;;
+    *agent_prompt_stalled*) ;;
     *)
       echo "chief-backend-herdr: 'herdr agent prompt' failed for $id: $err" >&2
       return 1
       ;;
   esac
+
+  for attempt in 1 2; do
+    if _chief_herdr_prompt_box_empty "$id"; then
+      # Nothing landed - resending is safe, nothing pending to double-submit.
+      err=$(herdr agent prompt "$id" "$text" --wait --until working --until blocked \
+              --timeout "$CHIEF_HERDR_SUBMIT_TIMEOUT_MS" 2>&1) && return 0
+    else
+      # Our text is already sitting in the input line; only the Enter didn't
+      # register. A stray "--until idle" wait right after send-keys could
+      # match the PRE-Enter idle state before it's even processed the
+      # keypress - wait for "working" to prove the turn actually started.
+      herdr agent send-keys "$id" enter >/dev/null 2>&1
+      err=$(herdr agent wait "$id" --until working --timeout 15000 2>&1) && return 0
+    fi
+    [[ $err == *agent_prompt_stalled* ]] || break
+  done
+  echo "chief-backend-herdr: prompt for $id stalled and recovery did not start a turn: $err" >&2
+  return 1
 }
 
 backend_spawn() {
