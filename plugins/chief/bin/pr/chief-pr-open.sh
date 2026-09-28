@@ -5,9 +5,10 @@
 # open a PR for <id>. Ship agents never do this themselves (see
 # templates/brief-ship.md rule 1).
 #
-# Usage: chief-pr-open.sh <id> --confirm [--title "..."] [--body "..."]
-#   Defaults title/body from the task's brief.md '## Operator's intent'
-#   section when not given explicitly.
+# --title/--body are REQUIRED, not derived - Chief must compose a real title
+# and description itself for the PR to be worth reading.
+#
+# Usage: chief-pr-open.sh <id> --confirm --title "..." --body "..."
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
@@ -17,7 +18,7 @@ set -euo pipefail
 fail() { echo "chief-pr-open: $*" >&2; exit 1; }
 
 ID=${1:-}
-[ -n "$ID" ] || fail "usage: chief-pr-open.sh <id> --confirm [--title \"...\"] [--body \"...\"]"
+[ -n "$ID" ] || fail "usage: chief-pr-open.sh <id> --confirm --title \"...\" --body \"...\""
 chief_meta_exists "$ID" || fail "no such task: $ID"
 shift
 
@@ -33,6 +34,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ "$CONFIRMED" -eq 1 ] || fail "refusing to open a PR without --confirm - only pass it once the operator has explicitly said to open a PR for $ID in this conversation"
+[ -n "$TITLE" ] || fail "usage: chief-pr-open.sh <id> --confirm --title \"...\" --body \"...\" (--title is required)"
+[ -n "$BODY" ] || fail "usage: chief-pr-open.sh <id> --confirm --title \"...\" --body \"...\" (--body is required)"
 
 EXISTING=$(chief_meta_get "$ID" pr_url 2>/dev/null || true)
 [ -z "$EXISTING" ] || fail "PR already open: $EXISTING - use chief-pr-state.sh to check it"
@@ -49,29 +52,6 @@ WORKTREE=$(chief_meta_require "$ID" worktree)
 
 DEFAULT=$(git -C "$PROJECT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##') || true
 [ -n "$DEFAULT" ] || DEFAULT=$(git -C "$PROJECT" symbolic-ref --quiet --short HEAD 2>/dev/null || echo main)
-
-extract_intent() {
-  [ -f "$1" ] || return 0
-  awk '/^## Operator.s intent$/ { flag=1; next } /^## / { flag=0 } flag' "$1"
-}
-
-BRIEF="$DATA/$ID/brief.md"
-if [ -z "$TITLE" ]; then
-  # Default from the branch's own commit history, not the intent text - a
-  # title that just echoes the intent duplicates what BODY already says.
-  SUBJECTS=$(git -C "$WORKTREE" log --reverse --format=%s "$DEFAULT..$BRANCH" 2>/dev/null || true)
-  SUBJECT_COUNT=$(printf '%s\n' "$SUBJECTS" | grep -c . || true)
-  if [ "$SUBJECT_COUNT" -eq 1 ]; then
-    TITLE=$SUBJECTS
-  elif [ "$SUBJECT_COUNT" -gt 1 ]; then
-    TITLE="$(printf '%s\n' "$SUBJECTS" | head -n1) (+$((SUBJECT_COUNT - 1)) more)"
-  fi
-  [ -n "$TITLE" ] || TITLE="chief: $ID"
-fi
-if [ -z "$BODY" ]; then
-  BODY=$(extract_intent "$BRIEF" | tr '\n' ' ' | sed 's/[[:space:]]*$//')
-  [ -n "$BODY" ] || BODY="(see $DATA/$ID/report.md)"
-fi
 
 git -C "$WORKTREE" push -q -u origin "$BRANCH" || fail "push failed for $BRANCH"
 
