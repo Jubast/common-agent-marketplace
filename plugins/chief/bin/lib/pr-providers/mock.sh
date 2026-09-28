@@ -21,6 +21,11 @@ pr_open() {
   printf '%s\n' "${CHIEF_PR_MOCK_URL:-https://example.invalid/mock/pr/1}"
 }
 
+pr_update() {
+  local url=$1 title=$2 body=$3
+  _chief_pr_mock_log "pr_update $url $title $body"
+}
+
 pr_state() {
   local url=$1
   _chief_pr_mock_log "pr_state $url"

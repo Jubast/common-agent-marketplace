@@ -51,7 +51,7 @@ assert_contains "$OUT2" "t-1: state: done" \
   "second Stop hook (before anything acts on the task): watch still surfaces it - nothing has advanced its meta status yet"
 
 # The normal flow acts on the task: open a PR for it.
-"$BIN/pr/chief-pr-open.sh" t-1 --confirm >/dev/null
+"$BIN/pr/chief-pr-open.sh" t-1 --confirm --title "My title" --body "My body" >/dev/null
 
 OUT3=$(timeout 10 "$BIN/chief-watch.sh")
 assert_not_contains "$OUT3" "t-1: state: done" \

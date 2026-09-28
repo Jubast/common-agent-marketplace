@@ -44,6 +44,7 @@ case "$1" in
         ;;
       "pr review") echo '{"ok":true}' ;;
       "pr merge") echo "merged" ;;
+      "pr edit") echo "edited" ;;
       *)
         echo "fake-gh: unhandled invocation: $*" >&2
         exit 1
@@ -64,6 +65,17 @@ URL=$(pr_open "chief/t1" "main" "My title" "My body")
 assert_eq "$URL" "https://github.com/acme/widgets/pull/42" "pr_open returns the URL gh prints"
 assert_contains "$(cat "$GH_MOCK_LOG")" "pr create --head chief/t1 --base main --title My title --body My body" \
   "pr_open calls gh pr create with head/base/title/body"
+
+: > "$GH_MOCK_LOG"
+pr_update "https://github.com/acme/widgets/pull/42" "New title" "New body" >/dev/null
+assert_contains "$(cat "$GH_MOCK_LOG")" "pr edit https://github.com/acme/widgets/pull/42 --title New title --body New body" \
+  "pr_update calls gh pr edit with both title and body when both are given"
+
+: > "$GH_MOCK_LOG"
+pr_update "https://github.com/acme/widgets/pull/42" "" "Body only" >/dev/null
+assert_contains "$(cat "$GH_MOCK_LOG")" "pr edit https://github.com/acme/widgets/pull/42 --body Body only" \
+  "pr_update omits --title when the title is empty"
+assert_not_contains "$(cat "$GH_MOCK_LOG")" "--title" "pr_update never passes an empty --title"
 
 : > "$GH_MOCK_LOG"
 export GH_MOCK_VIEW=open

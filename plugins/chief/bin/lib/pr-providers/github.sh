@@ -37,6 +37,15 @@ pr_open() {
   gh pr create --head "$branch" --base "$base" --title "$title" --body "$body"
 }
 
+pr_update() {
+  local url=$1 title=$2 body=$3
+  command -v gh >/dev/null 2>&1 || { echo "chief-pr-provider-github: gh is required" >&2; return 1; }
+  local -a args=(pr edit "$url")
+  [ -n "$title" ] && args+=(--title "$title")
+  [ -n "$body" ] && args+=(--body "$body")
+  gh "${args[@]}" >/dev/null
+}
+
 pr_state() {
   local url=$1
   command -v gh >/dev/null 2>&1 || { echo "chief-pr-provider-github: gh is required" >&2; return 1; }

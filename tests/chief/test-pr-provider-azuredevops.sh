@@ -92,6 +92,17 @@ assert_contains "$OUT" "policy: build running" "pr_state surfaces a blocking bra
 unset AZ_MOCK_SHOW AZ_MOCK_POLICY
 
 : > "$AZ_MOCK_LOG"
+pr_update "$PR_URL" "New title" "New body" >/dev/null
+assert_contains "$(cat "$AZ_MOCK_LOG")" "repos pr update --organization https://dev.azure.com/acme --id 55 --title New title --description New body" \
+  "pr_update calls az repos pr update with both title and description when both are given"
+
+: > "$AZ_MOCK_LOG"
+pr_update "$PR_URL" "" "Body only" >/dev/null
+assert_contains "$(cat "$AZ_MOCK_LOG")" "repos pr update --organization https://dev.azure.com/acme --id 55 --description Body only" \
+  "pr_update omits --title when the title is empty"
+assert_not_contains "$(cat "$AZ_MOCK_LOG")" "--title" "pr_update never passes an empty --title"
+
+: > "$AZ_MOCK_LOG"
 pr_approve "$PR_URL" >/dev/null
 assert_contains "$(cat "$AZ_MOCK_LOG")" "repos pr set-vote --organization https://dev.azure.com/acme --id 55 --vote approve" "pr_approve casts an approve vote"
 
