@@ -12,6 +12,7 @@ set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
 . "$CHIEF_ROOT/bin/lib/meta.sh"
+. "$CHIEF_ROOT/bin/lib/brief.sh"
 
 fail() { echo "chief-promote: $*" >&2; exit 1; }
 
@@ -54,6 +55,10 @@ EOF
 
 NOTICE=$(printf "$NOTICE_FMT" "$(date -u +%Y-%m-%dT%H:%MZ)" "$BRANCH" "$INTENT" "$SPEC" "$REPORT")
 
+# Drop any pre-promotion relaunch checkpoint - it describes scout-mode
+# progress that the ship notice below now supersedes as the current
+# instruction, not a changelog to carry forward.
+chief_brief_strip_section "$DATA/$ID/brief.md" "# Relaunch checkpoint"
 printf '%s\n' "$NOTICE" >> "$DATA/$ID/brief.md"
 "$CHIEF_ROOT/bin/task/chief-send.sh" "$ID" "$NOTICE"
 
