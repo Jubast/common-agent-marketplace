@@ -71,6 +71,18 @@ wait_for_idle() {  # <id> [timeout-s]
   done
   return 1
 }
+_ws_count_for_root() {  # <repo-root> -> number of herdr workspaces open for it
+  herdr workspace list 2>/dev/null \
+    | jq -r --arg root "$1" '[.result.workspaces[]? | select(.worktree.repo_root == $root)] | length'
+}
+_tab_id_with_label() {  # <workspace-id> <label> -> its tab_id, or empty
+  herdr tab list --workspace "$1" 2>/dev/null \
+    | jq -r --arg label "$2" '.result.tabs[]? | select(.label == $label) | .tab_id'
+}
+_ws_exists() {  # <workspace-id> -> the id again if still open, else empty
+  herdr workspace list 2>/dev/null \
+    | jq -r --arg id "$1" '.result.workspaces[]? | select(.workspace_id == $id) | .workspace_id'
+}
 cleanup() {
   # Safety net independent of how far the test got: close every workspace
   # this run could have produced, even if backend_spawn/relaunch failed
@@ -135,16 +147,11 @@ assert_file_exists "$WORKTREE/.git" "backend_spawn actually created the git work
 
 # Nesting: the task's pane must live inside the project's shared primary
 # workspace, as a labeled tab, not in its own standalone workspace.
-PANE_ID=${ENDPOINT#herdr:}
-TASK_WS=$(_chief_herdr_workspace_id "$PANE_ID")
 PRIMARY=$(_chief_herdr_primary_workspace_id "$WORK/project")
-assert_eq "$TASK_WS" "$PRIMARY" "backend_spawn nests the task's pane inside the project's shared primary workspace"
-TAB_LABEL=$(herdr tab list --workspace "$PRIMARY" 2>/dev/null \
-  | jq -r --arg label "chief-$ID" '.result.tabs[]? | select(.label == $label) | .label')
-assert_eq "$TAB_LABEL" "chief-$ID" "the nested tab keeps the chief-<id> label"
-WS_COUNT=$(herdr workspace list 2>/dev/null \
-  | jq -r --arg root "$WORK/project" '[.result.workspaces[]? | select(.worktree.repo_root == $root)] | length')
-assert_eq "$WS_COUNT" "1" "only one herdr workspace exists for the project - no standalone task workspace"
+assert_eq "$(_chief_herdr_workspace_id "${ENDPOINT#herdr:}")" "$PRIMARY" "backend_spawn nests the task's pane inside the project's shared primary workspace"
+[ -n "$(_tab_id_with_label "$PRIMARY" "chief-$ID")" ]
+assert_eq "$?" "0" "the nested tab keeps the chief-<id> label"
+assert_eq "$(_ws_count_for_root "$WORK/project")" "1" "only one herdr workspace exists for the project - no standalone task workspace"
 
 chief_meta_set "$ID" endpoint "$ENDPOINT"
 chief_meta_set "$ID" worktree "$WORKTREE"
@@ -161,21 +168,15 @@ assert_eq "$SPAWN_RC2" "0" "backend_spawn succeeds for a second task against the
 [ "$SPAWN_RC2" = "0" ] || cat "$WORK/spawn2.err"
 ENDPOINT2=$(printf '%s\n' "$SPAWN_OUTPUT2" | sed -n 2p)
 WORKTREE2=$(printf '%s\n' "$SPAWN_OUTPUT2" | sed -n 1p)
-TASK_WS2=$(_chief_herdr_workspace_id "${ENDPOINT2#herdr:}")
-assert_eq "$TASK_WS2" "$PRIMARY" "a second task nests into the SAME shared project workspace, not a new one"
-WS_COUNT2=$(herdr workspace list 2>/dev/null \
-  | jq -r --arg root "$WORK/project" '[.result.workspaces[]? | select(.worktree.repo_root == $root)] | length')
-assert_eq "$WS_COUNT2" "1" "still only one herdr workspace for the project after a second task"
+assert_eq "$(_chief_herdr_workspace_id "${ENDPOINT2#herdr:}")" "$PRIMARY" "a second task nests into the SAME shared project workspace, not a new one"
+assert_eq "$(_ws_count_for_root "$WORK/project")" "1" "still only one herdr workspace for the project after a second task"
 
 chief_meta_set "$ID2" endpoint "$ENDPOINT2"
 chief_meta_set "$ID2" worktree "$WORKTREE2"
 chief_meta_set "$ID2" project "$WORK/project"
 backend_kill "$ID2"
-TAB2_GONE=$(herdr tab list --workspace "$PRIMARY" 2>/dev/null \
-  | jq -r --arg label "chief-$ID2" '.result.tabs[]? | select(.label == $label) | .tab_id')
-assert_eq "$TAB2_GONE" "" "backend_kill closes only the second task's own tab"
-PRIMARY_STILL=$(_chief_herdr_primary_workspace_id "$WORK/project")
-assert_eq "$PRIMARY_STILL" "$PRIMARY" "the shared project workspace survives backend_kill of one of its tasks"
+assert_eq "$(_tab_id_with_label "$PRIMARY" "chief-$ID2")" "" "backend_kill closes only the second task's own tab"
+assert_eq "$(_chief_herdr_primary_workspace_id "$WORK/project")" "$PRIMARY" "the shared project workspace survives backend_kill of one of its tasks"
 git -C "$WORK/project" worktree remove --force "$WORKTREE2" >/dev/null 2>&1 || true
 git -C "$WORK/project" branch -D "chief/$ID2" >/dev/null 2>&1 || true
 
@@ -189,9 +190,9 @@ assert_eq "$?" "1" "backend_busy reports idle (not busy) once the reply is done"
 
 # _chief_herdr_prompt_box_has_text against REAL herdr rendering: Claude Code
 # fills a never-yet-prompted box with a dim placeholder hint until the first
-# real turn, which a bare-emptiness check misreads as pending text (caught
-# in manual verification, not hypothetical) - confirm the needle-match
-# check doesn't do that, and does catch our own text genuinely in flight.
+# real turn, which a bare-emptiness check would misread as pending text -
+# confirm the needle-match check doesn't, and does catch our own text
+# genuinely in flight.
 assert_failure "_chief_herdr_prompt_box_has_text misses text that was never sent" -- \
   _chief_herdr_prompt_box_has_text "$ID" "never sent to this pane xyz123"
 
@@ -217,8 +218,7 @@ assert_success "backend_send delivers a special key without erroring" -- backend
 backend_kill "$ID"
 assert_eq "$?" "0" "backend_kill exits cleanly"
 assert_file_exists "$WORKTREE/.git" "backend_kill does not touch the worktree"
-PRIMARY_AFTER_KILL=$(_chief_herdr_primary_workspace_id "$WORK/project")
-assert_eq "$PRIMARY_AFTER_KILL" "$PRIMARY" "backend_kill leaves the shared project workspace open - only the task's own tab closes"
+assert_eq "$(_chief_herdr_primary_workspace_id "$WORK/project")" "$PRIMARY" "backend_kill leaves the shared project workspace open - only the task's own tab closes"
 
 BRIEF2="$WORK/brief2.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF2"
@@ -231,16 +231,14 @@ NEW_ENDPOINT=$(chief_meta_get "$ID" endpoint)
 assert_contains "$NEW_ENDPOINT" "herdr:" "backend_relaunch records a fresh herdr endpoint"
 [ "$NEW_ENDPOINT" != "$ENDPOINT" ]
 assert_eq "$?" "0" "backend_relaunch's endpoint differs from the original pane"
-NEW_TASK_WS=$(_chief_herdr_workspace_id "${NEW_ENDPOINT#herdr:}")
-assert_eq "$NEW_TASK_WS" "$PRIMARY" "backend_relaunch re-nests the task into the same shared project workspace"
+assert_eq "$(_chief_herdr_workspace_id "${NEW_ENDPOINT#herdr:}")" "$PRIMARY" "backend_relaunch re-nests the task into the same shared project workspace"
 
 wait_for_idle "$ID"
 RELAUNCH_CAPTURE=$(backend_capture "$ID")
 assert_contains "$RELAUNCH_CAPTURE" "ok" "backend_capture shows the relaunched claude's reply"
 
 backend_kill "$ID"
-FINAL_PRIMARY=$(_chief_herdr_primary_workspace_id "$WORK/project")
-assert_eq "$FINAL_PRIMARY" "$PRIMARY" "the shared project workspace stays open with just its own tab after all its tasks are killed"
+assert_eq "$(_chief_herdr_primary_workspace_id "$WORK/project")" "$PRIMARY" "the shared project workspace stays open with just its own tab after all its tasks are killed"
 
 # _chief_herdr_close_pane_by_label's orphan-pane cleanup: `herdr worktree
 # create`/`open` silently opens a "primary" workspace for the project
@@ -260,9 +258,7 @@ herdr worktree create --cwd "$CLEANUP_PROJECT" --branch "chief/$CLEANUP_ID" \
   --path "$WORK/.chief/worktrees/$CLEANUP_ID" --label "chief-$CLEANUP_ID" \
   --trust-repository --no-focus >/dev/null 2>&1
 _chief_herdr_close_pane_by_label "$CLEANUP_ID" "$CLEANUP_PROJECT" ""
-REMAINING=$(herdr workspace list 2>/dev/null \
-  | jq -r --arg root "$CLEANUP_PROJECT" '.result.workspaces[]? | select(.worktree.repo_root == $root) | .workspace_id')
-assert_eq "$REMAINING" "" "cleanup closes both the chief-<id> pane and the freshly-orphaned primary workspace"
+assert_eq "$(_ws_count_for_root "$CLEANUP_PROJECT")" "0" "cleanup closes both the chief-<id> pane and the freshly-orphaned primary workspace"
 
 # The OTHER case: the label has already moved onto a TAB inside a shared
 # project workspace (a failure between _chief_herdr_nest_into_primary
@@ -276,12 +272,8 @@ NEST_JSON=$(herdr worktree create --cwd "$CLEANUP_PROJECT" --branch "chief/$NEST
 NEST_PANE=$(printf '%s' "$NEST_JSON" | jq -r '.result.root_pane.pane_id')
 _chief_herdr_nest_into_primary "$NEST_PRIMARY" "$NEST_PANE" "$NEST_ID" >/dev/null
 _chief_herdr_close_pane_by_label "$NEST_ID" "$CLEANUP_PROJECT" "$NEST_PRIMARY"
-NEST_TAB_REMAINING=$(herdr tab list --workspace "$NEST_PRIMARY" 2>/dev/null \
-  | jq -r --arg label "chief-$NEST_ID" '.result.tabs[]? | select(.label == $label) | .tab_id')
-assert_eq "$NEST_TAB_REMAINING" "" "cleanup closes an already-nested task's tab too, not just a standalone workspace"
-NEST_PRIMARY_SURVIVES=$(herdr workspace list 2>/dev/null \
-  | jq -r --arg id "$NEST_PRIMARY" '.result.workspaces[]? | select(.workspace_id == $id) | .workspace_id')
-assert_eq "$NEST_PRIMARY_SURVIVES" "$NEST_PRIMARY" "cleanup never closes the shared project workspace itself when only the task's own tab needed removing"
+assert_eq "$(_tab_id_with_label "$NEST_PRIMARY" "chief-$NEST_ID")" "" "cleanup closes an already-nested task's tab too, not just a standalone workspace"
+assert_eq "$(_ws_exists "$NEST_PRIMARY")" "$NEST_PRIMARY" "cleanup never closes the shared project workspace itself when only the task's own tab needed removing"
 herdr workspace close "$NEST_PRIMARY" >/dev/null 2>&1 || true
 
 # A primary workspace that predates the failed spawn (an operator already
@@ -295,9 +287,7 @@ herdr worktree create --cwd "$CLEANUP_PROJECT" --branch "chief/${CLEANUP_ID}-2" 
   --path "$WORK/.chief/worktrees/${CLEANUP_ID}-2" --label "chief-${CLEANUP_ID}-2" \
   --trust-repository --no-focus >/dev/null 2>&1
 _chief_herdr_close_pane_by_label "${CLEANUP_ID}-2" "$CLEANUP_PROJECT" "$PRE_PRIMARY"
-STILL_OPEN=$(herdr workspace list 2>/dev/null \
-  | jq -r --arg id "$OP_WS" '.result.workspaces[]? | select(.workspace_id == $id) | .workspace_id')
-assert_eq "$STILL_OPEN" "$OP_WS" "cleanup never touches a primary workspace that predates the failed spawn"
+assert_eq "$(_ws_exists "$OP_WS")" "$OP_WS" "cleanup never touches a primary workspace that predates the failed spawn"
 herdr workspace close "$OP_WS" >/dev/null 2>&1 || true
 
 harness_summary
