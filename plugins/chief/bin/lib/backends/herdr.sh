@@ -12,6 +12,15 @@
 # pane id is exactly what agent commands accept as a target, so it's used
 # unmodified as this adapter's endpoint ("herdr:<pane_id>").
 #
+# Task worktrees nest as tabs inside one shared per-project workspace, not
+# as their own standalone workspaces. `herdr worktree create`/`open
+# --workspace ID` does NOT nest into that workspace - per herdr's CLI
+# reference, it always opens a new one, merely "grouped" with the target
+# for `workspace close --group`. Nesting is done with `herdr pane move
+# <pane_id> --workspace <id> --new-tab --label <text>` instead, which also
+# closes the now-empty source workspace. See
+# _chief_herdr_ensure_primary_workspace and _chief_herdr_nest_into_primary.
+#
 # A brand-new worktree path triggers Claude Code's own one-time "do you
 # trust this folder?" dialog, which leaves `agent start` reporting
 # agent_not_ready instead of idle - hits on every single spawn. See
@@ -47,11 +56,11 @@ _chief_herdr_workspace_id() {  # <pane-id> -> workspace id ("w2:p1" -> "w2")
 }
 
 # _chief_herdr_primary_workspace_id <repo-root> - workspace id of the
-# non-linked "primary" workspace herdr currently has open for that repo
-# root, if any. `herdr worktree create`/`open` silently opens (or reuses)
-# one of these alongside the intended linked-worktree workspace; on a repo
-# root with no primary open yet, it creates one, labeled after the
-# project (its repo name), not chief-<id>.
+# non-linked "primary" workspace herdr has open for that repo root, if any
+# - the shared per-project workspace task worktrees nest into. `herdr
+# worktree create --cwd` also opens one as a side effect on a repo root
+# with none open yet, but backend_spawn/backend_relaunch never depend on
+# that: _chief_herdr_ensure_primary_workspace opens it first, deliberately.
 _chief_herdr_primary_workspace_id() {
   local root=$1
   herdr workspace list 2>/dev/null \
@@ -59,40 +68,77 @@ _chief_herdr_primary_workspace_id() {
         '.result.workspaces[]? | select(.worktree.repo_root == $root and .worktree.is_linked_worktree == false) | .workspace_id' 2>/dev/null || true
 }
 
+# _chief_herdr_ensure_primary_workspace <project-dir> <pre-primary-id> -
+# echoes the shared per-project workspace id to nest this task's worktree
+# tab into: <pre-primary-id> (from a _chief_herdr_primary_workspace_id
+# snapshot the caller already took) if non-empty, else opens the project's
+# own root as a "worktree" (herdr's non-linked primary), which creates it
+# labeled after the repo name.
+_chief_herdr_ensure_primary_workspace() {
+  local project_dir=$1 primary=$2 json
+  [ -n "$primary" ] && { printf '%s\n' "$primary"; return 0; }
+  json=$(herdr worktree open --cwd "$project_dir" --path "$project_dir" --trust-repository --no-focus 2>&1) || {
+    echo "chief-backend-herdr: could not open the project workspace for $project_dir: $json" >&2
+    return 1
+  }
+  primary=$(printf '%s' "$json" | jq -r '.result.workspace.workspace_id // empty')
+  [ -n "$primary" ] || {
+    echo "chief-backend-herdr: could not read workspace id from: $json" >&2
+    return 1
+  }
+  printf '%s\n' "$primary"
+}
+
+# _chief_herdr_nest_into_primary <primary-workspace-id> <pane-id> <id> -
+# moves <pane-id> (a task worktree's own, just-created standalone
+# workspace) into <primary-workspace-id> as a new tab labeled "chief-<id>",
+# closing the now-empty source workspace as a side effect. Echoes the
+# pane's new (workspace-requalified) id on success.
+_chief_herdr_nest_into_primary() {
+  local primary=$1 pane_id=$2 id=$3 json new_pane_id
+  json=$(herdr pane move "$pane_id" --workspace "$primary" --new-tab --label "chief-$id" --no-focus 2>&1) || {
+    echo "chief-backend-herdr: 'herdr pane move' failed to nest $id into the project workspace: $json" >&2
+    return 1
+  }
+  new_pane_id=$(printf '%s' "$json" | jq -r '.result.move_result.pane.pane_id // empty')
+  [ -n "$new_pane_id" ] || {
+    echo "chief-backend-herdr: could not read nested pane id from: $json" >&2
+    return 1
+  }
+  printf '%s\n' "$new_pane_id"
+}
+
 # _chief_herdr_close_pane_by_label <id> [project-dir] [pre-primary-id] -
-# best-effort: closes whatever herdr workspace carries the fixed
-# "chief-<id>" label (the label passed to both `herdr worktree create` and
-# `herdr worktree open`) - the only id-derived handle guaranteed to
-# survive a failure with no parsed pane id. Used by callers that need to
-# clean up a pane before any meta record (and so no stored endpoint)
-# exists.
+# best-effort: closes whatever carries the fixed "chief-<id>" label - the
+# only id-derived handle guaranteed to survive a failure with no parsed
+# pane id. The label may be on the task's own standalone workspace (not
+# yet nested) or on its tab inside the shared project workspace (already
+# nested) - both are checked.
 #
-# When [project-dir] and [pre-primary-id] are also given (the project's
-# primary workspace id, if any, from BEFORE the failed create/open call),
-# also closes the project's current primary workspace if it's new since
-# then - the orphan left by that call's own side effect (see
-# _chief_herdr_primary_workspace_id), never one the operator already had
-# open for other reasons.
+# [project-dir]/[pre-primary-id] (a _chief_herdr_primary_workspace_id
+# snapshot from before the failed attempt) also closes the project's
+# current primary workspace if it's new since then - one
+# _chief_herdr_ensure_primary_workspace created for this attempt, never
+# one already open for other reasons.
 _chief_herdr_close_pane_by_label() {
   local id=$1 project_dir=${2:-} pre_primary=${3:-}
-  local ws
+  local label="chief-$id" ws tabs primary
   ws=$(herdr workspace list 2>/dev/null \
-    | jq -r --arg label "chief-$id" '.result.workspaces[]? | select(.label == $label) | .workspace_id' 2>/dev/null) || true
-  if [ -n "$project_dir" ]; then
-    local primary
-    primary=$(_chief_herdr_primary_workspace_id "$project_dir")
-    if [ -n "$primary" ] && [ "$primary" != "$pre_primary" ]; then
-      ws="$ws
-$primary"
-    fi
-  fi
-  [ -n "$ws" ] || return 0
-  # The trailing `|| true` matters under the caller's `set -e`: without it,
-  # a failed `herdr workspace close` on the loop's last line would make the
-  # whole pipeline's exit status non-zero and abort the caller right here.
+    | jq -r --arg label "$label" '.result.workspaces[]? | select(.label == $label) | .workspace_id') || true
+  tabs=$(herdr tab list 2>/dev/null \
+    | jq -r --arg label "$label" '.result.tabs[]? | select(.label == $label) | .tab_id') || true
+  # `|| true` after each loop: under the caller's `set -e`, a pipeline
+  # ending in a failed `read` (empty input) would otherwise abort here.
   printf '%s\n' "$ws" | while read -r w; do
     [ -n "$w" ] && herdr workspace close "$w" >/dev/null 2>&1
   done || true
+  printf '%s\n' "$tabs" | while read -r t; do
+    [ -n "$t" ] && herdr tab close "$t" >/dev/null 2>&1
+  done || true
+  if [ -n "$project_dir" ]; then
+    primary=$(_chief_herdr_primary_workspace_id "$project_dir")
+    [ -n "$primary" ] && [ "$primary" != "$pre_primary" ] && herdr workspace close "$primary" >/dev/null 2>&1
+  fi
   return 0
 }
 
@@ -194,33 +240,33 @@ _chief_herdr_prompt() {
 backend_spawn() {
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
   local worktree="$WORKTREES/$id"
-  local json pane_id pre_primary
-  # Snapshot before the mutating call below, so a failure can tell apart
-  # herdr's own freshly-orphaned primary workspace (see
-  # _chief_herdr_close_pane_by_label) from one the operator already had
-  # open for this project for other reasons.
+  local json pane_id pre_primary primary
+  # Cleans up on any failure below without repeating the call at every
+  # site: fires on every `return`, skipped only once `ok` is set right
+  # before the success path (mirrors chief-spawn.sh's own `trap ... EXIT`
+  # lock cleanup, scoped to RETURN instead).
+  local ok=0
+  trap '[ "$ok" = 1 ] || _chief_herdr_close_pane_by_label "$id" "$project_dir" "$pre_primary"' RETURN
+
   pre_primary=$(_chief_herdr_primary_workspace_id "$project_dir")
+  primary=$(_chief_herdr_ensure_primary_workspace "$project_dir" "$pre_primary") || return 1
+
   json=$(herdr worktree create --cwd "$project_dir" --branch "$branch" --path "$worktree" \
            --label "chief-$id" --trust-repository --no-focus 2>&1) \
     || { echo "chief-backend-herdr: 'herdr worktree create' failed: $json" >&2; return 1; }
   pane_id=$(printf '%s' "$json" | jq -r '.result.root_pane.pane_id // empty')
-  [ -n "$pane_id" ] || {
-    echo "chief-backend-herdr: could not read pane id from: $json" >&2
-    _chief_herdr_close_pane_by_label "$id" "$project_dir" "$pre_primary"
-    return 1
-  }
+  [ -n "$pane_id" ] || { echo "chief-backend-herdr: could not read pane id from: $json" >&2; return 1; }
+
+  pane_id=$(_chief_herdr_nest_into_primary "$primary" "$pane_id" "$id") || return 1
 
   _chief_herdr_start_agent "$id" "$pane_id" || {
     echo "chief-backend-herdr: 'herdr agent start' did not become ready for $id" >&2
-    _chief_herdr_close_pane_by_label "$id" "$project_dir" "$pre_primary"
     return 1
   }
 
-  _chief_herdr_prompt "$id" "$(cat "$brief_path")" || {
-    _chief_herdr_close_pane_by_label "$id" "$project_dir" "$pre_primary"
-    return 1
-  }
+  _chief_herdr_prompt "$id" "$(cat "$brief_path")" || return 1
 
+  ok=1
   printf '%s\n' "$worktree"
   printf 'herdr:%s\n' "$pane_id"
 }
@@ -259,46 +305,51 @@ backend_busy() {
 
 backend_kill() {
   local id=$1
-  local endpoint pane_id workspace_id
+  local endpoint pane_id tab_id
   endpoint=$(chief_meta_get "$id" endpoint 2>/dev/null) || return 0
   pane_id=${endpoint#herdr:}
   [ -n "$pane_id" ] || return 0
-  workspace_id=$(_chief_herdr_workspace_id "$pane_id")
-  herdr workspace close "$workspace_id" >/dev/null 2>&1 || true
+  # Close only this task's own tab, not the shared project workspace - the
+  # pane is nested inside it (see backend_spawn). Closing a workspace's
+  # last tab also closes the workspace itself (herdr's own behavior), so a
+  # task that's the last one open still leaves nothing orphaned.
+  tab_id=$(herdr pane get "$pane_id" 2>/dev/null | jq -r '.result.pane.tab_id // empty')
+  [ -n "$tab_id" ] || return 0
+  herdr tab close "$tab_id" >/dev/null 2>&1 || true
 }
 
 backend_relaunch() {
   local id=$1 brief_path=$2
-  local project worktree json pane_id pre_primary
+  local project worktree json pane_id pre_primary primary
+  # See backend_spawn: same cleanup-on-any-failure trap. A failure here
+  # matters even more - chief-control.sh already killed the OLD pane before
+  # calling relaunch, so a failure would otherwise leave meta's endpoint
+  # pointing at a dead pane with no live replacement.
+  local ok=0
+  trap '[ "$ok" = 1 ] || _chief_herdr_close_pane_by_label "$id" "$project" "$pre_primary"' RETURN
+
   project=$(chief_meta_get "$id" project)
   worktree=$(chief_meta_get "$id" worktree)
-  # Snapshot before the mutating call below - see backend_spawn.
   pre_primary=$(_chief_herdr_primary_workspace_id "$project")
+  primary=$(_chief_herdr_ensure_primary_workspace "$project" "$pre_primary") || return 1
+
   # --cwd is required here: without it, `herdr worktree open` resolves the
   # repo against ambient server state instead of this specific project -
   # confirmed live to pick up a stale, unrelated repo when omitted.
   json=$(herdr worktree open --cwd "$project" --path "$worktree" --label "chief-$id" --trust-repository --no-focus 2>&1) \
-    || { echo "chief-backend-herdr: 'herdr worktree open' failed: $json" >&2
-         _chief_herdr_close_pane_by_label "$id" "$project" "$pre_primary"
-         return 1; }
+    || { echo "chief-backend-herdr: 'herdr worktree open' failed: $json" >&2; return 1; }
   pane_id=$(printf '%s' "$json" | jq -r '.result.root_pane.pane_id // empty')
-  [ -n "$pane_id" ] \
-    || { echo "chief-backend-herdr: could not read pane id from: $json" >&2
-         _chief_herdr_close_pane_by_label "$id" "$project" "$pre_primary"
-         return 1; }
+  [ -n "$pane_id" ] || { echo "chief-backend-herdr: could not read pane id from: $json" >&2; return 1; }
 
-  _chief_herdr_start_agent "$id" "$pane_id" \
-    || { echo "chief-backend-herdr: 'herdr agent start' did not become ready for $id" >&2
-         _chief_herdr_close_pane_by_label "$id" "$project" "$pre_primary"
-         return 1; }
+  pane_id=$(_chief_herdr_nest_into_primary "$primary" "$pane_id" "$id") || return 1
 
-  _chief_herdr_prompt "$id" "$(cat "$brief_path")" || {
-    # The OLD pane was already killed by chief-control.sh before relaunch
-    # was called - a failure here leaves the NEW one orphaned with meta's
-    # endpoint still pointing at the dead old one.
-    _chief_herdr_close_pane_by_label "$id" "$project" "$pre_primary"
+  _chief_herdr_start_agent "$id" "$pane_id" || {
+    echo "chief-backend-herdr: 'herdr agent start' did not become ready for $id" >&2
     return 1
   }
 
+  _chief_herdr_prompt "$id" "$(cat "$brief_path")" || return 1
+
+  ok=1
   chief_meta_set "$id" endpoint "herdr:$pane_id"
 }
