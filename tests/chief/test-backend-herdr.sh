@@ -114,6 +114,12 @@ assert_contains "$(cat "$WORK/probe.err")" "agent_not_ready" \
 herdr workspace close "$(_chief_herdr_workspace_id "$PROBE_PANE")" >/dev/null 2>&1
 git -C "$WORK/project" worktree remove --force "$WORK/.chief/worktrees/$PROBE_ID" >/dev/null 2>&1 || true
 git -C "$WORK/project" branch -D "chief/$PROBE_ID" >/dev/null 2>&1 || true
+# The probe above may itself have auto-opened a "primary" workspace for
+# $WORK/project as a side effect (herdr's own behavior on a repo root with
+# none open yet) - close it too, so backend_spawn below is what creates the
+# shared project workspace, not a reuse of this leftover.
+PROBE_PRIMARY=$(_chief_herdr_primary_workspace_id "$WORK/project")
+[ -n "$PROBE_PRIMARY" ] && herdr workspace close "$PROBE_PRIMARY" >/dev/null 2>&1
 
 SPAWN_OUTPUT=$(backend_spawn "$ID" "$WORK/project" "$BRIEF" "chief/$ID" 2>"$WORK/spawn.err")
 SPAWN_RC=$?
@@ -127,9 +133,51 @@ assert_eq "$WORKTREE" "$WORK/.chief/worktrees/$ID" "backend_spawn prints the wor
 assert_contains "$ENDPOINT" "herdr:" "backend_spawn prints a herdr: endpoint second"
 assert_file_exists "$WORKTREE/.git" "backend_spawn actually created the git worktree"
 
+# Nesting: the task's pane must live inside the project's shared primary
+# workspace, as a labeled tab, not in its own standalone workspace.
+PANE_ID=${ENDPOINT#herdr:}
+TASK_WS=$(_chief_herdr_workspace_id "$PANE_ID")
+PRIMARY=$(_chief_herdr_primary_workspace_id "$WORK/project")
+assert_eq "$TASK_WS" "$PRIMARY" "backend_spawn nests the task's pane inside the project's shared primary workspace"
+TAB_LABEL=$(herdr tab list --workspace "$PRIMARY" 2>/dev/null \
+  | jq -r --arg label "chief-$ID" '.result.tabs[]? | select(.label == $label) | .label')
+assert_eq "$TAB_LABEL" "chief-$ID" "the nested tab keeps the chief-<id> label"
+WS_COUNT=$(herdr workspace list 2>/dev/null \
+  | jq -r --arg root "$WORK/project" '[.result.workspaces[]? | select(.worktree.repo_root == $root)] | length')
+assert_eq "$WS_COUNT" "1" "only one herdr workspace exists for the project - no standalone task workspace"
+
 chief_meta_set "$ID" endpoint "$ENDPOINT"
 chief_meta_set "$ID" worktree "$WORKTREE"
 chief_meta_set "$ID" project "$WORK/project"
+
+# A second task against the SAME project must reuse that one shared
+# workspace too, not create a second one.
+ID2="$ID-2"
+BRIEF4="$WORK/brief4.md"
+printf 'Reply with exactly the single word: ok\n' > "$BRIEF4"
+SPAWN_OUTPUT2=$(backend_spawn "$ID2" "$WORK/project" "$BRIEF4" "chief/$ID2" 2>"$WORK/spawn2.err")
+SPAWN_RC2=$?
+assert_eq "$SPAWN_RC2" "0" "backend_spawn succeeds for a second task against the same project"
+[ "$SPAWN_RC2" = "0" ] || cat "$WORK/spawn2.err"
+ENDPOINT2=$(printf '%s\n' "$SPAWN_OUTPUT2" | sed -n 2p)
+WORKTREE2=$(printf '%s\n' "$SPAWN_OUTPUT2" | sed -n 1p)
+TASK_WS2=$(_chief_herdr_workspace_id "${ENDPOINT2#herdr:}")
+assert_eq "$TASK_WS2" "$PRIMARY" "a second task nests into the SAME shared project workspace, not a new one"
+WS_COUNT2=$(herdr workspace list 2>/dev/null \
+  | jq -r --arg root "$WORK/project" '[.result.workspaces[]? | select(.worktree.repo_root == $root)] | length')
+assert_eq "$WS_COUNT2" "1" "still only one herdr workspace for the project after a second task"
+
+chief_meta_set "$ID2" endpoint "$ENDPOINT2"
+chief_meta_set "$ID2" worktree "$WORKTREE2"
+chief_meta_set "$ID2" project "$WORK/project"
+backend_kill "$ID2"
+TAB2_GONE=$(herdr tab list --workspace "$PRIMARY" 2>/dev/null \
+  | jq -r --arg label "chief-$ID2" '.result.tabs[]? | select(.label == $label) | .tab_id')
+assert_eq "$TAB2_GONE" "" "backend_kill closes only the second task's own tab"
+PRIMARY_STILL=$(_chief_herdr_primary_workspace_id "$WORK/project")
+assert_eq "$PRIMARY_STILL" "$PRIMARY" "the shared project workspace survives backend_kill of one of its tasks"
+git -C "$WORK/project" worktree remove --force "$WORKTREE2" >/dev/null 2>&1 || true
+git -C "$WORK/project" branch -D "chief/$ID2" >/dev/null 2>&1 || true
 
 wait_for_idle "$ID"
 CAPTURE=$(backend_capture "$ID")
@@ -169,6 +217,8 @@ assert_success "backend_send delivers a special key without erroring" -- backend
 backend_kill "$ID"
 assert_eq "$?" "0" "backend_kill exits cleanly"
 assert_file_exists "$WORKTREE/.git" "backend_kill does not touch the worktree"
+PRIMARY_AFTER_KILL=$(_chief_herdr_primary_workspace_id "$WORK/project")
+assert_eq "$PRIMARY_AFTER_KILL" "$PRIMARY" "backend_kill leaves the shared project workspace open - only the task's own tab closes"
 
 BRIEF2="$WORK/brief2.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF2"
@@ -181,12 +231,16 @@ NEW_ENDPOINT=$(chief_meta_get "$ID" endpoint)
 assert_contains "$NEW_ENDPOINT" "herdr:" "backend_relaunch records a fresh herdr endpoint"
 [ "$NEW_ENDPOINT" != "$ENDPOINT" ]
 assert_eq "$?" "0" "backend_relaunch's endpoint differs from the original pane"
+NEW_TASK_WS=$(_chief_herdr_workspace_id "${NEW_ENDPOINT#herdr:}")
+assert_eq "$NEW_TASK_WS" "$PRIMARY" "backend_relaunch re-nests the task into the same shared project workspace"
 
 wait_for_idle "$ID"
 RELAUNCH_CAPTURE=$(backend_capture "$ID")
 assert_contains "$RELAUNCH_CAPTURE" "ok" "backend_capture shows the relaunched claude's reply"
 
 backend_kill "$ID"
+FINAL_PRIMARY=$(_chief_herdr_primary_workspace_id "$WORK/project")
+assert_eq "$FINAL_PRIMARY" "$PRIMARY" "the shared project workspace stays open with just its own tab after all its tasks are killed"
 
 # _chief_herdr_close_pane_by_label's orphan-pane cleanup: `herdr worktree
 # create`/`open` silently opens a "primary" workspace for the project
@@ -209,6 +263,26 @@ _chief_herdr_close_pane_by_label "$CLEANUP_ID" "$CLEANUP_PROJECT" ""
 REMAINING=$(herdr workspace list 2>/dev/null \
   | jq -r --arg root "$CLEANUP_PROJECT" '.result.workspaces[]? | select(.worktree.repo_root == $root) | .workspace_id')
 assert_eq "$REMAINING" "" "cleanup closes both the chief-<id> pane and the freshly-orphaned primary workspace"
+
+# The OTHER case: the label has already moved onto a TAB inside a shared
+# project workspace (a failure between _chief_herdr_nest_into_primary
+# succeeding and agent start/prompt) - a workspace-label lookup alone
+# would find nothing here.
+NEST_ID=t-herdr-nested-cleanup
+NEST_PRIMARY_JSON=$(herdr worktree open --cwd "$CLEANUP_PROJECT" --path "$CLEANUP_PROJECT" --trust-repository --no-focus 2>&1)
+NEST_PRIMARY=$(printf '%s' "$NEST_PRIMARY_JSON" | jq -r '.result.workspace.workspace_id')
+NEST_JSON=$(herdr worktree create --cwd "$CLEANUP_PROJECT" --branch "chief/$NEST_ID" \
+  --path "$WORK/.chief/worktrees/$NEST_ID" --label "chief-$NEST_ID" --trust-repository --no-focus 2>&1)
+NEST_PANE=$(printf '%s' "$NEST_JSON" | jq -r '.result.root_pane.pane_id')
+_chief_herdr_nest_into_primary "$NEST_PRIMARY" "$NEST_PANE" "$NEST_ID" >/dev/null
+_chief_herdr_close_pane_by_label "$NEST_ID" "$CLEANUP_PROJECT" "$NEST_PRIMARY"
+NEST_TAB_REMAINING=$(herdr tab list --workspace "$NEST_PRIMARY" 2>/dev/null \
+  | jq -r --arg label "chief-$NEST_ID" '.result.tabs[]? | select(.label == $label) | .tab_id')
+assert_eq "$NEST_TAB_REMAINING" "" "cleanup closes an already-nested task's tab too, not just a standalone workspace"
+NEST_PRIMARY_SURVIVES=$(herdr workspace list 2>/dev/null \
+  | jq -r --arg id "$NEST_PRIMARY" '.result.workspaces[]? | select(.workspace_id == $id) | .workspace_id')
+assert_eq "$NEST_PRIMARY_SURVIVES" "$NEST_PRIMARY" "cleanup never closes the shared project workspace itself when only the task's own tab needed removing"
+herdr workspace close "$NEST_PRIMARY" >/dev/null 2>&1 || true
 
 # A primary workspace that predates the failed spawn (an operator already
 # working in the project) must survive cleanup untouched.
