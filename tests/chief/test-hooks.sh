@@ -49,7 +49,7 @@ assert_not_contains "$ctx2" "NOT CONFIGURED YET" "session-start: no longer flags
 assert_contains "$ctx2" "(empty)" "session-start: reports an empty backlog plainly"
 
 "$BIN/chief-backlog.sh" add t-1 "test task" >/dev/null
-timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/configured/project" --mode ship --intent "test" --spec "test" >/dev/null
+timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/configured/project" --mode ship --branch feat/t-1 --intent "test" --spec "test" >/dev/null
 echo "done: finished" >> "$CHIEF_HOME/state/t-1.status"
 out3=$("$SS")
 ctx3=$(json_field "d['hookSpecificOutput']['additionalContext']" "$out3")

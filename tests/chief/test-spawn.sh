@@ -23,7 +23,7 @@ SPEC=$'line one with a | pipe\nline two with an & ampersand\nline three with a \
 INTENT=$'multi-line intent\nwith a | pipe too'
 
 assert_success "spawn: survives a --spec/--intent with embedded newlines and sed-delimiter characters" -- \
-  timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode ship --intent "$INTENT" --spec "$SPEC"
+  timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode ship --branch feat/t-1 --intent "$INTENT" --spec "$SPEC"
 
 BRIEF="$CHIEF_HOME/data/t-1/brief.md"
 assert_file_exists "$BRIEF" "spawn: brief was written"

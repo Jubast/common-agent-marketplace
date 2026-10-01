@@ -10,8 +10,8 @@
 #
 # `orca worktree create --repo path:<project> --name <id>` has no flag to
 # pin an exact branch (only --name, and Orca sanitizes '/' out of it for
-# the real branch - "chief/t-1" becomes "chief-t-1"), so backend_spawn
-# renames whatever branch Orca picked to the exact "chief/<id>" every
+# the real branch - "feat/t-1" becomes "feat-t-1"), so backend_spawn
+# renames whatever branch Orca picked to the exact requested branch every
 # other chief script expects from meta. The worktree PATH Orca picks is
 # left as-is - nothing downstream assumes a fixed path.
 #

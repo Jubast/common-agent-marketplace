@@ -31,7 +31,7 @@ export CHIEF_PR_MOCK_URL="https://example.invalid/mock/pr/1"
 : > "$CHIEF_PR_MOCK_LOG"
 
 assert_success "spawn: creates the worktree and launches the mock backend" -- \
-  timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode ship --intent "Add hello.txt"
+  timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode ship --branch feat/t-1 --intent "Add hello.txt"
 
 # Simulate the builder finishing its work and reporting done, the same way
 # test-lifecycle.sh does.
@@ -65,7 +65,7 @@ assert_eq "$OUT3" "nothing in flight" "third Stop hook: nothing left in flight"
 # but it MUST surface it again once the state actually changes, same as any
 # other task.
 assert_success "spawn: second task for the resume scenario" -- \
-  timeout 10 "$BIN/chief-spawn.sh" t-2 "$WORK/project" --mode ship --intent "Add world.txt"
+  timeout 10 "$BIN/chief-spawn.sh" t-2 "$WORK/project" --mode ship --branch feat/t-2 --intent "Add world.txt"
 
 "$BIN/chief-backlog.sh" add t-2 "Add world.txt" >/dev/null
 

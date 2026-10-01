@@ -33,13 +33,13 @@ HOME_DIR="$WORK/ws/.chief"
 # --- spawn from inside the project: state still lands at the workspace root
 cd "$P"
 assert_success "spawn: first task, run with cwd inside the project" -- \
-  timeout 20 "$BIN/chief-spawn.sh" a-1 "$P" --mode ship --intent "one"
+  timeout 20 "$BIN/chief-spawn.sh" a-1 "$P" --mode ship --branch feat/a-1 --intent "one"
 assert_file_exists "$HOME_DIR/state/a-1.meta" "spawn: CHIEF_HOME resolved to the workspace root, not the project"
 assert_file_missing "$P/.chief" "spawn: no .chief created inside the project"
 assert_file_exists "$WORK/ws/.chief/worktrees/a-1/from-origin.txt" "spawn: the worktree branches from the freshly synced origin"
 
 # --- default CHIEF_HOME resolution from a project and from its worktree
-assert_success "spawn: a task to resolve from" -- timeout 20 "$BIN/chief-spawn.sh" b-1 "$P" --mode ship --intent "three"
+assert_success "spawn: a task to resolve from" -- timeout 20 "$BIN/chief-spawn.sh" b-1 "$P" --mode ship --branch feat/b-1 --intent "three"
 for dir in "$P" "$WORK/ws/.chief/worktrees/b-1"; do
   assert_success "backlog from ${dir#"$WORK"/}" -- bash -c "cd '$dir' && '$BIN/chief-backlog.sh' add x-$RANDOM t"
   assert_file_missing "$dir/.chief" "no .chief created in ${dir#"$WORK"/}"

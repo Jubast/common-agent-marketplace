@@ -24,7 +24,7 @@ assert_success "backlog: file the task" -- "$BIN/chief-backlog.sh" add t-1 "Add 
 assert_contains "$("$BIN/chief-backlog.sh" list)" "[queued]" "backlog: starts queued"
 
 assert_success "spawn: creates the worktree and launches the mock backend" -- \
-  timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode ship --intent "Add hello.txt" --spec "content: hello"
+  timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode ship --branch feat/t-1 --intent "Add hello.txt" --spec "content: hello"
 
 assert_contains "$("$BIN/chief-backlog.sh" show t-1)" "[in-flight]" "spawn: marks the backlog item in-flight"
 assert_file_exists "$CHIEF_HOME/worktrees/t-1" "spawn: worktree exists"
@@ -47,7 +47,7 @@ assert_failure "teardown: refuses before the branch has landed anywhere" -- "$BI
 assert_file_exists "$CHIEF_HOME/worktrees/t-1" "teardown refusal: worktree is untouched"
 
 assert_success "merge: fast-forward the task branch into the default branch" -- \
-  git -C "$WORK/project" merge --ff-only chief/t-1
+  git -C "$WORK/project" merge --ff-only feat/t-1
 assert_file_exists "$WORK/project/hello.txt" "merge: the file is now in the main checkout"
 assert_eq "$(cat "$WORK/project/hello.txt")" "hello" "merge: the file content is correct"
 

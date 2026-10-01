@@ -1,12 +1,13 @@
 # conventional-changes
 
-Files or updates the issue/task the work is tracked against, commits
-changes using micro commits with conventional commit messages, then
-creates or updates a pull/merge request with a conventional-commit-style
-title and structured body — the three skills are used back to back in one
-workflow, so they ship as a single plugin. Enforced via a `SessionStart`
-hook that force-injects a reminder to use them, so the guidance doesn't
-depend on the model choosing to read a skill file.
+Files or updates the issue/task the work is tracked against, names the
+branch, commits changes using micro commits with conventional commit
+messages, then creates or updates a pull/merge request with a
+conventional-commit-style title and structured body — the four skills are
+used back to back in one workflow, so they ship as a single plugin.
+Enforced via a `SessionStart` hook that force-injects a reminder to use
+them, so the guidance doesn't depend on the model choosing to read a skill
+file.
 
 ## What's in here
 
@@ -18,6 +19,9 @@ depend on the model choosing to read a skill file.
 - `skills/conventional-commits/` — analyzes the diff, groups related
   files, and commits each group with a conventional commit message, then
   offers to push and continue into `conventional-pull-requests`.
+- `skills/conventional-branches/` — names the branch
+  `<type>/<short-kebab-case-description>` using the conventional commit
+  types, folding in the issue number when the work is tracked.
 - `skills/conventional-pull-requests/` — gathers the branch's commits and
   diff against the base branch, drafts a conventional-commit-style title
   and structured body, and creates or updates the PR/MR with the
