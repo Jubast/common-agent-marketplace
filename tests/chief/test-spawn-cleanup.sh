@@ -3,6 +3,7 @@
 # lock (issue #16, item 2), exercised against the mock backend using its
 # CHIEF_MOCK_SPAWN_FAIL / CHIEF_MOCK_SPAWN_MALFORMED failure injectors -
 # zero cost, no herdr/orca required. Covers:
+#   - a missing --branch: fails with nothing left behind.
 #   - backend_spawn failing outright: the worktree/branch it already
 #     created get rolled back, no meta record is left behind.
 #   - backend_spawn "succeeding" with malformed (one-line) output: same
@@ -29,15 +30,30 @@ export CHIEF_BACKEND=mock
 
 echo "test-spawn-cleanup:"
 
+# --- a missing --branch fails before anything is created -------------------
+assert_failure "spawn: fails without --branch" -- \
+  "$BIN/chief-spawn.sh" t-nobranch "$WORK/project" --mode ship --intent "no branch"
+
+assert_file_missing "$CHIEF_HOME/worktrees/t-nobranch" \
+  "spawn (no --branch): no worktree created"
+assert_file_missing "$CHIEF_HOME/state/t-nobranch.meta" \
+  "spawn (no --branch): no meta record left behind"
+assert_file_missing "$CHIEF_HOME/state/t-nobranch.status" \
+  "spawn (no --branch): no state files left behind"
+assert_file_missing "$CHIEF_HOME/state/.t-nobranch.spawning" \
+  "spawn (no --branch): no lock left behind"
+assert_eq "$(git -C "$WORK/project" branch --list | wc -l | tr -d ' ')" "1" \
+  "spawn (no --branch): no branch created"
+
 # --- backend_spawn fails outright -----------------------------------------
 assert_failure \
   "spawn: fails when backend_spawn itself fails" -- \
   env CHIEF_MOCK_SPAWN_FAIL=1 "$BIN/chief-spawn.sh" t-fail "$WORK/project" \
-    --mode ship --intent "should fail"
+    --mode ship --branch feat/t-fail --intent "should fail"
 
 assert_file_missing "$CHIEF_HOME/worktrees/t-fail" \
   "spawn (backend_spawn failed): worktree was rolled back, not left orphaned"
-assert_not_contains "$(git -C "$WORK/project" branch --list)" "chief/t-fail" \
+assert_not_contains "$(git -C "$WORK/project" branch --list)" "feat/t-fail" \
   "spawn (backend_spawn failed): branch was rolled back, not left orphaned"
 assert_file_missing "$CHIEF_HOME/state/t-fail.meta" \
   "spawn (backend_spawn failed): no meta record was left behind"
@@ -46,11 +62,11 @@ assert_file_missing "$CHIEF_HOME/state/t-fail.meta" \
 assert_failure \
   "spawn: fails when backend_spawn returns malformed output" -- \
   env CHIEF_MOCK_SPAWN_MALFORMED=1 "$BIN/chief-spawn.sh" t-malformed "$WORK/project" \
-    --mode ship --intent "malformed output"
+    --mode ship --branch feat/t-malformed --intent "malformed output"
 
 assert_file_missing "$CHIEF_HOME/worktrees/t-malformed" \
   "spawn (malformed output): worktree was rolled back, not left orphaned"
-assert_not_contains "$(git -C "$WORK/project" branch --list)" "chief/t-malformed" \
+assert_not_contains "$(git -C "$WORK/project" branch --list)" "feat/t-malformed" \
   "spawn (malformed output): branch was rolled back, not left orphaned"
 assert_file_missing "$CHIEF_HOME/state/t-malformed.meta" \
   "spawn (malformed output): no meta record was left behind"
@@ -78,7 +94,7 @@ mkdir -p "$CHIEF_HOME/state"
 : > "$CHIEF_HOME/state/.t-locked.spawning"
 
 assert_failure "spawn: refuses a same-id spawn while the lock is held" -- \
-  "$BIN/chief-spawn.sh" t-locked "$WORK/project" --mode ship --intent "should be locked out"
+  "$BIN/chief-spawn.sh" t-locked "$WORK/project" --mode ship --branch feat/t-locked --intent "should be locked out"
 
 assert_file_missing "$CHIEF_HOME/worktrees/t-locked" \
   "spawn (locked): never even reached backend_spawn - no worktree created"
@@ -87,7 +103,7 @@ assert_file_missing "$CHIEF_HOME/state/t-locked.meta" \
 
 rm -f "$CHIEF_HOME/state/.t-locked.spawning"
 assert_success "spawn: succeeds once the lock is released" -- \
-  "$BIN/chief-spawn.sh" t-locked "$WORK/project" --mode ship --intent "should now succeed"
+  "$BIN/chief-spawn.sh" t-locked "$WORK/project" --mode ship --branch feat/t-locked --intent "should now succeed"
 
 # --- the lock is released after both a failed and a successful spawn ------
 assert_file_missing "$CHIEF_HOME/state/.t-fail.spawning" \

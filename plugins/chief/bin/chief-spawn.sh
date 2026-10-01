@@ -2,7 +2,7 @@
 # chief-spawn.sh - render a brief, create a worktree+terminal via the
 # configured backend, launch the builder, record its meta.
 #
-# Usage: chief-spawn.sh <id> <project-dir> --mode ship|scout \
+# Usage: chief-spawn.sh <id> <project-dir> --mode ship|scout --branch <name> \
 #                        --intent "<operator's ask>" [--spec "<build instructions>"]
 set -euo pipefail
 
@@ -14,7 +14,7 @@ set -euo pipefail
 fail() { echo "chief-spawn: $*" >&2; exit 1; }
 
 ID=${1:-}; PROJECT=${2:-}
-[ -n "$ID" ] && [ -n "$PROJECT" ] || fail "usage: chief-spawn.sh <id> <project-dir> --mode ship|scout --intent \"...\" [--spec \"...\"]"
+[ -n "$ID" ] && [ -n "$PROJECT" ] || fail "usage: chief-spawn.sh <id> <project-dir> --mode ship|scout --branch <name> --intent \"...\" [--spec \"...\"]"
 shift 2
 [ -d "$PROJECT" ] || fail "no such project directory: $PROJECT"
 PROJECT=$(cd "$PROJECT" && pwd)
@@ -32,11 +32,13 @@ LOCK="$STATE/.$ID.spawning"
 trap 'rm -f "$LOCK"' EXIT
 
 MODE=""
+BRANCH=""
 INTENT=""
 SPEC="(none given - use your own judgement within the intent above.)"
 while [ $# -gt 0 ]; do
   case "$1" in
     --mode) MODE=$2; shift 2 ;;
+    --branch) BRANCH=$2; shift 2 ;;
     --intent) INTENT=$2; shift 2 ;;
     --spec) SPEC=$2; shift 2 ;;
     *) fail "unknown argument: $1" ;;
@@ -47,8 +49,8 @@ case "$MODE" in
   *) fail "--mode must be ship or scout" ;;
 esac
 [ -n "$INTENT" ] || fail "--intent is required"
+[ -n "$BRANCH" ] || fail "--branch is required (e.g. feat/short-description)"
 
-BRANCH="chief/$ID"
 mkdir -p "$DATA/$ID"
 BRIEF="$DATA/$ID/brief.md"
 STATUS_FILE="$STATE/$ID.status"

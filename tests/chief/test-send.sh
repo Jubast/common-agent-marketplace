@@ -20,7 +20,7 @@ echo "test-send:"
 
 assert_failure "refuses an unknown task id" -- "$SEND" nope "hi"
 
-timeout 10 "$SPAWN" t-1 "$WORK/project" --mode ship --intent "test" --spec "test" >/dev/null
+timeout 10 "$SPAWN" t-1 "$WORK/project" --mode ship --branch feat/t-1 --intent "test" --spec "test" >/dev/null
 
 assert_failure "refuses an empty message" -- "$SEND" t-1 "   "
 

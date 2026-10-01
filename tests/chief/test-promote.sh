@@ -22,16 +22,16 @@ assert_failure "promote: refuses an unknown id" -- \
 
 assert_success "backlog: file the scout" -- "$BIN/chief-backlog.sh" add s-1 "Investigate rate limiting options"
 assert_success "spawn: scout task" -- \
-  timeout 10 "$BIN/chief-spawn.sh" s-1 "$WORK/project" --mode scout --intent "Investigate rate limiting options"
+  timeout 10 "$BIN/chief-spawn.sh" s-1 "$WORK/project" --mode scout --branch feat/s-1 --intent "Investigate rate limiting options"
 echo "findings: use a token bucket" > "$CHIEF_HOME/data/s-1/report.md"
 
 SCOUT_BRIEF="$(cat "$CHIEF_HOME/data/s-1/brief.md")"
 assert_not_contains "$SCOUT_BRIEF" "detached" "spawn: the scout brief no longer claims to be detached - it's on a real branch like a ship task, just never pushed or merged"
-assert_contains "$SCOUT_BRIEF" "chief/s-1" "spawn: the scout brief names its actual branch"
+assert_contains "$SCOUT_BRIEF" "feat/s-1" "spawn: the scout brief names its actual branch"
 assert_contains "$SCOUT_BRIEF" "report \`working" "spawn: the scout brief tells it to re-announce working after resuming from a terminal status"
 
 assert_success "spawn: a ship task, to prove promote rejects non-scouts" -- \
-  timeout 10 "$BIN/chief-spawn.sh" b-1 "$WORK/project" --mode ship --intent "Add hello.txt"
+  timeout 10 "$BIN/chief-spawn.sh" b-1 "$WORK/project" --mode ship --branch feat/b-1 --intent "Add hello.txt"
 assert_failure "promote: refuses a ship task" -- \
   "$BIN/task/chief-promote.sh" b-1 --intent "x"
 

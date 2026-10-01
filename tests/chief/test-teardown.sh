@@ -25,7 +25,7 @@ echo "test-teardown:"
 # --- a scout, never landed, with a throwaway commit ---------------------
 assert_success "backlog: file the scout" -- "$BIN/chief-backlog.sh" add s-1 "Investigate caching options"
 assert_success "spawn: scout task" -- \
-  timeout 10 "$BIN/chief-spawn.sh" s-1 "$WORK/project" --mode scout --intent "Investigate caching options"
+  timeout 10 "$BIN/chief-spawn.sh" s-1 "$WORK/project" --mode scout --branch feat/s-1 --intent "Investigate caching options"
 assert_contains "$(cat "$CHIEF_HOME/state/s-1.lifecycle")" "promoted to ship" \
   "spawn: a scout task gets the scout lifecycle checklist, not the ship one"
 echo "findings: use an LRU cache" > "$CHIEF_HOME/data/s-1/report.md"
@@ -50,7 +50,7 @@ assert_contains "$("$BIN/chief-backlog.sh" show s-1)" "[done]" "teardown: backlo
 # --- a ship, never landed, explicitly abandoned --------------------------
 assert_success "backlog: file the ship" -- "$BIN/chief-backlog.sh" add b-1 "Add hello.txt"
 assert_success "spawn: ship task" -- \
-  timeout 10 "$BIN/chief-spawn.sh" b-1 "$WORK/project" --mode ship --intent "Add hello.txt" --spec "content: hello"
+  timeout 10 "$BIN/chief-spawn.sh" b-1 "$WORK/project" --mode ship --branch feat/b-1 --intent "Add hello.txt" --spec "content: hello"
 (
   cd "$CHIEF_HOME/worktrees/b-1"
   echo hello > hello.txt
@@ -70,14 +70,14 @@ assert_contains "$("$BIN/chief-backlog.sh" show b-1)" "[done]" "teardown --aband
 # --- an already-landed ship still doesn't need --abandon -----------------
 assert_success "backlog: file a second ship" -- "$BIN/chief-backlog.sh" add b-2 "Add world.txt"
 assert_success "spawn: second ship task" -- \
-  timeout 10 "$BIN/chief-spawn.sh" b-2 "$WORK/project" --mode ship --intent "Add world.txt" --spec "content: world"
+  timeout 10 "$BIN/chief-spawn.sh" b-2 "$WORK/project" --mode ship --branch feat/b-2 --intent "Add world.txt" --spec "content: world"
 (
   cd "$CHIEF_HOME/worktrees/b-2"
   echo world > world.txt
   git add world.txt
   git -c user.email=t@t -c user.name=t commit -q -m "add world.txt"
 )
-git -C "$WORK/project" merge --ff-only chief/b-2 >/dev/null
+git -C "$WORK/project" merge --ff-only feat/b-2 >/dev/null
 assert_success "teardown: a landed ship tears down without --abandon, as before" -- "$BIN/chief-teardown.sh" b-2
 
 # --- a squash/rebase-merged PR: the branch is never a local ancestor of --
@@ -87,7 +87,7 @@ assert_success "teardown: a landed ship tears down without --abandon, as before"
 
 assert_success "backlog: file a third ship" -- "$BIN/chief-backlog.sh" add b-3 "Add moon.txt"
 assert_success "spawn: third ship task" -- \
-  timeout 10 "$BIN/chief-spawn.sh" b-3 "$WORK/project" --mode ship --intent "Add moon.txt" --spec "content: moon"
+  timeout 10 "$BIN/chief-spawn.sh" b-3 "$WORK/project" --mode ship --branch feat/b-3 --intent "Add moon.txt" --spec "content: moon"
 (
   cd "$CHIEF_HOME/worktrees/b-3"
   echo moon > moon.txt
@@ -121,18 +121,18 @@ git -C "$WORK/project" push -q origin master
 
 assert_success "backlog: file a fourth ship" -- "$BIN/chief-backlog.sh" add b-4 "Add sun.txt"
 assert_success "spawn: fourth ship task" -- \
-  timeout 10 "$BIN/chief-spawn.sh" b-4 "$WORK/project" --mode ship --intent "Add sun.txt" --spec "content: sun"
+  timeout 10 "$BIN/chief-spawn.sh" b-4 "$WORK/project" --mode ship --branch feat/b-4 --intent "Add sun.txt" --spec "content: sun"
 (
   cd "$CHIEF_HOME/worktrees/b-4"
   echo sun > sun.txt
   git add sun.txt
   git -c user.email=t@t -c user.name=t commit -q -m "add sun.txt"
-  git push -q origin chief/b-4
+  git push -q origin feat/b-4
 )
-assert_contains "$(git -C "$BARE" branch --list chief/b-4)" "chief/b-4" "setup: chief/b-4 pushed to origin before teardown"
+assert_contains "$(git -C "$BARE" branch --list feat/b-4)" "feat/b-4" "setup: feat/b-4 pushed to origin before teardown"
 
-git -C "$WORK/project" merge --ff-only chief/b-4 >/dev/null
+git -C "$WORK/project" merge --ff-only feat/b-4 >/dev/null
 assert_success "teardown: a landed ship deletes its now-merged remote branch" -- "$BIN/chief-teardown.sh" b-4
-assert_eq "$(git -C "$BARE" branch --list chief/b-4)" "" "teardown: remote branch chief/b-4 deleted from origin"
+assert_eq "$(git -C "$BARE" branch --list feat/b-4)" "" "teardown: remote branch feat/b-4 deleted from origin"
 
 harness_summary

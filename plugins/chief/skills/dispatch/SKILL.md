@@ -25,7 +25,8 @@ Every task's `state/<id>.lifecycle` (rendered by `chief-spawn.sh`) is the checkl
    Pick a short id yourself (e.g. `t-001`, or a slug like `rate-limit`).
 
 2. **Spawn.**
-   `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <id> <project-dir> --mode ship|scout --intent "<the operator's own ask, close to verbatim>" --spec "<your build instructions, only what the intent requires>"`
+   `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <id> <project-dir> --mode ship|scout --branch "<type>/<short-kebab-description>" --intent "<the operator's own ask, close to verbatim>" --spec "<your build instructions, only what the intent requires>"`
+   `--branch` is required - always pass it, named per the `conventional-branches` scheme (`<type>/<short-kebab-case-description>`, issue number folded in when tracked, e.g. `fix/123-checkout-duplicate-submit`); spawn exits with an error without it.
    Keep `--intent` narrow - it becomes the acceptance criteria. Keep `--spec` to only what's needed; a generalization or extra hardening nobody asked for is a note for later, not something to build now.
    This creates an isolated worktree+branch, renders the brief, and launches the builder. It also marks the backlog item in-flight if it exists.
    Returns once the builder's first turn has started (typically seconds) - it doesn't wait for that turn to finish. Still run it in the background (e.g. `run_in_background` on the Bash tool, or your host's equivalent) rather than the foreground as good practice.
