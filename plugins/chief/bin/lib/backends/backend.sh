@@ -36,7 +36,8 @@
 #                        on those two failure paths, always wrapped in
 #                        `|| true` so a cleanup failure never masks the
 #                        original error. Must not depend on any meta record
-#                        (none exists yet at this point) - only on the
+#                        (at most a stub, written after
+#                        backend_project_prepare) - only on the
 #                        id/project-dir/branch already known to the caller
 #                        before backend_spawn was ever invoked. A backend
 #                        that hasn't implemented this yet simply leaves the

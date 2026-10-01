@@ -7,6 +7,9 @@
 #     created get rolled back, no meta record is left behind.
 #   - backend_spawn "succeeding" with malformed (one-line) output: same
 #     rollback, same no-meta-record outcome.
+#   - a stub status=spawning meta (a spawn interrupted mid-flight, issue
+#     #36): crew-state reports it blocked, watch surfaces it, and
+#     teardown --abandon cleans it up.
 #   - the atomic spawn lock: a same-id spawn that finds the lock already
 #     held fails fast without ever touching the backend, and the lock
 #     itself is always released afterwards (trap on exit).
@@ -51,6 +54,24 @@ assert_not_contains "$(git -C "$WORK/project" branch --list)" "chief/t-malformed
   "spawn (malformed output): branch was rolled back, not left orphaned"
 assert_file_missing "$CHIEF_HOME/state/t-malformed.meta" \
   "spawn (malformed output): no meta record was left behind"
+
+# --- an interrupted spawn leaves a status=spawning stub -------------------
+mkdir -p "$CHIEF_HOME/state"
+printf 'project=%s\nmode=ship\nbranch=chief/t-stub\nworktree=%s\nstatus=spawning\n' \
+  "$WORK/project" "$CHIEF_HOME/worktrees/t-stub" > "$CHIEF_HOME/state/t-stub.meta"
+
+assert_contains "$("$BIN/task/chief-crew-state.sh" t-stub)" "state: blocked" \
+  "crew-state: a spawning stub is reported blocked"
+assert_contains "$(timeout 10 "$BIN/chief-watch.sh")" "t-stub: state: blocked" \
+  "watch: surfaces the spawning stub"
+: > "$CHIEF_HOME/state/.t-stub.spawning"
+assert_contains "$("$BIN/task/chief-crew-state.sh" t-stub)" "state: working" \
+  "crew-state: a spawning stub with the spawn lock held is a live spawn, not blocked"
+rm -f "$CHIEF_HOME/state/.t-stub.spawning"
+assert_success "teardown: --abandon cleans up the spawning stub" -- \
+  "$BIN/chief-teardown.sh" t-stub --abandon
+assert_contains "$(cat "$CHIEF_HOME/state/t-stub.meta")" "status=torn-down" \
+  "teardown: the stub is marked torn-down"
 
 # --- the atomic spawn lock --------------------------------------------------
 mkdir -p "$CHIEF_HOME/state"
