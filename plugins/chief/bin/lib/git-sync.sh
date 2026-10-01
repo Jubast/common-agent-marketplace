@@ -7,14 +7,11 @@
 #   fetch origin, then fast-forward the local default branch onto it - but
 #   only when the checkout is currently ON that default branch with a clean
 #   working tree. Otherwise skips silently (a note to stderr). Never touches
-#   a task's own branch or in-progress work. Writes one progress line per
-#   step to stderr so a backend pane running it shows what happened.
+#   a task's own branch or in-progress work.
 chief_sync_default_branch() {
   local project_dir=$1
 
-  echo "chief-sync: fetching origin in $project_dir" >&2
-  git -C "$project_dir" fetch origin >/dev/null 2>&1 \
-    || echo "chief-sync: fetch failed in $project_dir" >&2
+  git -C "$project_dir" fetch origin >/dev/null 2>&1 || true
 
   local default
   default=$(git -C "$project_dir" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##') || true
@@ -32,10 +29,7 @@ chief_sync_default_branch() {
     return 0
   fi
 
-  if git -C "$project_dir" merge --ff-only "origin/$default" >/dev/null 2>&1; then
-    echo "chief-sync: $default is up to date with origin/$default" >&2
-  else
-    echo "chief-sync: skipped - could not fast-forward $default from origin in $project_dir" >&2
-  fi
+  git -C "$project_dir" merge --ff-only "origin/$default" >/dev/null 2>&1 \
+    || echo "chief-sync: skipped - could not fast-forward $default from origin in $project_dir" >&2
   return 0
 }

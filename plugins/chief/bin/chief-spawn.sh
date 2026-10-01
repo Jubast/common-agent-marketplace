@@ -9,6 +9,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
 . "$CHIEF_ROOT/bin/lib/meta.sh"
 . "$CHIEF_ROOT/bin/lib/backends/backend.sh"
+. "$CHIEF_ROOT/bin/lib/git-sync.sh"
 
 fail() { echo "chief-spawn: $*" >&2; exit 1; }
 
@@ -90,13 +91,10 @@ printf '%s\n' "$LIFECYCLE_CONTENT" > "$STATE/$ID.lifecycle"
 rollback() {  # <failure message>
   backend_spawn_cleanup "$ID" "$PROJECT" "$BRANCH" 2>/dev/null || true
   rm -f "$STATE/$ID.meta"
-  chief_meta_other_active "$PROJECT" "$ID" || backend_project_release "$PROJECT" || true
   fail "$1"
 }
-# Ensure the project's workspace and freshen its default branch from origin
-# (visibly, in that workspace) before branching a new task off it. The sync
-# itself is best-effort; only a failure to create the workspace fails this.
-backend_project_prepare "$ID" "$PROJECT" || rollback "backend_project_prepare failed"
+# Freshen the default branch from origin (best-effort) before branching off it.
+chief_sync_default_branch "$PROJECT"
 
 # Stub meta, so a spawn interrupted mid-flight stays visible to crew-state,
 # watch and teardown. `worktree` is a best-effort guess, overwritten on success.

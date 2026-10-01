@@ -5,9 +5,7 @@
 # chief_meta_get to recover their own endpoint identifier); nothing above
 # this file should know whether it's talking to herdr or Orca.
 #
-# Adapter contract - each backends/<name>.sh must define all five (plus the
-# optional project-workspace pair below, which default to an in-process sync
-# and a no-op):
+# Adapter contract - each backends/<name>.sh must define all five:
 #   backend_spawn   <id> <project-dir> <brief-path> <branch>
 #                     -> creates the worktree + terminal, launches claude in
 #                        it pointed at the brief, prints the worktree path on
@@ -36,27 +34,12 @@
 #                        on those two failure paths, always wrapped in
 #                        `|| true` so a cleanup failure never masks the
 #                        original error. Must not depend on any meta record
-#                        (at most a stub, written after
-#                        backend_project_prepare) - only on the
+#                        (at most a spawning stub) - only on the
 #                        id/project-dir/branch already known to the caller
 #                        before backend_spawn was ever invoked. A backend
 #                        that hasn't implemented this yet simply leaves the
 #                        call a no-op (command-not-found, swallowed by the
 #                        caller's `|| true`) rather than erroring.
-#   backend_project_prepare <id> <project-dir>
-#                     -> optional. Called by chief-spawn.sh before
-#                        backend_spawn: ensures one workspace for the project
-#                        exists (created once, reused by every later task on
-#                        it) and runs the origin sync (bin/chief-sync.sh)
-#                        visibly in it, so the task worktree is created from
-#                        a fresh default branch under that workspace. A
-#                        non-zero exit fails the spawn. Default: run the sync
-#                        in-process, no workspace.
-#   backend_project_release <project-dir>
-#                     -> optional. Called by chief-teardown.sh after the last
-#                        active task on the project is torn down: closes the
-#                        project workspace, only if Chief created it. Default:
-#                        no-op.
 #
 # Selection: $CHIEF_BACKEND env var, else $CONFIG/backend, else "herdr".
 
@@ -81,12 +64,3 @@ esac
 
 # shellcheck source=/dev/null
 . "$CHIEF_ROOT/bin/lib/backends/$CHIEF_BACKEND.sh"
-# shellcheck source=../git-sync.sh
-. "$CHIEF_ROOT/bin/lib/git-sync.sh"
-
-if ! declare -F backend_project_prepare >/dev/null; then
-  backend_project_prepare() { chief_sync_default_branch "$2"; }
-fi
-if ! declare -F backend_project_release >/dev/null; then
-  backend_project_release() { :; }
-fi
