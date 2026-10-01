@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # chief-teardown.sh - kills the terminal, removes the worktree, marks the
-# backlog item done, and releases the project's backend workspace when no
-# other active task remains on the project. A SHIP task refuses unless its
-# branch has landed on the default branch, unless --abandon force-discards
-# it. A SCOUT task discards unconditionally - its deliverable is the report
-# at $DATA/<id>/report.md, outside the worktree, untouched either way.
+# backlog item done. A SHIP task refuses unless its branch has landed on the
+# default branch, unless --abandon force-discards it. A SCOUT task discards
+# unconditionally - its deliverable is the report at $DATA/<id>/report.md,
+# outside the worktree, untouched either way.
 #
 # Discard also best-effort deletes the remote branch: a backstop for when
 # the work landed without a recorded PR/provider (e.g. merged by hand) and
@@ -50,7 +49,6 @@ _chief_discard() {  # <reason-for-the-echo-line>
   git -C "$PROJECT" branch -D "$BRANCH" >/dev/null 2>&1 || true
   git -C "$PROJECT" push origin --delete "$BRANCH" >/dev/null 2>&1 || true
   chief_meta_set "$ID" status torn-down
-  chief_meta_other_active "$PROJECT" "$ID" || backend_project_release "$PROJECT"
   "$CHIEF_ROOT/bin/chief-backlog.sh" done "$ID" 2>/dev/null || true
   echo "torn down: $ID ($1)"
 }
