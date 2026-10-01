@@ -9,7 +9,6 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
 . "$CHIEF_ROOT/bin/lib/meta.sh"
 . "$CHIEF_ROOT/bin/lib/backends/backend.sh"
-. "$CHIEF_ROOT/bin/lib/git-sync.sh"
 
 fail() { echo "chief-spawn: $*" >&2; exit 1; }
 
@@ -17,6 +16,7 @@ ID=${1:-}; PROJECT=${2:-}
 [ -n "$ID" ] && [ -n "$PROJECT" ] || fail "usage: chief-spawn.sh <id> <project-dir> --mode ship|scout --intent \"...\" [--spec \"...\"]"
 shift 2
 [ -d "$PROJECT" ] || fail "no such project directory: $PROJECT"
+PROJECT=$(cd "$PROJECT" && pwd)
 chief_meta_exists "$ID" && fail "task $ID already has a meta record - use a fresh id"
 
 # Atomic spawn lock: guards the window between the chief_meta_exists check
@@ -88,25 +88,25 @@ LIFECYCLE_CONTENT=$(cat "$LIFECYCLE_TEMPLATE")
 LIFECYCLE_CONTENT=${LIFECYCLE_CONTENT//\{TASK_ID\}/$(brief_escape "$ID")}
 printf '%s\n' "$LIFECYCLE_CONTENT" > "$STATE/$ID.lifecycle"
 
-# Best-effort freshen of the project's default-branch checkout before
-# branching a new task off it - never fails this script either way.
-chief_sync_default_branch "$PROJECT"
+# Ensure the project's workspace and freshen its default branch from origin
+# (visibly, in that workspace) before branching a new task off it. The sync
+# itself is best-effort; only a failure to create the workspace fails this.
+rollback() {  # <failure message>
+  backend_spawn_cleanup "$ID" "$PROJECT" "$BRANCH" 2>/dev/null || true
+  chief_meta_other_active "$PROJECT" "$ID" || backend_project_release "$PROJECT" || true
+  fail "$1"
+}
+backend_project_prepare "$ID" "$PROJECT" || rollback "backend_project_prepare failed"
 
 # backend_spawn prints exactly two lines (worktree path, then endpoint id).
 # Capture both from ONE call - calling it twice would launch the worker twice.
 # On either failure below, no meta record has been written yet, so nothing
 # else would ever find/clean up whatever backend_spawn may have already
 # created - roll it back here, best-effort, before reporting the failure.
-SPAWN_OUTPUT=$(backend_spawn "$ID" "$PROJECT" "$BRIEF" "$BRANCH") || {
-  backend_spawn_cleanup "$ID" "$PROJECT" "$BRANCH" 2>/dev/null || true
-  fail "backend_spawn failed"
-}
+SPAWN_OUTPUT=$(backend_spawn "$ID" "$PROJECT" "$BRIEF" "$BRANCH") || rollback "backend_spawn failed"
 WORKTREE=$(printf '%s\n' "$SPAWN_OUTPUT" | sed -n 1p)
 ENDPOINT=$(printf '%s\n' "$SPAWN_OUTPUT" | sed -n 2p)
-[ -n "$WORKTREE" ] && [ -n "$ENDPOINT" ] || {
-  backend_spawn_cleanup "$ID" "$PROJECT" "$BRANCH" 2>/dev/null || true
-  fail "backend_spawn returned malformed output: $SPAWN_OUTPUT"
-}
+[ -n "$WORKTREE" ] && [ -n "$ENDPOINT" ] || rollback "backend_spawn returned malformed output: $SPAWN_OUTPUT"
 
 chief_meta_set "$ID" project "$PROJECT"
 chief_meta_set "$ID" mode "$MODE"
