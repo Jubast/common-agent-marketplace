@@ -34,6 +34,16 @@ TURN_FILE="$STATE/$ID.turn-ended"
 MODE=$(chief_meta_get "$ID" mode 2>/dev/null || true)
 MODE_SUFFIX=" [mode: ${MODE:-unknown}]"
 
+# "spawning" without chief-spawn.sh's lock means the spawn was interrupted.
+if [ "$(chief_meta_get "$ID" status 2>/dev/null || true)" = "spawning" ]; then
+  if [ -e "$STATE/.$ID.spawning" ]; then
+    echo "state: working · spawning$MODE_SUFFIX"
+    exit 0
+  fi
+  echo "state: blocked · spawn interrupted - inspect the pane, then chief-teardown.sh $ID --abandon$MODE_SUFFIX"
+  exit 0
+fi
+
 LAST=""
 [ -f "$STATUS_FILE" ] && LAST=$(tail -n 1 "$STATUS_FILE" 2>/dev/null || true)
 

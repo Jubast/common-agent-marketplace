@@ -20,7 +20,9 @@ in_flight_ids() {
   for f in "$STATE"/*.meta; do
     [ -e "$f" ] || continue
     id=$(basename "$f" .meta)
-    [ "$(chief_meta_get "$id" status)" = "working" ] && printf '%s\n' "$id"
+    case "$(chief_meta_get "$id" status)" in
+      working|spawning) printf '%s\n' "$id" ;;
+    esac
   done
 }
 
