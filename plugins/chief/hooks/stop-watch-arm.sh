@@ -16,6 +16,8 @@ CHIEF_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WATCH="$CHIEF_PLUGIN_ROOT/bin/chief-watch.sh"
 # shellcheck source=../bin/lib/worktree.sh
 . "$CHIEF_PLUGIN_ROOT/bin/lib/worktree.sh"
+# shellcheck source=../bin/lib/home.sh
+. "$CHIEF_PLUGIN_ROOT/bin/lib/home.sh"
 
 # A spawned builder's own session must never arm a watcher on itself - only
 # the primary (operator-facing) session supervises. This check is race-free
@@ -25,11 +27,7 @@ chief_is_linked_worktree && exit 0
 
 # No CHIEF_HOME at all -> Chief isn't in use here; let the
 # turn end normally rather than creating one just to watch nothing.
-_chief_home="${CHIEF_HOME:-}"
-if [ -z "$_chief_home" ]; then
-  _git_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
-  _chief_home="${_git_root:-$(pwd)}/.chief"
-fi
+_chief_home="${CHIEF_HOME:-$(chief_default_home)}"
 [ -d "$_chief_home/state" ] || exit 0
 
 REASON=$("$WATCH" 2>&1) || true

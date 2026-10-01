@@ -18,6 +18,22 @@
 # failing after the worktree/branch/terminal already exist; MALFORMED
 # simulates it succeeding but returning only one output line.
 
+# The mock "project workspace" is the project's record file, created once and
+# removed on release; the sync's output goes to the same-named .log.
+backend_project_prepare() {
+  local id=$1 project_dir=$2 key
+  key=$(chief_project_record "$project_dir")
+  mkdir -p "$STATE/projects"
+  [ -e "$key" ] || : > "$key"
+  "$CHIEF_ROOT/bin/chief-sync.sh" "$project_dir" "$id" >> "$key.log" 2>&1
+}
+
+backend_project_release() {
+  local key
+  key=$(chief_project_record "$1")
+  rm -f "$key" "$key.log"
+}
+
 backend_spawn() {
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
   local worktree="$WORKTREES/$id"

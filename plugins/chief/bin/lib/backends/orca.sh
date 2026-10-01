@@ -41,6 +41,11 @@
 # _chief_orca_accept_trust_dialog doesn't recognize, so the resumed
 # prompt never reaches a real turn. Needs more live investigation.
 #
+# Project workspace: the Orca-registered repo is the project's workspace, so
+# there is nothing to create or close per project; backend_project_prepare/
+# release keep their defaults (the origin sync runs in the spawning process,
+# not in an Orca terminal).
+#
 # NOT handled: teardown never tells Orca to forget the worktree it
 # created (chief-teardown.sh removes worktrees via plain git, same as
 # every backend) - a torn-down task can leave a stale Orca worktree

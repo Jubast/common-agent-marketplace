@@ -8,17 +8,15 @@ set -euo pipefail
 CHIEF_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../bin/lib/worktree.sh
 . "$CHIEF_PLUGIN_ROOT/bin/lib/worktree.sh"
+# shellcheck source=../bin/lib/home.sh
+. "$CHIEF_PLUGIN_ROOT/bin/lib/home.sh"
 
 if chief_is_linked_worktree; then
   echo '{}'
   exit 0
 fi
 
-CHIEF_HOME="${CHIEF_HOME:-}"
-if [ -z "$CHIEF_HOME" ]; then
-  _git_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
-  CHIEF_HOME="${_git_root:-$(pwd)}/.chief"
-fi
+CHIEF_HOME="${CHIEF_HOME:-$(chief_default_home)}"
 
 SKILL_FILE="$CHIEF_PLUGIN_ROOT/skills/using-chief/SKILL.md"
 [ -f "$SKILL_FILE" ] || { echo '{}'; exit 0; }

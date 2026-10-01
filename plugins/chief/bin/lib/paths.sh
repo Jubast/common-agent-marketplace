@@ -7,8 +7,8 @@
 #               works whether Claude Code installed the plugin or a developer
 #               is running it straight out of a checkout.
 #   CHIEF_HOME  the operator's one shared runtime home (state/, data/) -
-#               resolved from the git root of wherever the Chief session
-#               itself runs, not per-project; defaults to <repo-root>/.chief,
+#               defaults to <outermost git root>/.chief of wherever the
+#               Chief session runs (never inside a project - see home.sh),
 #               override with the CHIEF_HOME env var. This is gitignored
 #               working state, never plugin code.
 #
@@ -20,13 +20,10 @@
 # location - not the caller's - is what tells us where the plugin root is.
 _chief_paths_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHIEF_ROOT="${CHIEF_ROOT_OVERRIDE:-$(cd "$_chief_paths_lib_dir/../.." && pwd)}"
+. "$_chief_paths_lib_dir/home.sh"
 unset _chief_paths_lib_dir
 
-if [ -z "${CHIEF_HOME:-}" ]; then
-  _chief_git_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
-  CHIEF_HOME="${_chief_git_root:-$(pwd)}/.chief"
-  unset _chief_git_root
-fi
+CHIEF_HOME="${CHIEF_HOME:-$(chief_default_home)}"
 
 STATE="$CHIEF_HOME/state"
 DATA="$CHIEF_HOME/data"

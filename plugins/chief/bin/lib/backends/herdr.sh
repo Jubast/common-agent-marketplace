@@ -21,6 +21,11 @@
 # closes the now-empty source workspace. See
 # _chief_herdr_ensure_primary_workspace and _chief_herdr_nest_into_primary.
 #
+# backend_project_prepare runs bin/chief-sync.sh in that workspace's
+# "chief-sync" tab before the worktree is created, and records the workspace
+# (chief_project_record) when it had to open it, so backend_project_release
+# - called once no active task remains - only ever closes one Chief made.
+#
 # A brand-new worktree path triggers Claude Code's own one-time "do you
 # trust this folder?" dialog, which leaves `agent start` reporting
 # agent_not_ready instead of idle - hits on every single spawn. See
@@ -50,6 +55,7 @@
 # agent visibly starting. backend_send's ordinary mid-task turns don't wait
 # at all.
 CHIEF_HERDR_SUBMIT_TIMEOUT_MS="${CHIEF_HERDR_SUBMIT_TIMEOUT_MS:-30000}"
+CHIEF_HERDR_SYNC_TIMEOUT_MS="${CHIEF_HERDR_SYNC_TIMEOUT_MS:-60000}"
 
 _chief_herdr_workspace_id() {  # <pane-id> -> workspace id ("w2:p1" -> "w2")
   printf '%s' "$1" | cut -d: -f1
@@ -237,19 +243,65 @@ _chief_herdr_prompt() {
   return 1
 }
 
+backend_project_prepare() {
+  local id=$1 project_dir=$2
+  local pre ws tab json pane
+  pre=$(_chief_herdr_primary_workspace_id "$project_dir")
+  ws=$(_chief_herdr_ensure_primary_workspace "$project_dir" "$pre") || return 1
+  if [ -z "$pre" ]; then
+    mkdir -p "$STATE/projects"
+    printf '%s\n' "$ws" > "$(chief_project_record "$project_dir")"
+  fi
+
+  tab=$(herdr tab list --workspace "$ws" 2>/dev/null \
+    | jq -r '[.result.tabs[]? | select(.label == "chief-sync") | .tab_id][0] // empty') || true
+  if [ -z "$tab" ]; then
+    json=$(herdr tab create --workspace "$ws" --cwd "$project_dir" --label chief-sync --no-focus 2>&1) \
+      || { echo "chief-backend-herdr: 'herdr tab create' failed: $json" >&2; return 1; }
+    pane=$(printf '%s' "$json" | jq -r '.result.root_pane.pane_id // empty')
+  else
+    pane=$(herdr pane list --workspace "$ws" 2>/dev/null \
+      | jq -r --arg tab "$tab" '[.result.panes[]? | select(.tab_id == $tab) | .pane_id][0] // empty') || true
+  fi
+  [ -n "$pane" ] || { echo "chief-backend-herdr: no chief-sync pane in workspace $ws" >&2; return 1; }
+
+  # The sync is best-effort: a pane that never reports back is warned about, not fatal.
+  herdr pane run "$pane" "$(printf '%q %q %q' "$CHIEF_ROOT/bin/chief-sync.sh" "$project_dir" "$id")" >/dev/null 2>&1 \
+    && herdr pane wait-output "$pane" --match "chief-sync: done $id" --timeout "$CHIEF_HERDR_SYNC_TIMEOUT_MS" >/dev/null 2>&1 \
+    || echo "chief-backend-herdr: origin sync in $pane did not report back" >&2
+  return 0
+}
+
+# Always closes the project workspace's chief-sync tab; closes the workspace
+# itself only if Chief opened it (recorded), never one the operator had open.
+backend_project_release() {
+  local rec recorded ws
+  rec=$(chief_project_record "$1")
+  recorded=$(cat "$rec" 2>/dev/null || true)
+  ws=${recorded:-$(_chief_herdr_primary_workspace_id "$1" | head -n 1)}
+  [ -n "$ws" ] || return 0
+  herdr tab list --workspace "$ws" 2>/dev/null \
+    | jq -r '.result.tabs[]? | select(.label == "chief-sync") | .tab_id' \
+    | while read -r t; do herdr tab close "$t" >/dev/null 2>&1; done || true
+  [ -n "$recorded" ] || return 0
+  herdr workspace close "$ws" >/dev/null 2>&1 || true
+  herdr workspace get "$ws" >/dev/null 2>&1 || rm -f "$rec"
+  return 0
+}
+
 backend_spawn() {
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
   local worktree="$WORKTREES/$id"
-  local json pane_id pre_primary primary
+  local json pane_id primary
   # Cleans up on any failure below without repeating the call at every
   # site: fires on every `return`, skipped only once `ok` is set right
   # before the success path (mirrors chief-spawn.sh's own `trap ... EXIT`
   # lock cleanup, scoped to RETURN instead).
   local ok=0
-  trap '[ "$ok" = 1 ] || _chief_herdr_close_pane_by_label "$id" "$project_dir" "$pre_primary"' RETURN
+  trap '[ "$ok" = 1 ] || _chief_herdr_close_pane_by_label "$id"' RETURN
 
-  pre_primary=$(_chief_herdr_primary_workspace_id "$project_dir")
-  primary=$(_chief_herdr_ensure_primary_workspace "$project_dir" "$pre_primary") || return 1
+  # backend_project_prepare already opened the project workspace.
+  primary=$(_chief_herdr_primary_workspace_id "$project_dir")
 
   json=$(herdr worktree create --cwd "$project_dir" --branch "$branch" --path "$worktree" \
            --label "chief-$id" --trust-repository --no-focus 2>&1) \

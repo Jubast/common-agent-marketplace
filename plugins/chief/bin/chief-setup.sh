@@ -30,7 +30,7 @@ else
   echo "backend check: WARNING - '$BACKEND' not found on PATH; install (and for Orca, start) it before dispatching"
 fi
 
-GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+GIT_ROOT=$(git -C "$(dirname "$CHIEF_HOME")" rev-parse --show-toplevel 2>/dev/null || true)
 if [ -n "$GIT_ROOT" ]; then
   GITIGNORE="$GIT_ROOT/.gitignore"
   touch "$GITIGNORE"
