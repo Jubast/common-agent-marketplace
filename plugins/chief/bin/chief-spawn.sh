@@ -50,6 +50,9 @@ case "$MODE" in
 esac
 [ -n "$INTENT" ] || fail "--intent is required"
 [ -n "$BRANCH" ] || fail "--branch is required (e.g. feat/short-description)"
+for ref in "refs/heads/$BRANCH" "refs/remotes/origin/$BRANCH"; do
+  git -C "$PROJECT" show-ref --verify --quiet "$ref" && fail "branch $BRANCH already exists - pick a new name"
+done
 
 mkdir -p "$DATA/$ID"
 BRIEF="$DATA/$ID/brief.md"

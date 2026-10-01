@@ -3,7 +3,8 @@
 # lock (issue #16, item 2), exercised against the mock backend using its
 # CHIEF_MOCK_SPAWN_FAIL / CHIEF_MOCK_SPAWN_MALFORMED failure injectors -
 # zero cost, no herdr/orca required. Covers:
-#   - a missing --branch: fails with nothing left behind.
+#   - a missing or already-existing --branch: fails with nothing left
+#     behind (an existing branch is never touched).
 #   - backend_spawn failing outright: the worktree/branch it already
 #     created get rolled back, no meta record is left behind.
 #   - backend_spawn "succeeding" with malformed (one-line) output: same
@@ -44,6 +45,23 @@ assert_file_missing "$CHIEF_HOME/state/.t-nobranch.spawning" \
   "spawn (no --branch): no lock left behind"
 assert_eq "$(git -C "$WORK/project" branch --list | wc -l | tr -d ' ')" "1" \
   "spawn (no --branch): no branch created"
+
+# --- an existing --branch is refused, and survives untouched ----------------
+git -C "$WORK/project" branch feat/t-exists
+EXISTS_SHA=$(git -C "$WORK/project" rev-parse feat/t-exists)
+assert_failure "spawn: fails when --branch already exists" -- \
+  "$BIN/chief-spawn.sh" t-exists "$WORK/project" --mode ship --branch feat/t-exists --intent "taken"
+
+assert_eq "$(git -C "$WORK/project" rev-parse feat/t-exists 2>/dev/null)" "$EXISTS_SHA" \
+  "spawn (existing branch): the branch and its commit survive"
+assert_file_missing "$CHIEF_HOME/worktrees/t-exists" \
+  "spawn (existing branch): no worktree created"
+assert_file_missing "$CHIEF_HOME/state/t-exists.meta" \
+  "spawn (existing branch): no meta record left behind"
+assert_file_missing "$CHIEF_HOME/state/t-exists.status" \
+  "spawn (existing branch): no state files left behind"
+assert_file_missing "$CHIEF_HOME/state/.t-exists.spawning" \
+  "spawn (existing branch): no lock left behind"
 
 # --- backend_spawn fails outright -----------------------------------------
 assert_failure \
