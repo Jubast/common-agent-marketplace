@@ -1,6 +1,6 @@
 ---
 name: using-conventional-changes
-description: Use when about to file or update an issue/task/ticket, commit changes, or open/update a pull request or merge request, in this repository - teaches when the conventional-issues, conventional-commits, and conventional-pull-requests skills are required over doing any of those directly.
+description: Use when about to file or update an issue/task/ticket, commit changes, create or name a branch, or open/update a pull request or merge request, in this repository - teaches when the conventional-issues, conventional-commits, conventional-branches, and conventional-pull-requests skills are required over doing any of those directly.
 ---
 
 If the user asks to open, create, or update an issue, task, or ticket, or
@@ -12,6 +12,11 @@ Jira, Linear, Azure Boards, or otherwise).
 If the user asks to commit changes, or invokes `/commit`, you MUST use the
 `conventional-commits` skill instead of running `git commit` directly with
 an arbitrary message.
+
+If the user asks to create, rename, or pick a name for a branch, or you
+are about to create one yourself (including via a tool or automation), you
+MUST use the `conventional-branches` skill instead of choosing an arbitrary
+name.
 
 If the user asks to open, create, or update a pull request (or merge
 request), or invokes any PR/MR-creation or PR/MR-update command, you MUST
@@ -26,6 +31,9 @@ the project uses (GitHub, GitLab, Bitbucket, Azure DevOps, or otherwise).
   commits each group with a conventional commit message (`feat:`, `fix:`,
   `docs:`, etc.), then offers to push and continue into
   conventional-pull-requests.
+- **conventional-branches** — names the branch
+  `<type>/<short-kebab-case-description>` using the conventional commit
+  types, folding in the issue number when the work is tracked.
 - **conventional-pull-requests** — gathers the branch's commits and diff,
   drafts a conventional-commit-style title and a structured body, and
   creates or updates the PR/MR with the project's own tooling.
