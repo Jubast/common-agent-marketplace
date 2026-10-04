@@ -41,6 +41,13 @@
 #                        call a no-op (command-not-found, swallowed by the
 #                        caller's `|| true`) rather than erroring.
 #
+#   backend_teardown <id> <project-dir> <worktree>
+#                     -> OPTIONAL. Called by chief-teardown.sh after
+#                        backend_kill and before it removes the worktree via
+#                        git, so a backend that tracks worktrees itself (orca)
+#                        can forget it. Failures are ignored. Backends that
+#                        don't define it are skipped.
+#
 # Selection: $CHIEF_BACKEND env var, else $CONFIG/backend, else "herdr".
 
 CHIEF_BACKEND="${CHIEF_BACKEND:-}"

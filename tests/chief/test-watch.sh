@@ -15,7 +15,7 @@ BIN="$REPO_ROOT/plugins/chief/bin"
 echo "test-watch:"
 
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+harness_trap 'rm -rf "$WORK"'
 
 git init -q -b main "$WORK/remote.git" --bare
 git clone -q "$WORK/remote.git" "$WORK/project"

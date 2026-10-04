@@ -45,6 +45,7 @@ MODE=$(chief_meta_get "$ID" mode 2>/dev/null || true)
 
 _chief_discard() {  # <reason-for-the-echo-line>
   backend_kill "$ID"
+  if declare -F backend_teardown >/dev/null; then backend_teardown "$ID" "$PROJECT" "$WORKTREE" || true; fi
   git -C "$PROJECT" worktree remove --force "$WORKTREE" 2>/dev/null || rm -rf "$WORKTREE"
   git -C "$PROJECT" branch -D "$BRANCH" >/dev/null 2>&1 || true
   git -C "$PROJECT" push origin --delete "$BRANCH" >/dev/null 2>&1 || true

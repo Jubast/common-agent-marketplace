@@ -11,6 +11,9 @@
 # "Terminal" here is one log file (state/<id>.term.log) plus one long-lived
 # placeholder process whose pid is recorded in state/<id>.term.pid.
 #
+# $CHIEF_MOCK_PID_LOG, if set, is a file every placeholder pid is appended to,
+# so a test harness can reap exactly the workers it started.
+#
 # CHIEF_MOCK_SPAWN_FAIL=1 and CHIEF_MOCK_SPAWN_MALFORMED=1 are test-only
 # failure injectors (unset in normal use) so chief-spawn.sh's own failure
 # handling - the backend_spawn_cleanup calls, the spawn lock - can be
@@ -37,6 +40,7 @@ backend_spawn() {
   ( exec -a "chief-mock-$id" sleep 100000 ) >/dev/null 2>&1 &
   disown
   echo $! > "$STATE/$id.term.pid"
+  [ -z "${CHIEF_MOCK_PID_LOG:-}" ] || echo $! >> "$CHIEF_MOCK_PID_LOG"
   if [ "${CHIEF_MOCK_SPAWN_FAIL:-0}" = "1" ]; then
     echo "[mock] simulated backend_spawn failure for $id" >&2
     return 1
@@ -85,6 +89,7 @@ backend_relaunch() {
   ( exec -a "chief-mock-$id" sleep 100000 ) >/dev/null 2>&1 &
   disown
   echo $! > "$STATE/$id.term.pid"
+  [ -z "${CHIEF_MOCK_PID_LOG:-}" ] || echo $! >> "$CHIEF_MOCK_PID_LOG"
 }
 
 backend_kill() {

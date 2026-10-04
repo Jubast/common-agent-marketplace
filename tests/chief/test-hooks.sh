@@ -14,7 +14,7 @@ BIN="$REPO_ROOT/plugins/chief/bin"
 command -v python3 >/dev/null 2>&1 || { echo "test-hooks: python3 required to validate JSON output, skipping"; exit 0; }
 
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+harness_trap 'rm -rf "$WORK"'
 SS="$HOOKS/session-start.sh"
 ARM="$HOOKS/stop-watch-arm.sh"
 

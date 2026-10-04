@@ -12,7 +12,7 @@ BIN="$REPO_ROOT/plugins/chief/bin"
 echo "test-project-workspace:"
 
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+harness_trap 'rm -rf "$WORK"'
 GIT=(git -c user.email=t@t -c user.name=t)
 
 # A workspace repo with a project checkout nested inside (as projects/<repo>),

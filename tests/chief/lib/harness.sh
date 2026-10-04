@@ -6,6 +6,28 @@
 # A test file sources this, runs asserts, then calls harness_summary at the
 # end and exits with its return value.
 
+# harness_trap '<cleanup cmd>' - the test's EXIT/INT/TERM/HUP cleanup. Also
+# kills the mock-backend workers (`chief-mock-<id>` sleeps) this test started,
+# found through the pid log mock.sh appends to - never by name.
+harness_reap_mock() {
+  local pid
+  [ -f "${CHIEF_MOCK_PID_LOG:-}" ] || return 0
+  while read -r pid; do
+    case "$(ps -o args= -p "$pid" 2>/dev/null)" in chief-mock-*) kill "$pid" 2>/dev/null ;; esac
+  done < "$CHIEF_MOCK_PID_LOG"
+  rm -f "$CHIEF_MOCK_PID_LOG"
+}
+_harness_exit() { harness_reap_mock; eval "$HARNESS_CLEANUP"; }
+harness_trap() {
+  HARNESS_CLEANUP=$1
+  CHIEF_MOCK_PID_LOG=$(mktemp)
+  export CHIEF_MOCK_PID_LOG
+  trap _harness_exit EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap 'exit 129' HUP
+}
+
 PASS_COUNT=0
 FAIL_COUNT=0
 
