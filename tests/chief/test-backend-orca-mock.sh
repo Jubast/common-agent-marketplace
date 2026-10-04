@@ -36,7 +36,9 @@ mkdir -p "$WORK/project" "$WORK/bin"
 # branch rename has something real to act on; fails instead with
 # $ORCA_MOCK_WT_FAIL=1, for the "project isn't Orca-known" path.
 # `worktree list`/`rm` mirror that against the real git worktrees under
-# $ORCA_MOCK_WORKTREES. `terminal send` fails with $ORCA_MOCK_SEND_FAIL=1.
+# $ORCA_MOCK_WORKTREES. `terminal send` fails with $ORCA_MOCK_SEND_FAIL=1, or
+# warns "no turn start" on its first prompt with $ORCA_MOCK_SEND_WARN=1;
+# $ORCA_MOCK_SCREEN_TEXT is what the rendered screen shows besides the status line.
 cat > "$WORK/bin/orca" <<'FAKE_ORCA'
 #!/usr/bin/env bash
 echo "$*" >> "$ORCA_MOCK_LOG"
@@ -67,12 +69,21 @@ case "$1 $2" in
     echo '{"ok":true}'
     ;;
   "terminal read")
-    echo '{"ok":true,"result":{"terminal":{"tail":["line one","line two"]}}}'
+    case "$*" in
+      *--screen*) printf '{"ok":true,"result":{"terminal":{"tail":["%s","bypass permissions on"]}}}\n' "${ORCA_MOCK_SCREEN_TEXT:-}" ;;
+      *) echo '{"ok":true,"result":{"terminal":{"tail":["line one","line two"]}}}' ;;
+    esac
     ;;
   "terminal send")
     if [ "${ORCA_MOCK_SEND_FAIL:-0}" = "1" ]; then
       echo '{"ok":false,"error":{"code":"runtime_error"}}'
       exit 1
+    fi
+    if [ "${ORCA_MOCK_SEND_WARN:-0}" = "1" ] && [[ "$*" == *--wait-submit* ]] && [ ! -e "$ORCA_MOCK_LOG.warned" ]; then
+      : > "$ORCA_MOCK_LOG.warned"
+      echo '{"ok":true,"result":{"send":{"accepted":true},"warnings":["no turn start observed"]}}' \
+        | jq -c '.result.send.warnings = .result.warnings | del(.result.warnings)'
+      exit 0
     fi
     echo '{"ok":true}'
     ;;
@@ -150,7 +161,8 @@ chief_meta_set "$ID" worktree "$WORKTREE"
 chief_meta_set "$ID" project "$WORK/project"
 
 CAPTURE=$(backend_capture "$ID")
-assert_eq "$CAPTURE" $'line one\nline two' "backend_capture joins the terminal's tail lines"
+assert_eq "$CAPTURE" $'\nbypass permissions on' "backend_capture returns the rendered screen's lines"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal read --terminal term_mock-1 --screen --json" "backend_capture reads the rendered screen, not the raw stream"
 
 : > "$ORCA_MOCK_LOG"
 ORCA_MOCK_BUSY=0 backend_busy "$ID"
@@ -245,6 +257,24 @@ assert_eq "$(git -C "$WORK/project" branch --list 't-orca-r' | wc -l | tr -d ' '
 backend_spawn_cleanup "t-orca-never" "$WORK/project" "chief/t-orca-never"
 assert_eq "$?" "0" "backend_spawn_cleanup is a no-op when nothing was created"
 assert_not_contains "$(cat "$ORCA_MOCK_LOG")" "worktree rm" "backend_spawn_cleanup removes nothing when no worktree matches"
+
+# `terminal send` exiting 0 with a "no turn start" warning: resend if the text
+# never reached the screen, only press Enter if it's already sitting there.
+rm -f "$ORCA_MOCK_LOG.warned"; : > "$ORCA_MOCK_LOG"
+ORCA_MOCK_SEND_WARN=1 _chief_orca_prompt term_mock-1 "$(cat "$BRIEF")"
+assert_eq "$(grep -c -- '--text Reply with exactly' "$ORCA_MOCK_LOG")" "2" "a warned prompt that never reached the screen is resent"
+rm -f "$ORCA_MOCK_LOG.warned"; : > "$ORCA_MOCK_LOG"
+ORCA_MOCK_SEND_WARN=1 ORCA_MOCK_SCREEN_TEXT="❯ Reply with exactly the single word: ok" _chief_orca_prompt term_mock-1 "$(cat "$BRIEF")"
+assert_eq "$(grep -c -- '--text Reply with exactly' "$ORCA_MOCK_LOG")" "1" "a warned prompt already on the screen is not resent"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal send --terminal term_mock-1 --enter" "a warned prompt already on the screen gets a bare Enter"
+rm -f "$ORCA_MOCK_LOG.warned"
+
+# The first prompt waits for claude's TUI on the rendered screen, not tui-idle.
+: > "$ORCA_MOCK_LOG"
+backend_spawn "t-orca-ready" "$WORK/project" "$BRIEF" "chief/t-orca-ready" >/dev/null 2>&1
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal read --terminal term_mock-1 --screen --json" "backend_spawn waits for claude's TUI on the rendered screen"
+assert_not_contains "$(cat "$ORCA_MOCK_LOG")" "tui-idle" "backend_spawn does not trust tui-idle for readiness"
+backend_spawn_cleanup "t-orca-ready" "$WORK/project" "chief/t-orca-ready"
 
 # backend_teardown makes Orca forget the worktree.
 : > "$ORCA_MOCK_LOG"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test-backend-orca.sh - exercises orca.sh's five adapter
 # functions against a REAL live Orca instance and a real (minimal) claude
-# turn, targeting this repo itself as the project (must be an
+# turn, targeting this repo's main checkout as the project (must be an
 # Orca-registered repo - see `orca repo list --json` - since Orca only
 # resolves a worktree selector for one it created itself; a throwaway
 # temp repo can never satisfy that, unlike test-backend-herdr.sh).
@@ -18,7 +18,7 @@ set -uo pipefail
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
-PROJECT="$REPO_ROOT"
+PROJECT=$(cd "$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)
 . "$TEST_DIR/lib/harness.sh"
 
 echo "test-backend-orca:"
@@ -50,7 +50,23 @@ fi
 
 WORK=$(mktemp -d)
 ID="chief-test-orca-$$"
+ID2="$ID-b"
 BRANCH="chief/$ID"
+# backend_spawn/backend_relaunch only wait for the first prompt to be accepted,
+# not the turn to finish - poll backend_busy before asserting on the reply.
+wait_for_idle() {  # <id> [timeout-s]
+  local id=$1 timeout=${2:-60} waited=0
+  while [ "$waited" -lt "$timeout" ]; do
+    backend_busy "$id" || return 0
+    sleep 1
+    waited=$((waited + 1))
+  done
+  return 1
+}
+_orca_has_worktree() {  # <path> -> exit 0 if Orca still lists it
+  orca worktree list --repo "path:$PROJECT" --json 2>/dev/null \
+    | jq -e --arg p "$1" '[.result.worktrees[]? | select(.path == $p)] | length > 0' >/dev/null
+}
 cleanup() {
   # Best-effort: close whatever terminal this run produced, then let Orca
   # forget the worktree it made (also removes the git worktree/branch) so
@@ -65,6 +81,9 @@ cleanup() {
       || { git -C "$PROJECT" worktree remove --force "$worktree" >/dev/null 2>&1
            git -C "$PROJECT" branch -D "$BRANCH" >/dev/null 2>&1; }
   fi
+  # Anything a failed step left behind, found by path (Orca's own branch name
+  # is unpredictable) - same lookup backend_spawn_cleanup uses.
+  backend_spawn_cleanup "$ID2" "$PROJECT" "chief/$ID2" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -97,6 +116,7 @@ chief_meta_set "$ID" project "$PROJECT"
 CURRENT_BRANCH=$(git -C "$WORKTREE" rev-parse --abbrev-ref HEAD 2>/dev/null)
 assert_eq "$CURRENT_BRANCH" "$BRANCH" "the worktree is on the exact chief/<id> branch, renamed from Orca's own"
 
+wait_for_idle "$ID"
 CAPTURE=$(backend_capture "$ID")
 assert_contains "$CAPTURE" "ok" "backend_capture shows the claude reply"
 assert_contains "$CAPTURE" "bypass permissions" "backend_spawn starts the worker with bypass permissions on"
@@ -109,6 +129,8 @@ assert_success "backend_send delivers a special key without erroring" -- backend
 backend_kill "$ID"
 assert_eq "$?" "0" "backend_kill exits cleanly"
 assert_file_exists "$WORKTREE/.git" "backend_kill does not touch the worktree"
+assert_eq "$(orca terminal list --worktree "path:$WORKTREE" --json 2>/dev/null | jq -r '[.result.terminals[]?] | length')" "0" \
+  "backend_kill closes every terminal in the task's worktree"
 
 BRIEF2="$WORK/brief2.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF2"
@@ -122,9 +144,26 @@ assert_contains "$NEW_ENDPOINT" "orca:" "backend_relaunch records a fresh orca e
 [ "$NEW_ENDPOINT" != "$ENDPOINT" ]
 assert_eq "$?" "0" "backend_relaunch's endpoint differs from the original terminal"
 
+wait_for_idle "$ID"
 RELAUNCH_CAPTURE=$(backend_capture "$ID")
 assert_contains "$RELAUNCH_CAPTURE" "ok" "backend_capture shows the relaunched claude's reply"
 
 backend_kill "$ID"
+
+backend_teardown "$ID" "$PROJECT" "$WORKTREE"
+_orca_has_worktree "$WORKTREE"
+assert_eq "$?" "1" "backend_teardown leaves no stale worktree entry in 'orca worktree list'"
+
+# A spawn that fails after the worktree exists is rolled back completely.
+printf 'Reply with exactly the single word: ok\n' > "$WORK/brief3.md"
+SPAWN2=$(backend_spawn "$ID2" "$PROJECT" "$WORK/brief3.md" "chief/$ID2" 2>/dev/null)
+WORKTREE2=$(printf '%s\n' "$SPAWN2" | sed -n 1p)
+assert_file_exists "$WORKTREE2/.git" "a second spawn created its worktree"
+backend_spawn_cleanup "$ID2" "$PROJECT" "chief/$ID2"
+_orca_has_worktree "$WORKTREE2"
+assert_eq "$?" "1" "backend_spawn_cleanup removes the worktree from 'orca worktree list'"
+assert_file_missing "$WORKTREE2" "backend_spawn_cleanup removes the worktree from disk"
+git -C "$PROJECT" show-ref --verify --quiet "refs/heads/chief/$ID2"
+assert_eq "$?" "1" "backend_spawn_cleanup deletes the task's branch"
 
 harness_summary
