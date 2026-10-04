@@ -8,11 +8,12 @@
 # worktree), and cleaned up on any failure.
 #
 # Orca only resolves a worktree selector for a worktree IT created, so
-# backend_spawn goes through `orca worktree create --repo path:<project>`
-# (the project must already be in `orca repo list`; `orca repo add` is not
-# attempted). That call can't pin a branch or path: Orca sanitizes '/' out
-# of --name for the branch, which is renamed to the exact requested one, and
-# the path Orca picks is used as-is.
+# backend_spawn goes through `orca worktree create --repo path:<project>`,
+# registering the project first (`orca repo add`) if `orca repo list` doesn't
+# have it. The task is created as a child of the project's main worktree, so
+# Orca nests it under the project like herdr's linked-worktree workspaces.
+# That call can't pin a branch or path: Orca picks its own branch name, which
+# is renamed to the exact requested one, and the path is used as-is.
 #
 # Endpoint: "orca:<terminal-handle>". backend_busy polls `orca terminal
 # wait --for tui-idle` with a short timeout.
@@ -32,6 +33,17 @@ _chief_orca_handle() {  # <id> -> the task's terminal handle
 
 _chief_orca_close_tab() {  # <handle> - best-effort
   orca terminal close --terminal "$1" --tab >/dev/null 2>&1 || true
+}
+
+# _chief_orca_ensure_repo <project-dir> - registers the project with Orca if
+# it isn't already (herdr opens the project's workspace itself).
+_chief_orca_ensure_repo() {
+  local project_dir=$1
+  orca repo list --json 2>/dev/null \
+    | jq -e --arg p "$project_dir" '[.result.repos[]? | select(.path == $p)] | length > 0' >/dev/null 2>&1 \
+    && return 0
+  orca repo add --path "$project_dir" --json >/dev/null 2>&1 \
+    || { echo "chief-backend-orca: could not register '$project_dir' with Orca ('orca repo add --path $project_dir' failed)" >&2; return 1; }
 }
 
 # _chief_orca_find_worktree <id> <project-dir> <branch> - prints
@@ -126,10 +138,9 @@ _chief_orca_launch() {
 backend_spawn() {
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
   local json worktree orca_branch
-  json=$(orca worktree create --repo "path:$project_dir" --name "$id" --no-parent --json 2>/dev/null) \
-    || { echo "chief-backend-orca: 'orca worktree create' failed: $json" >&2
-         echo "chief-backend-orca: is '$project_dir' an Orca-registered repo? See 'orca repo list --json' / 'orca repo add --path $project_dir'." >&2
-         return 1; }
+  _chief_orca_ensure_repo "$project_dir" || return 1
+  json=$(orca worktree create --repo "path:$project_dir" --name "$id" --parent-worktree "path:$project_dir" --json 2>/dev/null) \
+    || { echo "chief-backend-orca: 'orca worktree create' failed: $json" >&2; return 1; }
 
   worktree=$(printf '%s' "$json" | jq -r '.result.worktree.path // empty')
   orca_branch=$(printf '%s' "$json" | jq -r '.result.worktree.branch // empty' | sed 's#^refs/heads/##')

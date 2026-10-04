@@ -18,7 +18,7 @@ Inspired by [Firstmate](https://github.com/kunchenguid/firstmate), which does th
 
 Runtime state lives at `.chief/` under `CHIEF_HOME` - by default the outermost git root enclosing wherever the Chief session runs, so the operator's top-level workspace even when run from inside a project or one of its worktrees; never inside a project (`state/`, `data/`, `config/`, `worktrees/`) - created on first use, not part of the plugin package. `chief-setup.sh` gitignores it for you.
 
-Spawn syncs the project's default branch from origin (best-effort), then creates the task worktree and launches the worker in it (bypass-permissions, brief as first prompt). With herdr, each task is its own linked-worktree workspace grouped under the project's primary workspace; with Orca, each task is an Orca-created worktree (Orca picks its path, so the project must be in `orca repo list`) with its own terminal. Teardown closes the task's terminals and removes the worktree (and, on Orca, its worktree entry).
+Spawn syncs the project's default branch from origin (best-effort), then creates the task worktree and launches the worker in it (bypass-permissions, brief as first prompt). With herdr, each task is its own linked-worktree workspace grouped under the project's primary workspace; with Orca, the project is registered on first spawn (`orca repo add`) and each task is an Orca-created worktree nested under the project's main worktree, with its own terminal (Orca picks the path). Teardown closes the task's terminals and removes the worktree (and, on Orca, its worktree entry).
 
 ## Status
 

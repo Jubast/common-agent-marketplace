@@ -38,7 +38,8 @@ mkdir -p "$WORK/project" "$WORK/bin"
 # `worktree list`/`rm` mirror that against the real git worktrees under
 # $ORCA_MOCK_WORKTREES. `terminal send` fails with $ORCA_MOCK_SEND_FAIL=1, or
 # warns "no turn start" on its first prompt with $ORCA_MOCK_SEND_WARN=1;
-# $ORCA_MOCK_SCREEN_TEXT is what the rendered screen shows besides the status line.
+# `repo list`/`add` keep a registry in $ORCA_MOCK_REPOS ($ORCA_MOCK_REPO_ADD_FAIL=1
+# makes `add` fail). $ORCA_MOCK_SCREEN_TEXT is what the rendered screen shows besides the status line.
 cat > "$WORK/bin/orca" <<'FAKE_ORCA'
 #!/usr/bin/env bash
 echo "$*" >> "$ORCA_MOCK_LOG"
@@ -47,6 +48,18 @@ echo "$*" >> "$ORCA_MOCK_LOG"
 # fails loud instead of silently passing.
 echo "[relay-connect] Handshake OK at version=mock" >&2
 case "$1 $2" in
+  "repo list")
+    touch "$ORCA_MOCK_REPOS"
+    jq -Rsc '{ok:true,result:{repos:(split("\n")|map(select(length>0)|{id:.,path:.}))}}' "$ORCA_MOCK_REPOS"
+    ;;
+  "repo add")
+    if [ "${ORCA_MOCK_REPO_ADD_FAIL:-0}" = "1" ]; then
+      echo '{"ok":false,"error":{"code":"runtime_error"}}'
+      exit 1
+    fi
+    echo "${4}" >> "$ORCA_MOCK_REPOS"
+    echo '{"ok":true}'
+    ;;
   "worktree create")
     if [ "${ORCA_MOCK_WT_FAIL:-0}" = "1" ]; then
       echo '{"ok":false,"error":{"code":"runtime_error","message":"Not a valid git repository"}}'
@@ -113,6 +126,7 @@ chmod +x "$WORK/bin/orca"
 export PATH="$WORK/bin:$PATH"
 export ORCA_MOCK_LOG="$WORK/orca.log"
 export ORCA_MOCK_WORKTREES="$WORK/orca-worktrees"
+export ORCA_MOCK_REPOS="$WORK/orca-repos"
 mkdir -p "$ORCA_MOCK_WORKTREES"
 : > "$ORCA_MOCK_LOG"
 
@@ -141,8 +155,10 @@ assert_file_exists "$WORKTREE/.git" "orca worktree create actually created a rea
 CURRENT_BRANCH=$(git -C "$WORKTREE" rev-parse --abbrev-ref HEAD)
 assert_eq "$CURRENT_BRANCH" "$BRANCH" "backend_spawn renamed Orca's sanitized branch to the requested chief/<id> branch"
 
-assert_contains "$(cat "$ORCA_MOCK_LOG")" "worktree create --repo path:$WORK/project --name $ID --no-parent --json" \
-  "backend_spawn calls 'orca worktree create' scoped to the project repo, not a raw git worktree add"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "repo add --path $WORK/project --json" \
+  "backend_spawn registers a project Orca doesn't know yet"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "worktree create --repo path:$WORK/project --name $ID --parent-worktree path:$WORK/project --json" \
+  "backend_spawn calls 'orca worktree create' scoped to the project repo and nested under its main worktree, not a raw git worktree add"
 assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal create --worktree path:$WORKTREE --command claude --dangerously-skip-permissions --json" \
   "backend_spawn launches claude in bypass-permissions mode in the worktree path Orca just made"
 assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal send --terminal term_mock-1 --text Reply with exactly the single word: ok" \
@@ -153,8 +169,21 @@ ORCA_MOCK_WT_FAIL=1 backend_spawn "t-orca-fail" "$WORK/project" "$BRIEF" "chief/
 assert_eq "$?" "1" "backend_spawn fails when 'orca worktree create' fails"
 assert_contains "$(cat "$WORK/spawn-fail.err")" "orca worktree create" \
   "backend_spawn's failure message names the failing orca command"
-assert_contains "$(cat "$WORK/spawn-fail.err")" "Orca-registered repo" \
-  "backend_spawn's failure message hints that the project needs to be Orca-registered"
+
+# An already-registered project is not registered again; a failed registration
+# fails the spawn clearly, before any worktree exists.
+: > "$ORCA_MOCK_LOG"
+backend_spawn "t-orca-reg" "$WORK/project" "$BRIEF" "chief/t-orca-reg" >/dev/null 2>&1
+assert_not_contains "$(cat "$ORCA_MOCK_LOG")" "repo add" "backend_spawn skips 'orca repo add' for an already-registered project"
+backend_spawn_cleanup "t-orca-reg" "$WORK/project" "chief/t-orca-reg"
+
+: > "$ORCA_MOCK_LOG"
+mkdir -p "$WORK/project2" && ( cd "$WORK/project2" && git init -q -b main && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init )
+ORCA_MOCK_REPO_ADD_FAIL=1 backend_spawn "t-orca-noreg" "$WORK/project2" "$BRIEF" "chief/t-orca-noreg" 2>"$WORK/spawn-noreg.err"
+assert_eq "$?" "1" "backend_spawn fails when registering the project fails"
+assert_contains "$(cat "$WORK/spawn-noreg.err")" "could not register '$WORK/project2' with Orca" \
+  "backend_spawn's failure message names the project and the failed 'orca repo add'"
+assert_not_contains "$(cat "$ORCA_MOCK_LOG")" "worktree create" "backend_spawn creates no worktree when registration fails"
 
 chief_meta_set "$ID" endpoint "$ENDPOINT"
 chief_meta_set "$ID" worktree "$WORKTREE"

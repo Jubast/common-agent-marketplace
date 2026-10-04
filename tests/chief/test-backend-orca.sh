@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
-# test-backend-orca.sh - exercises orca.sh's five adapter
-# functions against a REAL live Orca instance and a real (minimal) claude
-# turn, targeting this repo's main checkout as the project (must be an
-# Orca-registered repo - see `orca repo list --json` - since Orca only
-# resolves a worktree selector for one it created itself; a throwaway
-# temp repo can never satisfy that, unlike test-backend-herdr.sh).
+# test-backend-orca.sh - exercises orca.sh's adapter functions against a REAL
+# live Orca instance and a real (minimal) claude turn, on a throwaway scratch
+# repo (like test-backend-herdr.sh) that backend_spawn registers with Orca
+# itself and the cleanup trap unregisters again.
 #
 # NOT zero-cost: needs `orca` on PATH talking to a live Orca runtime, and
 # spends a small number of real tokens on one trivial claude prompt. Opt in:
@@ -52,6 +50,10 @@ WORK=$(mktemp -d)
 ID="chief-test-orca-$$"
 ID2="$ID-b"
 BRANCH="chief/$ID"
+PROJECT="$WORK/chief-test-orca-proj-$$"
+mkdir -p "$PROJECT" && git -C "$PROJECT" init -q -b main \
+  && git -C "$PROJECT" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+
 # backend_spawn/backend_relaunch only wait for the first prompt to be accepted,
 # not the turn to finish - poll backend_busy before asserting on the reply.
 wait_for_idle() {  # <id> [timeout-s]
@@ -67,23 +69,35 @@ _orca_has_worktree() {  # <path> -> exit 0 if Orca still lists it
   orca worktree list --repo "path:$PROJECT" --json 2>/dev/null \
     | jq -e --arg p "$1" '[.result.worktrees[]? | select(.path == $p)] | length > 0' >/dev/null
 }
+_repo_id() {  # -> the scratch project's Orca repo id, empty if unregistered
+  orca repo list --json 2>/dev/null \
+    | jq -r --arg p "$PROJECT" '.result.repos[]? | select(.path == $p) | .id'
+}
+_main_wt() {  # -> the project's main worktree row
+  orca worktree list --repo "path:$PROJECT" --json 2>/dev/null \
+    | jq -c '.result.worktrees[]? | select(.isMainWorktree == true)'
+}
+_child_count() {  # -> number of worktrees nested under the project's main worktree
+  _main_wt | jq -r '.childWorktreeIds | length'
+}
+_parent_is_main() {  # <worktree-path> -> exit 0 if its parent is the project's main worktree
+  local main_id
+  main_id=$(_main_wt | jq -r '.id')
+  orca worktree list --repo "path:$PROJECT" --json 2>/dev/null \
+    | jq -e --arg p "$1" --arg m "$main_id" '[.result.worktrees[]? | select(.path == $p and .parentWorktreeId == $m)] | length == 1' >/dev/null
+}
 cleanup() {
-  # Best-effort: close whatever terminal this run produced, then let Orca
-  # forget the worktree it made (also removes the git worktree/branch) so
-  # this repo's own Orca worktree list stays clean; fall back to plain git.
-  local endpoint handle worktree
-  endpoint=$(chief_meta_get "$ID" endpoint 2>/dev/null) || endpoint=""
-  handle=${endpoint#orca:}
-  [ -n "$handle" ] && orca terminal close --terminal "$handle" --tab >/dev/null 2>&1
-  worktree=$(chief_meta_get "$ID" worktree 2>/dev/null) || worktree=""
-  if [ -n "$worktree" ]; then
-    orca worktree rm --worktree "path:$worktree" --force >/dev/null 2>&1 \
-      || { git -C "$PROJECT" worktree remove --force "$worktree" >/dev/null 2>&1
-           git -C "$PROJECT" branch -D "$BRANCH" >/dev/null 2>&1; }
-  fi
-  # Anything a failed step left behind, found by path (Orca's own branch name
-  # is unpredictable) - same lookup backend_spawn_cleanup uses.
+  # Everything this run could have produced, found by id/path (no meta
+  # needed): terminals, worktrees, branches, then the repo registration and
+  # Orca's (then empty) per-repo workspace dir.
+  local repo_id wsdir
+  backend_spawn_cleanup "$ID" "$PROJECT" "$BRANCH" >/dev/null 2>&1 || true
   backend_spawn_cleanup "$ID2" "$PROJECT" "chief/$ID2" >/dev/null 2>&1 || true
+  wsdir=$(dirname "${WORKTREE:-}" 2>/dev/null)
+  repo_id=$(_repo_id)
+  [ -n "$repo_id" ] && orca project setup-delete --setup "$repo_id" >/dev/null 2>&1
+  [ -n "$(_repo_id)" ] && echo "  [LEFTOVER] Orca repo registration for $PROJECT (id $(_repo_id))"
+  [ -n "${WORKTREE:-}" ] && rmdir "$wsdir/.orca-worktree-trash" "$wsdir" 2>/dev/null
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -108,6 +122,12 @@ ENDPOINT=$(printf '%s\n' "$SPAWN_OUTPUT" | sed -n 2p)
 assert_eq "$?" "0" "backend_spawn printed a non-empty worktree path"
 assert_contains "$ENDPOINT" "orca:" "backend_spawn prints an orca: endpoint second"
 assert_file_exists "$WORKTREE/.git" "backend_spawn actually created the git worktree (via orca)"
+
+[ -n "$(_repo_id)" ]
+assert_eq "$?" "0" "backend_spawn registered the unregistered scratch project with Orca"
+assert_eq "$(_child_count)" "1" "the task is nested under the project's main worktree"
+_parent_is_main "$WORKTREE"
+assert_eq "$?" "0" "the task worktree's parent is the project's main worktree"
 
 chief_meta_set "$ID" endpoint "$ENDPOINT"
 chief_meta_set "$ID" worktree "$WORKTREE"
@@ -150,20 +170,28 @@ assert_contains "$RELAUNCH_CAPTURE" "ok" "backend_capture shows the relaunched c
 
 backend_kill "$ID"
 
-backend_teardown "$ID" "$PROJECT" "$WORKTREE"
-_orca_has_worktree "$WORKTREE"
-assert_eq "$?" "1" "backend_teardown leaves no stale worktree entry in 'orca worktree list'"
-
-# A spawn that fails after the worktree exists is rolled back completely.
+# A second task is a second child of the same main worktree and registers the
+# project only once; rolling it back leaves the first alone.
 printf 'Reply with exactly the single word: ok\n' > "$WORK/brief3.md"
+REPO_ID=$(_repo_id)
 SPAWN2=$(backend_spawn "$ID2" "$PROJECT" "$WORK/brief3.md" "chief/$ID2" 2>/dev/null)
 WORKTREE2=$(printf '%s\n' "$SPAWN2" | sed -n 1p)
 assert_file_exists "$WORKTREE2/.git" "a second spawn created its worktree"
+assert_eq "$(_child_count)" "2" "two tasks are two children of the main worktree"
+assert_eq "$(_repo_id)" "$REPO_ID" "the project stays registered once"
 backend_spawn_cleanup "$ID2" "$PROJECT" "chief/$ID2"
 _orca_has_worktree "$WORKTREE2"
 assert_eq "$?" "1" "backend_spawn_cleanup removes the worktree from 'orca worktree list'"
 assert_file_missing "$WORKTREE2" "backend_spawn_cleanup removes the worktree from disk"
 git -C "$PROJECT" show-ref --verify --quiet "refs/heads/chief/$ID2"
 assert_eq "$?" "1" "backend_spawn_cleanup deletes the task's branch"
+assert_eq "$(_child_count)" "1" "rolling back the second task leaves the first nested"
+_parent_is_main "$WORKTREE"
+assert_eq "$?" "0" "the first task is still nested under the main worktree"
+
+backend_teardown "$ID" "$PROJECT" "$WORKTREE"
+_orca_has_worktree "$WORKTREE"
+assert_eq "$?" "1" "backend_teardown leaves no stale worktree entry in 'orca worktree list'"
+assert_eq "$(_child_count)" "0" "no task remains nested under the main worktree"
 
 harness_summary
