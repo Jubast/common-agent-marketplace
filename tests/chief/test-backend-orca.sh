@@ -88,33 +88,97 @@ _parent_is_main() {  # <worktree-path> -> exit 0 if its parent is the project's 
 _repo_snapshot() {  # -> every registered repo as "<id> <path>", sorted
   orca repo list --json 2>/dev/null | jq -r '.result.repos[]? | "\(.id) \(.path)"' | sort
 }
-# Removes only the scratch repo's own registration: exact scratch path, under
-# $WORK, and only if it was absent from the registry before spawn.
-unregister_scratch() {
-  local repo_id
+ORCA_WORKSPACES="${ORCA_WORKSPACES:-$HOME/orca/workspaces}"
+ORCA_DATA=$(ls "$HOME"/.config/orca/profiles/*/orca-data.json 2>/dev/null | head -n1)
+SCRATCH_WS="$ORCA_WORKSPACES/$(basename "$PROJECT")"
+
+# Everything Orca knows, as one comparable text: repos, every repo's worktrees,
+# terminals, projects, project setups and the workspaces dir tree.
+orca_snapshot() {
+  echo "## repos"; _repo_snapshot
+  echo "## worktrees"
+  orca repo list --json 2>/dev/null | jq -r '.result.repos[]?.path' | sort | while read -r repo; do
+    orca worktree list --repo "path:$repo" --json 2>/dev/null \
+      | jq -r --arg r "$repo" '.result.worktrees[]? | "\($r) \(.path) \(.branch)"'
+  done | sort
+  echo "## terminals"
+  orca terminal list --json 2>/dev/null | jq -r '.result.terminals[]? | "\(.handle) \(.worktreePath)"' | sort
+  echo "## projects"
+  orca project list --json 2>/dev/null | jq -r '.result.projects[]? | "\(.id) \(.displayName)"' | sort
+  echo "## project setups"
+  orca project setups --json 2>/dev/null | jq -r '.result.setups[]? | "\(.id) \(.path)"' | sort
+  echo "## workspaces dir"
+  ( cd "$ORCA_WORKSPACES" 2>/dev/null && find . | sort )
+}
+_data_refs() {  # -> how many lines of orca-data.json mention this run's scratch repo/worktrees
+  [ -n "$ORCA_DATA" ] || { echo 0; return; }
+  grep -cF -e "$(basename "$PROJECT")" -e "$ID" "$ORCA_DATA"
+}
+
+SWEPT_WORKTREES=()
+SNAP_BEFORE=$(orca_snapshot)
+[ -z "$(_repo_id)" ] && SCRATCH_OURS=1
+
+# Orca's claude hook leaves /tmp/orca-claude-statusline-last-<leafId> per pane
+# and never removes it; remember the leaf ids of this run's own terminals
+# (taken from `terminal show`) so exactly those files can be removed.
+record_leaves() {  # <worktree-path>
+  local handle
+  orca terminal list --worktree "path:$1" --json 2>/dev/null | jq -r '.result.terminals[]?.handle' \
+    | while read -r handle; do
+        orca terminal show --terminal "$handle" --json 2>/dev/null | jq -r '.result.terminal.leafId // empty'
+      done >> "$WORK/leaves"
+}
+
+# Orca-side cleanup, idempotent. Touches only the scratch repo this run
+# registered (exact path under $WORK, absent from the registry before spawn):
+# every non-main worktree in it was made by this run, and the repo is removed
+# through the supported CLI only.
+cleanup_orca() {
+  local wt repo_id
+  [ "${ORCA_CLEANED:-0}" = 1 ] && return 0
+  ORCA_CLEANED=1
   [ "${SCRATCH_OURS:-0}" = 1 ] || return 0
   case "$PROJECT" in "$WORK"/*) ;; *) return 0 ;; esac
+  while IFS= read -r wt; do
+    [ -n "$wt" ] || continue
+    SWEPT_WORKTREES+=("$wt")
+    record_leaves "$wt"
+    orca terminal close --worktree "path:$wt" --all >/dev/null 2>&1 || true
+    orca worktree rm --worktree "path:$wt" --force >/dev/null 2>&1 || true
+  done < <(orca worktree list --repo "path:$PROJECT" --json 2>/dev/null \
+             | jq -r '.result.worktrees[]? | select(.isMainWorktree != true) | .path')
   repo_id=$(_repo_id)
-  [ -n "$repo_id" ] || return 0
-  orca project setup-delete --setup "$repo_id" >/dev/null 2>&1 || true
+  [ -n "$repo_id" ] && { orca project setup-delete --setup "$repo_id" >/dev/null 2>&1 || true; }
+  rmdir "$SCRATCH_WS/.orca-worktree-trash" "$SCRATCH_WS" 2>/dev/null || true
 }
-REPOS_BEFORE=$(_repo_snapshot)
-[ -z "$(_repo_id)" ] && SCRATCH_OURS=1
+# Claude keeps a transcript dir (and per-session env dirs) per cwd; remove the
+# ones for this run's own worktree paths and sessions only, plus the statusline
+# files recorded above.
+cleanup_claude() {
+  local wt dir f leaf
+  for wt in "${WORKTREE:-}" "${WORKTREE2:-}" "${SWEPT_WORKTREES[@]}"; do
+    case "$wt" in "$SCRATCH_WS"/*) ;; *) continue ;; esac
+    dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$(printf '%s' "$wt" | sed 's/[^A-Za-z0-9]/-/g')"
+    for f in "$dir"/*.jsonl; do
+      [ -e "$f" ] && rm -rf "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/session-env/$(basename "$f" .jsonl)"
+    done
+    rm -rf "$dir"
+  done
+  [ -f "$WORK/leaves" ] && while read -r leaf; do
+    [ -n "$leaf" ] && rm -f "/tmp/orca-claude-statusline-last-$leaf"
+  done < "$WORK/leaves"
+  return 0
+}
 cleanup() {
-  # Everything this run could have produced, found by id/path (no meta
-  # needed): terminals, worktrees, branches, then the repo registration and
-  # Orca's (then empty) per-repo workspace dir.
-  local wsdir
-  backend_spawn_cleanup "$ID" "$PROJECT" "$BRANCH" >/dev/null 2>&1 || true
-  backend_spawn_cleanup "$ID2" "$PROJECT" "chief/$ID2" >/dev/null 2>&1 || true
-  wsdir=$(dirname "${WORKTREE:-}" 2>/dev/null)
-  unregister_scratch
-  [ "$(_repo_snapshot)" = "$REPOS_BEFORE" ] \
-    || { echo "  [LEFTOVER] Orca repo registry differs from before the run:"; diff <(echo "$REPOS_BEFORE") <(_repo_snapshot); }
-  [ -n "${WORKTREE:-}" ] && rmdir "$wsdir/.orca-worktree-trash" "$wsdir" 2>/dev/null
+  cleanup_orca
+  cleanup_claude
   rm -rf "$WORK"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 export CHIEF_HOME="$WORK/.chief"
 . "$CHIEF_BIN/lib/paths.sh"
@@ -135,6 +199,7 @@ ENDPOINT=$(printf '%s\n' "$SPAWN_OUTPUT" | sed -n 2p)
 [ -n "$WORKTREE" ]
 assert_eq "$?" "0" "backend_spawn printed a non-empty worktree path"
 assert_contains "$ENDPOINT" "orca:" "backend_spawn prints an orca: endpoint second"
+record_leaves "$WORKTREE"
 assert_file_exists "$WORKTREE/.git" "backend_spawn actually created the git worktree (via orca)"
 
 [ -n "$(_repo_id)" ]
@@ -173,6 +238,7 @@ RELAUNCH_RC=$?
 assert_eq "$RELAUNCH_RC" "0" "backend_relaunch succeeds in the same worktree"
 [ "$RELAUNCH_RC" = "0" ] || cat "$WORK/relaunch.err"
 
+record_leaves "$WORKTREE"
 NEW_ENDPOINT=$(chief_meta_get "$ID" endpoint)
 assert_contains "$NEW_ENDPOINT" "orca:" "backend_relaunch records a fresh orca endpoint"
 [ "$NEW_ENDPOINT" != "$ENDPOINT" ]
@@ -190,6 +256,7 @@ printf 'Reply with exactly the single word: ok\n' > "$WORK/brief3.md"
 REPO_ID=$(_repo_id)
 SPAWN2=$(backend_spawn "$ID2" "$PROJECT" "$WORK/brief3.md" "chief/$ID2" 2>/dev/null)
 WORKTREE2=$(printf '%s\n' "$SPAWN2" | sed -n 1p)
+record_leaves "$WORKTREE2"
 assert_file_exists "$WORKTREE2/.git" "a second spawn created its worktree"
 assert_eq "$(_child_count)" "2" "two tasks are two children of the main worktree"
 assert_eq "$(_repo_id)" "$REPO_ID" "the project stays registered once"
@@ -208,7 +275,17 @@ _orca_has_worktree "$WORKTREE"
 assert_eq "$?" "1" "backend_teardown leaves no stale worktree entry in 'orca worktree list'"
 assert_eq "$(_child_count)" "0" "no task remains nested under the main worktree"
 
-unregister_scratch
-assert_eq "$(_repo_snapshot)" "$REPOS_BEFORE" "Orca's repo registry is identical before and after the run"
+cleanup_orca
+cleanup_claude
+SNAP_AFTER=$(orca_snapshot)
+assert_eq "$SNAP_AFTER" "$SNAP_BEFORE" "Orca's repos, worktrees, terminals, projects, setups and workspaces dir are identical before and after the run"
+[ "$SNAP_AFTER" = "$SNAP_BEFORE" ] || diff <(echo "$SNAP_BEFORE") <(echo "$SNAP_AFTER")
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ "$(_data_refs)" = 0 ] && break; sleep 1; done
+assert_eq "$(_data_refs)" "0" "orca-data.json holds no entry for the scratch repo or this run's worktrees"
+STATUSLINE_LEFT=0
+while read -r leaf; do
+  [ -n "$leaf" ] && [ -e "/tmp/orca-claude-statusline-last-$leaf" ] && STATUSLINE_LEFT=$((STATUSLINE_LEFT + 1))
+done < "$WORK/leaves"
+assert_eq "$STATUSLINE_LEFT" "0" "no /tmp/orca-claude-statusline-last-* file from this run's panes is left behind"
 
 harness_summary

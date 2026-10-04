@@ -23,6 +23,9 @@ fi
 WORK=$(mktemp -d)
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 mkdir -p "$WORK/project" "$WORK/bin"
 ( cd "$WORK/project" && git init -q -b main \

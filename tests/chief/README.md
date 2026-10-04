@@ -67,12 +67,16 @@ delivered at all) that `_chief_herdr_prompt` tells apart by checking
 whether the live input line already holds our own submitted text.
 
 `backends/orca.sh` runs on a throwaway scratch repo like herdr's: `backend_spawn`
-registers it with Orca (`orca repo add`), tasks nest under its main worktree,
-and the cleanup removes the worktrees, terminals and only that registration, asserting the repo registry is unchanged
-(`orca project setup-delete`). Spawn (registration, nesting, the branch
-rename, bypass-permissions launch, reply capture, busy/idle, send, kill),
-relaunch, teardown and spawn rollback are all exercised live. The test
-prints `[LEFTOVER]` if the registration could not be removed.
+registers it with Orca (`orca repo add`) and tasks nest under its main
+worktree. Spawn, relaunch, teardown and spawn rollback are all exercised live.
+The test snapshots Orca before the run (repos, every repo's worktrees,
+terminals, projects, project setups, `~/orca/workspaces`) and asserts the same
+snapshot afterwards, plus no mention of the scratch repo in `orca-data.json`
+and no `/tmp/orca-claude-statusline-last-*` file left for its panes. Cleanup
+runs on EXIT/INT/TERM/HUP, is idempotent, and touches only the scratch repo it
+registered itself (via `orca worktree rm` / `orca project setup-delete`; never
+by editing `orca-data.json`) and the claude transcript/session dirs of its own
+worktrees.
 
 ## What's deliberately NOT here (needs the devcontainer instead)
 
