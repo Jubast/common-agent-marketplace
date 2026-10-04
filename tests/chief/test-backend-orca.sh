@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# test-backend-orca.sh - exercises orca.sh's adapter functions against a REAL
-# live Orca instance and a real (minimal) claude turn, on a throwaway scratch
+# test-backend-orca.sh - exercises orca.sh's adapter functions, then the real
+# chief-spawn/send/control/crew-state/teardown scripts end to end, against a
+# REAL live Orca instance and real (minimal) claude turns, on a throwaway scratch
 # repo (like test-backend-herdr.sh) that backend_spawn registers with Orca
 # itself; only that registration is removed again, never any other.
 #
 # NOT zero-cost: needs `orca` on PATH talking to a live Orca runtime, and
-# spends a small number of real tokens on one trivial claude prompt. Opt in:
+# spends a small number of real tokens on a few trivial claude turns. Opt in:
 #
 #   CHIEF_TEST_ORCA=1 bash tests/chief/test-backend-orca.sh
 #
@@ -59,6 +60,15 @@ wait_for_idle() {  # <id> [timeout-s]
   local id=$1 timeout=${2:-60} waited=0
   while [ "$waited" -lt "$timeout" ]; do
     backend_busy "$id" || return 0
+    sleep 1
+    waited=$((waited + 1))
+  done
+  return 1
+}
+wait_capture() {  # <id> <text> [timeout-s] - the task's screen shows <text> (a transient hint can cover it briefly)
+  local id=$1 text=$2 timeout=${3:-20} waited=0
+  while [ "$waited" -lt "$timeout" ]; do
+    backend_capture "$id" | grep -qF -- "$text" && return 0
     sleep 1
     waited=$((waited + 1))
   done
@@ -157,7 +167,7 @@ cleanup_orca() {
 # files recorded above.
 cleanup_claude() {
   local wt dir f leaf
-  for wt in "${WORKTREE:-}" "${WORKTREE2:-}" "${SWEPT_WORKTREES[@]}"; do
+  for wt in "${WORKTREE:-}" "${WORKTREE2:-}" "${E2E_WT:-}" "${SWEPT_WORKTREES[@]}"; do
     case "$wt" in "$SCRATCH_WS"/*) ;; *) continue ;; esac
     dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$(printf '%s' "$wt" | sed 's/[^A-Za-z0-9]/-/g')"
     for f in "$dir"/*.jsonl; do
@@ -201,6 +211,8 @@ assert_eq "$?" "0" "backend_spawn printed a non-empty worktree path"
 assert_contains "$ENDPOINT" "orca:" "backend_spawn prints an orca: endpoint second"
 record_leaves "$WORKTREE"
 assert_file_exists "$WORKTREE/.git" "backend_spawn actually created the git worktree (via orca)"
+assert_eq "$(orca terminal list --worktree "path:$WORKTREE" --json 2>/dev/null | jq -r '[.result.terminals[]?] | length')" "1" \
+  "backend_spawn leaves the worktree with just the agent's terminal (no fallback shell)"
 
 [ -n "$(_repo_id)" ]
 assert_eq "$?" "0" "backend_spawn registered the unregistered scratch project with Orca"
@@ -218,7 +230,8 @@ assert_eq "$CURRENT_BRANCH" "$BRANCH" "the worktree is on the exact chief/<id> b
 wait_for_idle "$ID"
 CAPTURE=$(backend_capture "$ID")
 assert_contains "$CAPTURE" "ok" "backend_capture shows the claude reply"
-assert_contains "$CAPTURE" "bypass permissions" "backend_spawn starts the worker with bypass permissions on"
+wait_capture "$ID" "bypass permissions"
+assert_eq "$?" "0" "backend_spawn starts the worker with bypass permissions on"
 
 backend_busy "$ID"
 assert_eq "$?" "1" "backend_busy reports idle (not busy) once the reply is done"
@@ -274,6 +287,78 @@ backend_teardown "$ID" "$PROJECT" "$WORKTREE"
 _orca_has_worktree "$WORKTREE"
 assert_eq "$?" "1" "backend_teardown leaves no stale worktree entry in 'orca worktree list'"
 assert_eq "$(_child_count)" "0" "no task remains nested under the main worktree"
+
+# --- end to end: the real lifecycle scripts on this backend ---------------
+# A scout, so teardown needs no landed branch. A real claude turn, driven only
+# through chief-spawn / chief-send / chief-control / chief-crew-state /
+# chief-teardown.
+export CHIEF_BACKEND=orca
+E2E="chief-test-e2e-$$"
+E2E_BRANCH="feat/$E2E"
+E2E_STATUS="$STATE/$E2E.status"
+wait_for_status() {  # <prefix> [timeout-s] - the task's last status line starts with <prefix>
+  local waited=0 timeout=${2:-180}
+  while [ "$waited" -lt "$timeout" ]; do
+    tail -n1 "$E2E_STATUS" 2>/dev/null | grep -q "^$1" && return 0
+    sleep 2
+    waited=$((waited + 2))
+  done
+  return 1
+}
+
+timeout 240 "$CHIEF_BIN/chief-spawn.sh" "$E2E" "$PROJECT" --mode scout --branch "$E2E_BRANCH" \
+  --intent "Reply with exactly the single word: ok. Also write that word into the report file, then finish with a done status line." \
+  >"$WORK/e2e-spawn.out" 2>&1
+E2E_RC=$?
+assert_eq "$E2E_RC" "0" "chief-spawn.sh succeeds on the orca backend"
+[ "$E2E_RC" = "0" ] || cat "$WORK/e2e-spawn.out"
+E2E_WT=$(chief_meta_get "$E2E" worktree)
+E2E_EP=$(chief_meta_get "$E2E" endpoint)
+record_leaves "$E2E_WT"
+assert_eq "$(chief_meta_get "$E2E" status)" "working" "chief-spawn.sh marks the task working"
+assert_contains "$E2E_EP" "orca:" "chief-spawn.sh records an orca endpoint"
+assert_eq "$(git -C "$E2E_WT" rev-parse --abbrev-ref HEAD)" "$E2E_BRANCH" "the task worktree is on the requested branch"
+_parent_is_main "$E2E_WT"
+assert_eq "$?" "0" "the task is nested under the project's main worktree"
+assert_eq "$(_child_count)" "1" "the main worktree has exactly the one task under it"
+
+wait_for_status "done" 180
+assert_eq "$?" "0" "the builder reports done through its status file"
+wait_for_idle "$E2E"
+assert_contains "$(backend_capture "$E2E")" "ok" "backend_capture shows the builder's real reply"
+wait_capture "$E2E" "bypass permissions"
+assert_eq "$?" "0" "the builder runs in bypass-permissions mode"
+assert_contains "$("$CHIEF_BIN/task/chief-crew-state.sh" "$E2E" 2>&1)" "state: done" "chief-crew-state.sh reports done"
+
+"$CHIEF_BIN/task/chief-send.sh" "$E2E" "no action needed, just reply ok" >"$WORK/e2e-send.out" 2>&1
+assert_eq "$?" "0" "chief-send.sh succeeds"
+assert_file_exists "$STATE/$E2E.inbox/001.msg" "chief-send.sh writes the durable inbox message"
+
+"$CHIEF_BIN/task/chief-control.sh" "$E2E" interrupt >/dev/null 2>&1
+assert_eq "$?" "0" "chief-control.sh interrupt succeeds"
+assert_eq "$(chief_meta_get "$E2E" endpoint)" "$E2E_EP" "interrupt keeps the same terminal"
+
+timeout 240 "$CHIEF_BIN/task/chief-control.sh" "$E2E" relaunch --note "e2e relaunch" >"$WORK/e2e-relaunch.out" 2>&1
+RELAUNCH_RC=$?
+assert_eq "$RELAUNCH_RC" "0" "chief-control.sh relaunch succeeds"
+[ "$RELAUNCH_RC" = "0" ] || cat "$WORK/e2e-relaunch.out"
+record_leaves "$E2E_WT"
+[ "$(chief_meta_get "$E2E" endpoint)" != "$E2E_EP" ]
+assert_eq "$?" "0" "relaunch records a fresh terminal"
+assert_eq "$(_child_count)" "1" "relaunch keeps the one task nested under the main worktree"
+wait_for_idle "$E2E"
+wait_capture "$E2E" "bypass permissions"
+assert_eq "$?" "0" "the relaunched builder runs in bypass-permissions mode"
+
+"$CHIEF_BIN/chief-teardown.sh" "$E2E" >"$WORK/e2e-teardown.out" 2>&1
+assert_eq "$?" "0" "chief-teardown.sh succeeds"
+assert_eq "$(chief_meta_get "$E2E" status)" "torn-down" "teardown marks the task torn down"
+assert_file_missing "$E2E_WT" "teardown removes the worktree"
+_orca_has_worktree "$E2E_WT"
+assert_eq "$?" "1" "teardown leaves no worktree entry in 'orca worktree list'"
+assert_eq "$(_child_count)" "0" "no task remains nested under the main worktree"
+git -C "$PROJECT" show-ref --verify --quiet "refs/heads/$E2E_BRANCH"
+assert_eq "$?" "1" "teardown deletes the task's branch"
 
 cleanup_orca
 cleanup_claude

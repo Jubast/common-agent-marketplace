@@ -46,8 +46,8 @@ JSON output (skipped gracefully if absent).
 | `test-spawn-cleanup.sh` | `chief-spawn.sh`'s required `--branch` (nothing left behind when missing), rollback on a failed/malformed `backend_spawn` (`backend_spawn_cleanup`, no orphaned worktree/branch/meta) an interrupted spawn's `status=spawning` stub (crew-state, watch, teardown), and the atomic spawn lock, against the mock backend's `CHIEF_MOCK_SPAWN_FAIL`/`CHIEF_MOCK_SPAWN_MALFORMED` injectors |
 | `test-project-workspace.sh` | The spawn/teardown flow on the mock backend: origin sync before the worktree exists, and no `.chief` ever created inside a project (default `CHIEF_HOME` from a project or its worktree) |
 | `test-backend-herdr.sh` | `backends/herdr.sh` against a REAL herdr install and a real (trivial) claude turn: spawn (including hitting and clearing the real trust dialog), capture, busy, send, kill, relaunch, and `_chief_herdr_prompt_box_has_text` against real pane rendering (a placeholder-hint box and text genuinely in flight). **Not zero-cost** - opt in with `CHIEF_TEST_HERDR=1`; skips cleanly otherwise. See below. |
-| `test-backend-orca-mock.sh` | `backends/orca.sh`'s argument-building and JSON-parsing against a fake `orca` CLI stub: spawn (repo registration, parent-worktree nesting, bypass-permissions launch, terminal closed on a failed brief), `backend_spawn_cleanup` rollback, capture, busy, send, kill, `backend_teardown`, relaunch, and the real `chief-spawn`/`send`/`control`/`teardown` scripts end to end on the orca backend (herdr-parity flow). Zero cost. |
-| `test-backend-orca.sh` | `backends/orca.sh` against a REAL live Orca instance and a real (trivial) claude turn, on a scratch repo: spawn (incl. repo registration and parent-worktree nesting), capture, busy, send, kill, relaunch, `backend_teardown`, `backend_spawn_cleanup`. **Not zero-cost** - opt in with `CHIEF_TEST_ORCA=1`; skips cleanly otherwise. See below. |
+| `test-backend-orca-mock.sh` | `backends/orca.sh`'s argument-building and JSON-parsing against a fake `orca` CLI stub: spawn via `worktree create --agent claude --prompt` (repo registration, parent-worktree nesting, trust dialog, bypass-permissions check, lost/unsubmitted prompt recovery, rollback on every failure), `backend_spawn_cleanup` rollback, capture, busy, send, kill, `backend_teardown`, relaunch, and the real `chief-spawn`/`send`/`control`/`teardown` scripts end to end on the orca backend (herdr-parity flow). Zero cost. |
+| `test-backend-orca.sh` | `backends/orca.sh` against a REAL live Orca instance and real (trivial) claude turns, on a scratch repo: spawn via Orca's claude agent (incl. repo registration and parent-worktree nesting), capture, busy, send, kill, relaunch, `backend_teardown`, `backend_spawn_cleanup`, then the real `chief-spawn`/`send`/`control` (interrupt, relaunch)/`crew-state`/`teardown` scripts end to end. **Not zero-cost** - opt in with `CHIEF_TEST_ORCA=1`; skips cleanly otherwise. See below. |
 
 ## The herdr and orca backend tests are different from the rest
 
@@ -72,7 +72,7 @@ whether the live input line already holds our own submitted text.
 
 `backends/orca.sh` runs on a throwaway scratch repo like herdr's: `backend_spawn`
 registers it with Orca (`orca repo add`) and tasks nest under its main
-worktree. Spawn, relaunch, teardown and spawn rollback are all exercised live.
+worktree. Spawn, relaunch, teardown, spawn rollback and the real lifecycle scripts are all exercised live.
 The test snapshots Orca before the run (repos, every repo's worktrees,
 terminals, projects, project setups, `~/orca/workspaces`) and asserts the same
 snapshot afterwards, plus no mention of the scratch repo in `orca-data.json`

@@ -2,10 +2,10 @@
 # orca.sh - Orca backend adapter (`orca agent-context --json`, schema v1).
 #
 # Same flow as herdr.sh: each task gets its own linked worktree plus a
-# terminal running claude, started in bypass-permissions mode (dispatched
-# workers are unattended - nobody is present to answer a permission dialog),
-# given the brief's CONTENT as its first prompt (the brief lives outside the
-# worktree), and cleaned up on any failure.
+# terminal running claude in bypass-permissions mode (dispatched workers are
+# unattended - nobody is present to answer a permission dialog), given the
+# brief's CONTENT as its first prompt (the brief lives outside the worktree),
+# and cleaned up on any failure.
 #
 # Orca only resolves a worktree selector for a worktree IT created, so
 # backend_spawn goes through `orca worktree create --repo path:<project>`,
@@ -15,17 +15,26 @@
 # That call can't pin a branch or path: Orca picks its own branch name, which
 # is renamed to the exact requested one, and the path is used as-is.
 #
+# The two launch paths differ because the CLI does:
+#  - backend_spawn uses `worktree create --agent claude --prompt <brief>`:
+#    Orca launches its named agent (its agentDefaultArgs carry
+#    --dangerously-skip-permissions) in the worktree's only terminal and sends
+#    the prompt once the TUI is up. The result has no delivery signal, so
+#    _chief_orca_confirm_prompt checks the screen and recovers a lost prompt.
+#  - backend_relaunch reuses an existing worktree, and `terminal create` has
+#    no --agent, so it runs `claude --dangerously-skip-permissions` via
+#    --command and sends the brief itself (_chief_orca_prompt).
+# Both paths accept claude's trust dialog and fail unless the screen then
+# shows bypass-permissions mode.
+#
 # Endpoint: "orca:<terminal-handle>". backend_busy polls `orca terminal
-# wait --for tui-idle` with a short timeout.
+# wait --for tui-idle` with a short timeout. Readiness and prompt delivery go
+# by the rendered screen instead: `tui-idle` reports the bare shell as idle
+# before claude has started.
 #
 # backend_kill closes every terminal in the task's worktree (herdr closes the
 # whole workspace). backend_teardown also tells Orca to forget the worktree,
 # which plain `git worktree remove` would leave as a stale entry.
-#
-# Readiness and prompt delivery go by the rendered screen, not `tui-idle`
-# (see _chief_orca_wait_screen / _chief_orca_prompt). The worktree's fallback
-# shell tab from `worktree create` is left alone; backend_kill closes it with
-# the rest.
 
 _chief_orca_handle() {  # <id> -> the task's terminal handle
   chief_meta_get "$1" endpoint | sed 's/^orca://'
@@ -69,7 +78,7 @@ _chief_orca_screen() {  # <handle> -> the terminal's rendered screen
 # `tui-idle`: it reports the bare shell as idle before claude has started,
 # and a prompt sent into that gap is silently dropped.
 _chief_orca_wait_screen() {
-  local handle=$1 pattern=$2 timeout=${3:-30} waited=0
+  local handle=$1 pattern=$2 timeout=${3:-${CHIEF_ORCA_START_WAIT:-30}} waited=0
   while [ "$waited" -lt $((timeout * 2)) ]; do
     _chief_orca_screen "$handle" | grep -Eq "$pattern" && return 0
     sleep 0.5
@@ -88,6 +97,19 @@ _chief_orca_accept_trust_dialog() {
     orca terminal send --terminal "$handle" --enter >/dev/null 2>&1
     _chief_orca_wait_screen "$handle" 'bypass permissions' || true
   fi
+}
+
+# _chief_orca_start_ready <handle> - claude is up, past its trust dialog, and
+# in bypass-permissions mode; otherwise an unattended worker would sit on a
+# permission prompt nobody answers.
+_chief_orca_start_ready() {
+  local handle=$1
+  _chief_orca_accept_trust_dialog "$handle"
+  # A transient hint ("paste again to expand") can cover the status line.
+  _chief_orca_wait_screen "$handle" 'bypass permissions' && return 0
+  echo "chief-backend-orca: claude in $handle is not in bypass-permissions mode; screen:" >&2
+  _chief_orca_screen "$handle" | grep -v '^[[:space:]]*$' | tail -5 | sed 's/^/  /' >&2
+  return 1
 }
 
 # _chief_orca_prompt <handle> <text> - submit <text> to <handle>. Does NOT
@@ -115,9 +137,33 @@ _chief_orca_prompt() {
   fi
 }
 
-# _chief_orca_launch <worktree> <brief_path> -> creates a terminal, starts
-# claude, clears the trust dialog, submits the brief; prints the handle.
-# Closes the new terminal if the brief can't be delivered.
+# _chief_orca_confirm_prompt <handle> <text> - checks that the --prompt Orca
+# queued reached claude. Claude shows a long paste as "[Pasted text ...]", so
+# either that or the text's own prefix on the screen counts as landed. Landed
+# but still in the live input line (the last "❯" line) gets a bare Enter;
+# not landed within CHIEF_ORCA_PROMPT_WAIT seconds is resent.
+_chief_orca_confirm_prompt() {
+  local handle=$1 text=$2
+  local needle waited=0 limit=$(( ${CHIEF_ORCA_PROMPT_WAIT:-20} * 2 )) screen
+  needle=$(printf '%s' "$text" | tr -s '[:space:]' ' ' | cut -c1-24)
+  while :; do
+    screen=$(_chief_orca_screen "$handle")
+    if printf '%s' "$screen" | tr -s '[:space:]' ' ' | grep -qF -e "$needle" -e "[Pasted text"; then
+      if printf '%s\n' "$screen" | grep '^[[:space:]]*❯' | tail -n1 | tr -s '[:space:]' ' ' | grep -qF -e "$needle" -e "[Pasted text"; then
+        orca terminal send --terminal "$handle" --enter >/dev/null 2>&1
+      fi
+      return 0
+    fi
+    [ "$waited" -lt "$limit" ] || break
+    sleep 0.5
+    waited=$((waited + 1))
+  done
+  _chief_orca_prompt "$handle" "$text"
+}
+
+# _chief_orca_launch <worktree> <brief_path> -> creates a terminal in an
+# existing worktree, starts claude, submits the brief; prints the handle.
+# Closes the new terminal if that fails.
 _chief_orca_launch() {
   local worktree=$1 brief_path=$2
   local json handle
@@ -129,31 +175,37 @@ _chief_orca_launch() {
   [ -n "$handle" ] \
     || { echo "chief-backend-orca: could not read terminal handle from: $json" >&2; return 1; }
 
-  _chief_orca_accept_trust_dialog "$handle"
-  _chief_orca_prompt "$handle" "$(cat "$brief_path")" || { _chief_orca_close_tab "$handle"; return 1; }
+  { _chief_orca_start_ready "$handle" && _chief_orca_prompt "$handle" "$(cat "$brief_path")"; } \
+    || { _chief_orca_close_tab "$handle"; return 1; }
 
   printf '%s\n' "$handle"
 }
 
 backend_spawn() {
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
-  local json worktree orca_branch
+  local json worktree orca_branch handle brief
+  brief=$(cat "$brief_path")
   _chief_orca_ensure_repo "$project_dir" || return 1
-  json=$(orca worktree create --repo "path:$project_dir" --name "$id" --parent-worktree "path:$project_dir" --json 2>/dev/null) \
+  json=$(orca worktree create --repo "path:$project_dir" --name "$id" --parent-worktree "path:$project_dir" \
+           --agent claude --prompt "$brief" --json 2>/dev/null) \
     || { echo "chief-backend-orca: 'orca worktree create' failed: $json" >&2; return 1; }
 
+  # From here a worktree and terminal exist: any failure rolls them back.
   worktree=$(printf '%s' "$json" | jq -r '.result.worktree.path // empty')
   orca_branch=$(printf '%s' "$json" | jq -r '.result.worktree.branch // empty' | sed 's#^refs/heads/##')
-  [ -n "$worktree" ] && [ -n "$orca_branch" ] \
-    || { echo "chief-backend-orca: could not read worktree path/branch from: $json" >&2; return 1; }
+  handle=$(printf '%s' "$json" | jq -r '.result.agentTerminalHandle // .result.startupTerminal.handle // empty')
+  [ -n "$worktree" ] && [ -n "$orca_branch" ] && [ -n "$handle" ] \
+    || { echo "chief-backend-orca: could not read worktree path/branch/terminal handle from: $json" >&2
+         backend_spawn_cleanup "$id" "$project_dir" "$branch"; return 1; }
 
   if [ "$orca_branch" != "$branch" ]; then
     git -C "$worktree" branch -m "$branch" \
-      || { echo "chief-backend-orca: could not rename branch '$orca_branch' to '$branch' in $worktree" >&2; return 1; }
+      || { echo "chief-backend-orca: could not rename branch '$orca_branch' to '$branch' in $worktree" >&2
+           backend_spawn_cleanup "$id" "$project_dir" "$branch"; return 1; }
   fi
 
-  local handle
-  handle=$(_chief_orca_launch "$worktree" "$brief_path") || return 1
+  { _chief_orca_start_ready "$handle" && _chief_orca_confirm_prompt "$handle" "$brief"; } \
+    || { backend_spawn_cleanup "$id" "$project_dir" "$branch"; return 1; }
 
   printf '%s\n' "$worktree"
   printf 'orca:%s\n' "$handle"
