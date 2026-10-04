@@ -99,6 +99,7 @@ assert_eq "$CURRENT_BRANCH" "$BRANCH" "the worktree is on the exact chief/<id> b
 
 CAPTURE=$(backend_capture "$ID")
 assert_contains "$CAPTURE" "ok" "backend_capture shows the claude reply"
+assert_contains "$CAPTURE" "bypass permissions" "backend_spawn starts the worker with bypass permissions on"
 
 backend_busy "$ID"
 assert_eq "$?" "1" "backend_busy reports idle (not busy) once the reply is done"

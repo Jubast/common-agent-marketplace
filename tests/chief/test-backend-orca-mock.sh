@@ -35,6 +35,8 @@ mkdir -p "$WORK/project" "$WORK/bin"
 # --name into the branch, like the real Orca does) so backend_spawn's
 # branch rename has something real to act on; fails instead with
 # $ORCA_MOCK_WT_FAIL=1, for the "project isn't Orca-known" path.
+# `worktree list`/`rm` mirror that against the real git worktrees under
+# $ORCA_MOCK_WORKTREES. `terminal send` fails with $ORCA_MOCK_SEND_FAIL=1.
 cat > "$WORK/bin/orca" <<'FAKE_ORCA'
 #!/usr/bin/env bash
 echo "$*" >> "$ORCA_MOCK_LOG"
@@ -68,6 +70,23 @@ case "$1 $2" in
     echo '{"ok":true,"result":{"terminal":{"tail":["line one","line two"]}}}'
     ;;
   "terminal send")
+    if [ "${ORCA_MOCK_SEND_FAIL:-0}" = "1" ]; then
+      echo '{"ok":false,"error":{"code":"runtime_error"}}'
+      exit 1
+    fi
+    echo '{"ok":true}'
+    ;;
+  "worktree list")
+    repo_path="${4#path:}"
+    git -C "$repo_path" worktree list --porcelain | awk -v root="$ORCA_MOCK_WORKTREES/" '
+      /^worktree / { path = substr($0, 10) }
+      /^branch /   { if (index(path, root) == 1) printf "{\"path\":\"%s\",\"branch\":\"%s\"}\n", path, substr($0, 8) }' \
+      | jq -sc '{ok:true,result:{worktrees:.}}'
+    ;;
+  "worktree rm")
+    wt="${4#path:}"
+    common=$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir) || exit 1
+    git -C "$common/.." worktree remove --force "$wt" || exit 1
     echo '{"ok":true}'
     ;;
   "terminal close")
@@ -113,8 +132,8 @@ assert_eq "$CURRENT_BRANCH" "$BRANCH" "backend_spawn renamed Orca's sanitized br
 
 assert_contains "$(cat "$ORCA_MOCK_LOG")" "worktree create --repo path:$WORK/project --name $ID --no-parent --json" \
   "backend_spawn calls 'orca worktree create' scoped to the project repo, not a raw git worktree add"
-assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal create --worktree path:$WORKTREE --command claude --json" \
-  "backend_spawn calls 'orca terminal create' scoped to the worktree path Orca just made"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal create --worktree path:$WORKTREE --command claude --dangerously-skip-permissions --json" \
+  "backend_spawn launches claude in bypass-permissions mode in the worktree path Orca just made"
 assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal send --terminal term_mock-1 --text Reply with exactly the single word: ok" \
   "backend_spawn submits the brief's own content as the first prompt (not a path)"
 
@@ -164,9 +183,19 @@ assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal send --terminal term_mock-1 
 : > "$ORCA_MOCK_LOG"
 backend_kill "$ID"
 assert_eq "$?" "0" "backend_kill exits cleanly"
-assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal close --terminal term_mock-1 --tab" \
-  "backend_kill closes the terminal's whole tab"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal close --worktree path:$WORKTREE --all" \
+  "backend_kill closes every terminal in the task's worktree"
 assert_file_exists "$WORKTREE/.git" "backend_kill does not touch the worktree"
+
+: > "$ORCA_MOCK_LOG"
+chief_meta_set "t-orca-nowt" endpoint "orca:term_mock-9"
+backend_kill "t-orca-nowt"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal close --terminal term_mock-9 --tab" \
+  "backend_kill falls back to closing the terminal's tab with no recorded worktree"
+
+: > "$ORCA_MOCK_LOG"
+backend_kill "t-orca-none"
+assert_eq "$(cat "$ORCA_MOCK_LOG")" "" "backend_kill is a no-op for a task with no endpoint"
 
 : > "$ORCA_MOCK_LOG"
 BRIEF2="$WORK/brief2.md"
@@ -177,9 +206,96 @@ assert_eq "$RELAUNCH_RC" "0" "backend_relaunch succeeds"
 
 NEW_ENDPOINT=$(chief_meta_get "$ID" endpoint)
 assert_eq "$NEW_ENDPOINT" "orca:term_mock-1" "backend_relaunch records a fresh orca:<handle> endpoint"
-assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal create --worktree path:$WORKTREE --command claude --json" \
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal create --worktree path:$WORKTREE --command claude --dangerously-skip-permissions --json" \
   "backend_relaunch creates a fresh terminal in the SAME (existing) worktree path"
 assert_not_contains "$(cat "$ORCA_MOCK_LOG")" "worktree create" \
   "backend_relaunch never calls 'orca worktree create' (no new checkout)"
+
+# --- parity with herdr: failure cleanup, rollback, teardown, full flow -----
+
+# A failed brief delivery closes the terminal it just opened, and fails the spawn.
+: > "$ORCA_MOCK_LOG"
+ORCA_MOCK_SEND_FAIL=1 backend_spawn "t-orca-c" "$WORK/project" "$BRIEF" "chief/t-orca-c" 2>/dev/null
+assert_eq "$?" "1" "backend_spawn fails when the brief can't be delivered"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal close --terminal term_mock-1 --tab" \
+  "backend_spawn closes the terminal it opened when the brief can't be delivered"
+
+# ...which leaves the worktree/branch for backend_spawn_cleanup to roll back,
+# found by branch with no meta record. An unrelated worktree is left alone.
+backend_spawn "t-orca-keep" "$WORK/project" "$BRIEF" "chief/t-orca-keep" >/dev/null 2>&1
+assert_file_exists "$ORCA_MOCK_WORKTREES/t-orca-c/.git" "the failed spawn left its worktree behind"
+: > "$ORCA_MOCK_LOG"
+backend_spawn_cleanup "t-orca-c" "$WORK/project" "chief/t-orca-c"
+assert_eq "$?" "0" "backend_spawn_cleanup exits cleanly"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "worktree rm --worktree path:$ORCA_MOCK_WORKTREES/t-orca-c --force" \
+  "backend_spawn_cleanup has Orca remove the failed task's worktree"
+assert_file_missing "$ORCA_MOCK_WORKTREES/t-orca-c" "backend_spawn_cleanup leaves no worktree on disk"
+assert_eq "$(git -C "$WORK/project" branch --list 'chief/t-orca-c' | wc -l | tr -d ' ')" "0" \
+  "backend_spawn_cleanup deletes the task's branch"
+assert_file_exists "$ORCA_MOCK_WORKTREES/t-orca-keep/.git" "backend_spawn_cleanup leaves an unrelated worktree alone"
+
+# A spawn that failed before the branch rename leaves Orca's own sanitized branch.
+git -C "$WORK/project" worktree add -q -b t-orca-r "$ORCA_MOCK_WORKTREES/t-orca-r"
+backend_spawn_cleanup "t-orca-r" "$WORK/project" "chief/t-orca-r"
+assert_file_missing "$ORCA_MOCK_WORKTREES/t-orca-r" "backend_spawn_cleanup also finds a worktree still on Orca's own branch"
+assert_eq "$(git -C "$WORK/project" branch --list 't-orca-r' | wc -l | tr -d ' ')" "0" \
+  "backend_spawn_cleanup deletes Orca's own branch too"
+
+: > "$ORCA_MOCK_LOG"
+backend_spawn_cleanup "t-orca-never" "$WORK/project" "chief/t-orca-never"
+assert_eq "$?" "0" "backend_spawn_cleanup is a no-op when nothing was created"
+assert_not_contains "$(cat "$ORCA_MOCK_LOG")" "worktree rm" "backend_spawn_cleanup removes nothing when no worktree matches"
+
+# backend_teardown makes Orca forget the worktree.
+: > "$ORCA_MOCK_LOG"
+backend_teardown "t-orca-keep" "$WORK/project" "$ORCA_MOCK_WORKTREES/t-orca-keep"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "worktree rm --worktree path:$ORCA_MOCK_WORKTREES/t-orca-keep --force" \
+  "backend_teardown has Orca remove the worktree"
+
+# The real lifecycle scripts end to end on this backend, same flow as herdr:
+# spawn -> send -> interrupt -> relaunch -> teardown, ending with no worktree,
+# branch or terminal left behind.
+export CHIEF_BACKEND=orca
+FLOW=t-orca-flow
+: > "$ORCA_MOCK_LOG"
+"$CHIEF_BIN/chief-spawn.sh" "$FLOW" "$WORK/project" --mode ship --branch feat/flow --intent "flow" >"$WORK/flow.out" 2>&1
+assert_eq "$?" "0" "chief-spawn.sh succeeds on the orca backend"
+FLOW_WT=$(chief_meta_get "$FLOW" worktree)
+assert_eq "$FLOW_WT" "$ORCA_MOCK_WORKTREES/$FLOW" "chief-spawn.sh records the worktree path Orca chose"
+assert_eq "$(chief_meta_get "$FLOW" endpoint)" "orca:term_mock-1" "chief-spawn.sh records the orca:<handle> endpoint"
+assert_eq "$(chief_meta_get "$FLOW" status)" "working" "chief-spawn.sh marks the task working"
+assert_eq "$(git -C "$FLOW_WT" rev-parse --abbrev-ref HEAD)" "feat/flow" "the task worktree is on the requested branch"
+
+"$CHIEF_BIN/task/chief-send.sh" "$FLOW" "please continue" >/dev/null 2>&1
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal send --terminal term_mock-1 --text chief: instruction waiting in" \
+  "chief-send.sh rings the doorbell in the task's terminal"
+
+"$CHIEF_BIN/task/chief-control.sh" "$FLOW" interrupt >/dev/null 2>&1
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal send --terminal term_mock-1 --text $(printf '\033')" \
+  "chief-control.sh interrupt sends Escape to the task's terminal"
+
+: > "$ORCA_MOCK_LOG"
+"$CHIEF_BIN/task/chief-control.sh" "$FLOW" relaunch --note "halfway" >/dev/null 2>&1
+assert_eq "$?" "0" "chief-control.sh relaunch succeeds on the orca backend"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal close --worktree path:$FLOW_WT --all" "relaunch first closes the old terminals"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal create --worktree path:$FLOW_WT --command claude --dangerously-skip-permissions" \
+  "relaunch starts a fresh bypass-permissions claude in the same worktree"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "halfway" "relaunch delivers the checkpoint note in the brief"
+
+: > "$ORCA_MOCK_LOG"
+"$CHIEF_BIN/chief-teardown.sh" "$FLOW" --abandon >/dev/null 2>&1
+assert_eq "$?" "0" "chief-teardown.sh --abandon succeeds on the orca backend"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal close --worktree path:$FLOW_WT --all" "teardown closes the task's terminals"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "worktree rm --worktree path:$FLOW_WT --force" "teardown has Orca forget the worktree"
+assert_file_missing "$FLOW_WT" "teardown removes the worktree"
+assert_eq "$(git -C "$WORK/project" branch --list 'feat/flow' | wc -l | tr -d ' ')" "0" "teardown deletes the task's branch"
+
+# A spawn whose brief can't be delivered rolls back through chief-spawn.sh.
+FAIL=t-orca-flowfail
+ORCA_MOCK_SEND_FAIL=1 "$CHIEF_BIN/chief-spawn.sh" "$FAIL" "$WORK/project" --mode ship --branch feat/flowfail --intent "x" >/dev/null 2>&1
+assert_eq "$?" "1" "chief-spawn.sh fails when the orca backend can't deliver the brief"
+assert_file_missing "$ORCA_MOCK_WORKTREES/$FAIL" "chief-spawn.sh's rollback leaves no Orca worktree behind"
+assert_eq "$(git -C "$WORK/project" branch --list 'feat/flowfail' | wc -l | tr -d ' ')" "0" "chief-spawn.sh's rollback leaves no branch behind"
+assert_file_missing "$CHIEF_HOME/state/$FAIL.meta" "chief-spawn.sh's rollback leaves no meta record"
 
 harness_summary

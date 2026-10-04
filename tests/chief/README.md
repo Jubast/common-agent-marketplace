@@ -42,7 +42,7 @@ JSON output (skipped gracefully if absent).
 | `test-spawn-cleanup.sh` | `chief-spawn.sh`'s required `--branch` (nothing left behind when missing), rollback on a failed/malformed `backend_spawn` (`backend_spawn_cleanup`, no orphaned worktree/branch/meta) an interrupted spawn's `status=spawning` stub (crew-state, watch, teardown), and the atomic spawn lock, against the mock backend's `CHIEF_MOCK_SPAWN_FAIL`/`CHIEF_MOCK_SPAWN_MALFORMED` injectors |
 | `test-project-workspace.sh` | The spawn/teardown flow on the mock backend: origin sync before the worktree exists, and no `.chief` ever created inside a project (default `CHIEF_HOME` from a project or its worktree) |
 | `test-backend-herdr.sh` | `backends/herdr.sh` against a REAL herdr install and a real (trivial) claude turn: spawn (including hitting and clearing the real trust dialog), capture, busy, send, kill, relaunch, and `_chief_herdr_prompt_box_has_text` against real pane rendering (a placeholder-hint box and text genuinely in flight). **Not zero-cost** - opt in with `CHIEF_TEST_HERDR=1`; skips cleanly otherwise. See below. |
-| `test-backend-orca-mock.sh` | `backends/orca.sh`'s argument-building and JSON-parsing against a fake `orca` CLI stub: spawn, capture, busy, send, kill, relaunch. Zero cost. |
+| `test-backend-orca-mock.sh` | `backends/orca.sh`'s argument-building and JSON-parsing against a fake `orca` CLI stub: spawn (bypass-permissions launch, terminal closed on a failed brief), `backend_spawn_cleanup` rollback, capture, busy, send, kill, `backend_teardown`, relaunch, and the real `chief-spawn`/`send`/`control`/`teardown` scripts end to end on the orca backend (herdr-parity flow). Zero cost. |
 | `test-backend-orca.sh` | `backends/orca.sh` against a REAL live Orca instance and a real (trivial) claude turn, targeting this repo itself: spawn, capture, busy, send, kill, relaunch. **Not zero-cost** - opt in with `CHIEF_TEST_ORCA=1`; skips cleanly otherwise. See below. |
 
 ## The herdr and orca backend tests are different from the rest
@@ -71,7 +71,9 @@ whether the live input line already holds our own submitted text.
 worktree create` - never a plain `git worktree add`, so the project has to
 already be in `orca repo list`; a throwaway temp repo can't satisfy that.
 Spawn (worktree creation, the branch rename, launch, reply capture,
-busy/idle, send, kill) is confirmed working end to end live. Relaunch has
+busy/idle, send, kill) was last confirmed working end to end live before
+the bypass-permissions launch, spawn rollback and teardown hook were added
+(covered by the fake-CLI test only). Relaunch has
 a known issue - see the adapter's own header.
 
 ## What's deliberately NOT here (needs the devcontainer instead)
