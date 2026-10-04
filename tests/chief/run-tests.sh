@@ -19,6 +19,11 @@ echo " Chief plugin - functional test suite"
 echo "========================================"
 echo ""
 
+# Mock-backend workers (argv0 chief-mock-*) alive now; a test that leaves one
+# behind shows up as a new pid after the sweep.
+mock_pids() { ps -eo pid=,args= | awk '$2 ~ /^chief-mock-/ { print $1 }' | sort; }
+MOCK_BEFORE=$(mock_pids)
+
 total_files=0
 failed_files=0
 
@@ -31,6 +36,10 @@ for f in "$SCRIPT_DIR"/test-*.sh; do
   fi
   echo ""
 done
+
+LEAKED=$(comm -13 <(echo "$MOCK_BEFORE") <(mock_pids) | wc -l | tr -d ' ')
+echo "mock workers left behind: $LEAKED"
+[ "$LEAKED" -eq 0 ] || failed_files=$((failed_files + 1))
 
 echo "========================================"
 if [ "$failed_files" -eq 0 ]; then

@@ -11,7 +11,7 @@ BIN="$REPO_ROOT/plugins/chief/bin"
 . "$TEST_DIR/lib/harness.sh"
 
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+harness_trap 'rm -rf "$WORK"'
 mkdir -p "$WORK/project" && cd "$WORK/project" && git init -q -b master
 export CHIEF_HOME="$WORK/.chief"
 export CHIEF_BACKEND=mock

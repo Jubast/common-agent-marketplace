@@ -13,6 +13,10 @@ including quirks - like a dim placeholder hint filling an empty input box -
 a hand-written stub wouldn't reproduce, so it's covered by
 `test-backend-herdr.sh` against the real thing instead.)
 
+## Cleanup
+
+Tests that use the mock backend set their cleanup with `harness_trap` (`lib/harness.sh`): on EXIT/INT/TERM/HUP it kills the `chief-mock-*` workers the test started (found via the pid log `mock.sh` appends to, never by name), then runs the test's own cleanup. `run-tests.sh` counts `chief-mock-*` processes before and after the sweep and fails if any are new.
+
 ## Running
 
 ```bash
