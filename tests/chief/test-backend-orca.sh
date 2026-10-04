@@ -2,7 +2,7 @@
 # test-backend-orca.sh - exercises orca.sh's adapter functions against a REAL
 # live Orca instance and a real (minimal) claude turn, on a throwaway scratch
 # repo (like test-backend-herdr.sh) that backend_spawn registers with Orca
-# itself and the cleanup trap unregisters again.
+# itself; only that registration is removed again, never any other.
 #
 # NOT zero-cost: needs `orca` on PATH talking to a live Orca runtime, and
 # spends a small number of real tokens on one trivial claude prompt. Opt in:
@@ -16,7 +16,6 @@ set -uo pipefail
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
-PROJECT=$(cd "$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)
 . "$TEST_DIR/lib/harness.sh"
 
 echo "test-backend-orca:"
@@ -86,17 +85,32 @@ _parent_is_main() {  # <worktree-path> -> exit 0 if its parent is the project's 
   orca worktree list --repo "path:$PROJECT" --json 2>/dev/null \
     | jq -e --arg p "$1" --arg m "$main_id" '[.result.worktrees[]? | select(.path == $p and .parentWorktreeId == $m)] | length == 1' >/dev/null
 }
+_repo_snapshot() {  # -> every registered repo as "<id> <path>", sorted
+  orca repo list --json 2>/dev/null | jq -r '.result.repos[]? | "\(.id) \(.path)"' | sort
+}
+# Removes only the scratch repo's own registration: exact scratch path, under
+# $WORK, and only if it was absent from the registry before spawn.
+unregister_scratch() {
+  local repo_id
+  [ "${SCRATCH_OURS:-0}" = 1 ] || return 0
+  case "$PROJECT" in "$WORK"/*) ;; *) return 0 ;; esac
+  repo_id=$(_repo_id)
+  [ -n "$repo_id" ] || return 0
+  orca project setup-delete --setup "$repo_id" >/dev/null 2>&1 || true
+}
+REPOS_BEFORE=$(_repo_snapshot)
+[ -z "$(_repo_id)" ] && SCRATCH_OURS=1
 cleanup() {
   # Everything this run could have produced, found by id/path (no meta
   # needed): terminals, worktrees, branches, then the repo registration and
   # Orca's (then empty) per-repo workspace dir.
-  local repo_id wsdir
+  local wsdir
   backend_spawn_cleanup "$ID" "$PROJECT" "$BRANCH" >/dev/null 2>&1 || true
   backend_spawn_cleanup "$ID2" "$PROJECT" "chief/$ID2" >/dev/null 2>&1 || true
   wsdir=$(dirname "${WORKTREE:-}" 2>/dev/null)
-  repo_id=$(_repo_id)
-  [ -n "$repo_id" ] && orca project setup-delete --setup "$repo_id" >/dev/null 2>&1
-  [ -n "$(_repo_id)" ] && echo "  [LEFTOVER] Orca repo registration for $PROJECT (id $(_repo_id))"
+  unregister_scratch
+  [ "$(_repo_snapshot)" = "$REPOS_BEFORE" ] \
+    || { echo "  [LEFTOVER] Orca repo registry differs from before the run:"; diff <(echo "$REPOS_BEFORE") <(_repo_snapshot); }
   [ -n "${WORKTREE:-}" ] && rmdir "$wsdir/.orca-worktree-trash" "$wsdir" 2>/dev/null
   rm -rf "$WORK"
 }
@@ -193,5 +207,8 @@ backend_teardown "$ID" "$PROJECT" "$WORKTREE"
 _orca_has_worktree "$WORKTREE"
 assert_eq "$?" "1" "backend_teardown leaves no stale worktree entry in 'orca worktree list'"
 assert_eq "$(_child_count)" "0" "no task remains nested under the main worktree"
+
+unregister_scratch
+assert_eq "$(_repo_snapshot)" "$REPOS_BEFORE" "Orca's repo registry is identical before and after the run"
 
 harness_summary

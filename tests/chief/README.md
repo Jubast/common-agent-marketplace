@@ -68,7 +68,7 @@ whether the live input line already holds our own submitted text.
 
 `backends/orca.sh` runs on a throwaway scratch repo like herdr's: `backend_spawn`
 registers it with Orca (`orca repo add`), tasks nest under its main worktree,
-and the cleanup trap removes the worktrees, terminals and the registration
+and the cleanup removes the worktrees, terminals and only that registration, asserting the repo registry is unchanged
 (`orca project setup-delete`). Spawn (registration, nesting, the branch
 rename, bypass-permissions launch, reply capture, busy/idle, send, kill),
 relaunch, teardown and spawn rollback are all exercised live. The test
