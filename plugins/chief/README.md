@@ -8,7 +8,7 @@ Inspired by [Firstmate](https://github.com/kunchenguid/firstmate), which does th
 
 ## Layout
 
-- `bin/` - the lifecycle scripts, split into `bin/` (`chief-spawn`, `chief-watch`, `chief-teardown`, `chief-backlog`, `chief-setup`), `bin/task/` (`chief-control`, `chief-crew-state`, `chief-send`, `chief-promote`), and `bin/pr/` (`chief-pr-open`, `chief-pr-update`, `chief-pr-state`, `chief-pr-review`, `chief-pr-approve`, `chief-pr-merge`); and `bin/lib/` (`paths.sh`/`home.sh`/`meta.sh`/`lock.sh`/`brief.sh` helpers, `bin/lib/agents/` with the loader `agent.sh` (a task's adapter, from its meta), `select.sh` (profile selection from `.chief/config/agents`) and the adapters `{claude,codex,copilot}.sh` - the agent's launch command, screen texts and folder pre-trust - `git-sync.sh` - best-effort freshening of a project's default-branch checkout against origin, used by spawn/pr-merge/teardown - `worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one - `bin/lib/backends/` with the loader `backend.sh` and its adapters `{herdr,orca,mock}.sh`, and `bin/lib/pr-providers/` with the loader `pr-provider.sh` and its adapters `{github,gitlab,azuredevops,mock}.sh`).
+- `bin/` - the lifecycle scripts, split into `bin/` (`chief-spawn`, `chief-watch`, `chief-teardown`, `chief-backlog`, `chief-setup`), `bin/task/` (`chief-control`, `chief-crew-state`, `chief-send`, `chief-promote`), and `bin/pr/` (`chief-pr-open`, `chief-pr-update`, `chief-pr-state`, `chief-pr-review`, `chief-pr-approve`, `chief-pr-merge`); and `bin/lib/` (`paths.sh`/`home.sh`/`meta.sh`/`lock.sh`/`brief.sh` helpers, `bin/lib/agents/` with the loader and selector `agent.sh` (a task's adapter from its meta; profile selection from `.chief/config/agents`) and the adapters `{claude,codex,copilot}.sh` - the agent's launch command, screen texts and folder pre-trust - `git-sync.sh` - best-effort freshening of a project's default-branch checkout against origin, used by spawn/pr-merge/teardown - `worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one - `bin/lib/backends/` with the loader `backend.sh` and its adapters `{herdr,orca,mock}.sh`, and `bin/lib/pr-providers/` with the loader `pr-provider.sh` and its adapters `{github,gitlab,azuredevops,mock}.sh`).
 - `templates/` - the two brief templates (`brief-ship.md`, `brief-scout.md`) and the two per-task lifecycle checklists (`lifecycle-ship.md`, `lifecycle-scout.md`) rendered into `state/<id>.lifecycle` at spawn time, mirroring `skills/dispatch/SKILL.md`'s own steps so Chief can recover in-flight progress after a context compaction.
 - `skills/using-chief` - the identity/job-description skill, force-injected every session via the `SessionStart` hook so Chief always knows its role without being asked.
 - `skills/setup` - one-time CHIEF_HOME config (backend choice + gitignoring `.chief/`); only relevant before `.chief/config/backend` exists, which the `SessionStart` digest flags explicitly.
@@ -33,16 +33,19 @@ Workers run on `claude` (default), `codex` or `copilot`, unattended, on herdr an
    codex:gpt-5   weight=2
    copilot       args="--banner" weight=1                  # weight defaults to 1
 
-   [scout]                      # optional [ship] / [scout] pool and strategy; falls back to the global ones
+   [builder]                    # optional pool (and strategy) for builders (ship tasks)
+   claude:opus args="--verbose"
+
+   [scout]                      # and for scouts; a missing section uses the global pool
    strategy = round-robin
    claude:haiku
    codex:gpt-5-mini
    ```
 
-   `#` starts a comment. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<mode>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights.
+   `#` starts a comment. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<builder|scout>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights.
 3. Else `claude` with its default model.
 
-The choice is recorded in the task's meta (`agent`, `model`, `command`) and reused by relaunch and promote; `chief-crew-state.sh`, `chief-backlog.sh list|show` (in-flight) and the session digest show `[agent: <agent>[:<model>]]`. Spawn fails before creating anything for an unknown agent, a malformed profile, a missing CLI, or, for an adapter that defines `agent_models`, a model outside its list; other models are passed to the agent unvalidated.
+The choice is recorded in the task's meta (`agent`, `model`, `args`, `command`) and reused by relaunch and promote; `chief-crew-state.sh`, `chief-backlog.sh list|show` (in-flight) and the session digest show `[agent: <agent>[:<model>]]`. Spawn fails before creating anything for an unknown agent, a malformed profile, a missing CLI, or, for an adapter that defines `agent_models`, a model outside its list; other models are passed to the agent unvalidated.
 
 A profile's `args="..."` (or `--args "..."` on spawn, which replaces the configured ones) adds CLI arguments after the adapter's own unattended and model flags, on herdr and Orca alike, e.g. `claude:opus args="--verbose --add-dir /x"`. Both are split on whitespace, so a value cannot contain quotes. `command="..."` instead replaces the whole launch command (a wrapper, another binary path): Orca runs it as given, while herdr starts the agent's own executable (`--kind`) and uses only the arguments after the command's first word, so prefer `args=` unless you need a different executable. `args` and `command` cannot be combined, and an explicit `--agent` drops both of the configured ones.
 

@@ -86,6 +86,12 @@ assert_success "spawn: explicit agent drops the override" -- spawn a-7 --agent c
 assert_eq "$(meta a-7 command || echo none)" "none" "spawn: --agent does not inherit a configured command"
 rm "$CHIEF_HOME/config/agents"
 
+printf 'claude:opus\n[builder]\ncodex:gpt-5\n[scout]\ncopilot\n' > "$CHIEF_HOME/config/agents"
+assert_success "spawn: ship task with builder/scout pools" -- spawn a-11
+assert_eq "$(meta a-11 agent)" "codex" "spawn: a ship task uses the [builder] pool"
+assert_success "spawn: scout task with builder/scout pools" -- timeout 10 "$BIN/chief-spawn.sh" a-12 "$WORK/project" --mode scout --branch feat/a-12 --intent x
+assert_eq "$(meta a-12 agent)" "copilot" "spawn: a scout task uses the [scout] pool"
+
 printf 'claude:opus args="--verbose"\n' > "$CHIEF_HOME/config/agents"
 assert_success "spawn: config args" -- spawn a-8
 assert_eq "$(meta a-8 args)" "--verbose" "spawn: the profile's args are recorded in meta"

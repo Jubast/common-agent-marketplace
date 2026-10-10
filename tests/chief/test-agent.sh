@@ -52,8 +52,8 @@ chief_meta_set bad agent nope
 assert_contains "$(chief_agent_use bad 2>&1)" "unknown agent 'nope' (available: claude" "load: unknown agent lists the adapters"
 chief_meta_set bad agent ../claude
 assert_contains "$(chief_agent_use bad 2>&1)" "unknown agent '../claude'" "load: a name with a slash is refused"
-chief_meta_set bad agent select
-assert_contains "$(chief_agent_use bad 2>&1)" "unknown agent ''" "load: the loader files are not adapters"
-assert_eq "$(chief_agent_list | grep -cx 'agent\|select')" "0" "list: only adapters"
+chief_meta_set bad agent agent
+assert_contains "$(chief_agent_use bad 2>&1)" "unknown agent 'agent'" "load: the loader file is not an adapter"
+assert_eq "$(chief_agent_list | paste -sd' ' -)" "claude codex copilot" "list: only adapters"
 
 harness_summary

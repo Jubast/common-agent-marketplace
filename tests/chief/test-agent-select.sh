@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-agent-select.sh - agents/select.sh: the .chief/config/agents file and its strategies.
+# test-agent-select.sh - agents/agent.sh: the .chief/config/agents file and its strategies.
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,7 +10,7 @@ WORK=$(mktemp -d)
 harness_trap 'rm -rf "$WORK"'
 export CHIEF_HOME="$WORK/.chief"
 . "$LIB/paths.sh"
-. "$LIB/agents/select.sh"
+. "$LIB/agents/agent.sh"
 CFG="$CONFIG/agents"
 
 echo "test-agent-select:"
@@ -42,9 +42,9 @@ assert_eq "$(pick ship; pick ship; pick ship; pick ship)" "claude:opus|
 codex:gpt-5|
 copilot:|
 claude:opus|" "round-robin: rotates and wraps"
-assert_eq "$(cat "$STATE/agent-cursor-ship")" "4" "round-robin: the cursor is persisted"
+assert_eq "$(cat "$STATE/agent-cursor-builder")" "4" "round-robin: the cursor is persisted"
 assert_eq "$(pick scout)" "claude:opus|" "round-robin: each mode has its own cursor"
-printf 'junk' > "$STATE/agent-cursor-ship"
+printf 'junk' > "$STATE/agent-cursor-builder"
 assert_eq "$(pick ship)" "claude:opus|" "round-robin: a corrupt cursor restarts at the first entry"
 
 rm -f "$STATE"/agent-cursor-*
@@ -93,7 +93,7 @@ claude:opus
 strategy = round-robin
 claude:haiku
 codex:gpt-5-mini
-[ship]
+[builder]
 codex:gpt-5
 EOF2
 rm -f "$STATE"/agent-cursor-*
@@ -128,8 +128,38 @@ claude:opus command="/opt/bin/claude --dangerously-skip-permissions --foo # x" w
 EOF2
 assert_eq "$(pick ship)" "claude:opus|/opt/bin/claude --dangerously-skip-permissions --foo # x" "command: kept verbatim, in either option order"
 
+# builder (mode ship) and scout pools: builder-only, scout-only, both, neither
+cfg <<'EOF2'
+claude:opus
+[builder]
+codex:gpt-5
+EOF2
+assert_eq "$(pick ship; pick scout)" "codex:gpt-5|
+claude:opus|" "builder-only: ship uses [builder], scout falls back to the global pool"
+cfg <<'EOF2'
+claude:opus
+[scout]
+copilot
+EOF2
+assert_eq "$(pick ship; pick scout)" "claude:opus|
+copilot:|" "scout-only: scout uses [scout], ship falls back to the global pool"
+cfg <<'EOF2'
+[builder]
+codex:gpt-5
+[scout]
+copilot
+EOF2
+assert_eq "$(pick ship; pick scout)" "codex:gpt-5|
+copilot:|" "both: each mode uses its own pool, no global pool needed"
+cfg <<'EOF2'
+claude:opus
+EOF2
+assert_eq "$(pick ship; pick scout)" "claude:opus|
+claude:opus|" "neither: both modes use the global pool"
+
 bad() { cfg; chief_agent_select "${1:-ship}" 2>&1; }
 assert_contains "$(bad <<< 'strategy = sometimes')" "unknown strategy 'sometimes'" "error: unknown strategy"
+assert_contains "$(bad <<< '[ship]')" "unknown section [ship]" "error: [ship] is not a section (builder or scout)"
 assert_contains "$(bad <<< '[prod]')" "unknown section [prod]" "error: unknown section"
 assert_contains "$(bad <<< 'Claude')" "bad profile 'Claude'" "error: bad agent name"
 assert_contains "$(bad <<< 'claude:opus weight=x')" "unexpected ' weight=x'" "error: malformed weight"

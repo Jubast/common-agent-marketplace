@@ -7,13 +7,12 @@
 #                        [--agent <agent[:model]>] [--model <model>] [--args "<extra CLI args>"]
 #
 # The agent and model come from --agent/--model, else .chief/config/agents
-# (see lib/agents/select.sh), else claude with its default model.
+# (see lib/agents/agent.sh), else claude with its default model.
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
 . "$CHIEF_ROOT/bin/lib/meta.sh"
 . "$CHIEF_ROOT/bin/lib/backends/backend.sh"
-. "$CHIEF_ROOT/bin/lib/agents/select.sh"
 . "$CHIEF_ROOT/bin/lib/git-sync.sh"
 
 fail() { echo "chief-spawn: $*" >&2; exit 1; }
