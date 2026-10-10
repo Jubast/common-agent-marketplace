@@ -3,10 +3,9 @@
 #
 # state/<id>.status is an append-only EVENT log (a builder appends only on a
 # phase change), so its last line can go stale the moment the builder keeps
-# working without another reportable event. Because Chief supports only
-# Claude Code, every builder's own Stop hook touches state/<id>.turn-ended
-# each time ITS turn ends - that one fact is enough to tell "quietly still
-# working" apart from "actually stalled" without pane-diffing or any
+# working without another reportable event. The brief tells every builder,
+# whatever its agent, to touch state/<id>.turn-ended each time ITS turn ends -
+# that one fact is enough to tell "quietly still working" apart from "actually stalled" without pane-diffing or any
 # backend-specific heuristic.
 #
 # Usage: chief-crew-state.sh <id>

@@ -48,6 +48,13 @@ assert_success "spawn: CHIEF_NO_PRETRUST=1 still spawns" -- \
   env CHIEF_NO_PRETRUST=1 timeout 10 "$BIN/chief-spawn.sh" t-2 "$WORK/project" --mode ship --branch feat/t-2 --intent x
 assert_file_missing "$CFG" "spawn: CHIEF_NO_PRETRUST=1 leaves the claude config untouched"
 
+# the brief is agent-neutral: the turn-ended protocol and review checklist are paths, not Claude hooks/skills
+BRIEF_T1=$(cat "$CHIEF_HOME/data/t-1/brief.md")
+assert_contains "$BRIEF_T1" "touch $CHIEF_HOME/state/t-1.turn-ended" "brief: tells any agent to touch the turn-ended file"
+assert_contains "$BRIEF_T1" "$REPO_ROOT/plugins/chief/skills/reviewer/SKILL.md" "brief: points at the review checklist file"
+assert_not_contains "$BRIEF_T1" "{TURN_FILE}" "brief: no unfilled turn placeholder"
+assert_not_contains "$BRIEF_T1" "reviewer\` skill" "brief: does not rely on the Claude skill mechanism"
+
 # --- agent selection: flags, config, validation --------------------------
 spawn() {  # <id> [flags...]
   local id=$1; shift
