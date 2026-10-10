@@ -39,6 +39,15 @@ assert_eq "$(agent_args)" "" "command override: a bare command has no arguments"
 chief_agent_use t1
 assert_eq "$(agent_command)" "claude --dangerously-skip-permissions --model opus" "use: the next task does not inherit the override"
 
+chief_meta_set t5 agent claude
+chief_meta_set t5 model opus
+chief_meta_set t5 args "--verbose --add-dir /x"
+chief_agent_use t5
+assert_eq "$(agent_command)" "claude --dangerously-skip-permissions --model opus --verbose --add-dir /x" "args: appended after the unattended and model flags"
+assert_eq "$(agent_args)" "--dangerously-skip-permissions --model opus --verbose --add-dir /x" "args: herdr gets the same list"
+chief_agent_use t1
+assert_eq "$(agent_command)" "claude --dangerously-skip-permissions --model opus" "args: the next task does not inherit them"
+
 chief_meta_set bad agent nope
 assert_contains "$(chief_agent_use bad 2>&1)" "unknown agent 'nope' (available: claude" "load: unknown agent lists the adapters"
 chief_meta_set bad agent ../claude

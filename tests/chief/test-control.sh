@@ -20,7 +20,7 @@ echo "test-control:"
 
 assert_failure "refuses an unknown task id" -- "$CTL" nope interrupt
 
-timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode ship --branch feat/t-1 --intent "test" --spec "test" --agent claude:opus >/dev/null
+timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode ship --branch feat/t-1 --intent "test" --spec "test" --agent claude:opus --args "--verbose" >/dev/null
 
 assert_failure "refuses an unknown verb" -- "$CTL" t-1 bogus
 
@@ -44,6 +44,7 @@ rm -f "$CLAUDE_CONFIG_DIR/.claude.json"
 assert_success "relaunch with --note succeeds" -- "$CTL" t-1 relaunch --note "was mid-way adding hello.txt"
 assert_contains "$(cat "$CHIEF_HOME/state/t-1.meta")" "agent=claude" "relaunch keeps the recorded agent instead of re-selecting from the changed config"
 assert_contains "$(cat "$CHIEF_HOME/state/t-1.meta")" "model=opus" "relaunch keeps the recorded model"
+assert_contains "$(cat "$CHIEF_HOME/state/t-1.meta")" "args=--verbose" "relaunch keeps the recorded args"
 assert_contains "$(tail -6 "$WORK/.chief/data/t-1/brief.md")" "was mid-way adding hello.txt" "the checkpoint note is appended to the brief"
 assert_contains "$(tail -6 "$WORK/.chief/data/t-1/brief.md")" "Relaunch checkpoint" "the checkpoint section is clearly marked"
 new_pid=$(cat "$CHIEF_HOME/state/t-1.term.pid")

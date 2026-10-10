@@ -86,6 +86,15 @@ assert_success "spawn: explicit agent drops the override" -- spawn a-7 --agent c
 assert_eq "$(meta a-7 command || echo none)" "none" "spawn: --agent does not inherit a configured command"
 rm "$CHIEF_HOME/config/agents"
 
+printf 'claude:opus args="--verbose"\n' > "$CHIEF_HOME/config/agents"
+assert_success "spawn: config args" -- spawn a-8
+assert_eq "$(meta a-8 args)" "--verbose" "spawn: the profile's args are recorded in meta"
+assert_success "spawn: --args over config" -- spawn a-9 --args "--add-dir /x"
+assert_eq "$(meta a-9 args)" "--add-dir /x" "spawn: --args replaces the configured args"
+assert_success "spawn: --agent drops configured args" -- spawn a-10 --agent claude
+assert_eq "$(meta a-10 args || echo none)" "none" "spawn: --agent does not inherit configured args"
+rm "$CHIEF_HOME/config/agents"
+
 fails() {  # <id> <expected message> [flags...] - the spawn fails and leaves nothing behind
   local id=$1 msg=$2; shift 2
   local out; out=$(spawn "$id" "$@" 2>&1); local rc=$?
@@ -100,6 +109,8 @@ fails b-2 "bad profile" --agent 'claude:$(x)'
 fails b-3 "bad profile" --model 'a b'
 printf 'strategy = sometimes\n' > "$CHIEF_HOME/config/agents"
 fails b-4 "unknown strategy"
+printf 'claude command="my-claude"\n' > "$CHIEF_HOME/config/agents"
+fails b-6 "args and command cannot be combined" --args "--x"
 rm "$CHIEF_HOME/config/agents"
 out=$(PATH=/usr/bin:/bin timeout 10 "$BIN/chief-spawn.sh" b-5 "$WORK/project" --mode ship --branch feat/b-5 --intent x 2>&1); rc=$?
 assert_eq "$rc" "1" "spawn: a missing agent CLI fails"

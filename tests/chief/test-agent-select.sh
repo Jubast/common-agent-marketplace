@@ -112,6 +112,18 @@ claude:opus|" "sections: a mode without a section uses the global pool (one entr
 assert_eq "$(pick scout)" "codex:|" "sections: the scout pool wins over the global one"
 
 cfg <<'EOF2'
+claude:opus args="--verbose --add-dir /x" weight=2 command="wrap"
+codex args="--search"
+EOF2
+assert_eq "$(chief_agent_select ship; echo "$SEL_AGENT|$SEL_ARGS|$SEL_COMMAND")" "claude|--verbose --add-dir /x|wrap" "args: parsed next to weight and command, in any order"
+cfg <<'EOF2'
+strategy = round-robin
+claude:opus
+codex:gpt-5 args="--search"
+EOF2
+rm -f "$STATE"/agent-cursor-*
+assert_eq "$(chief_agent_select ship; chief_agent_select ship; echo "$SEL_AGENT|$SEL_ARGS")" "codex|--search" "args: an entry without args does not leak into the next pick"
+cfg <<'EOF2'
 claude:opus command="/opt/bin/claude --dangerously-skip-permissions --foo # x" weight=2
 EOF2
 assert_eq "$(pick ship)" "claude:opus|/opt/bin/claude --dangerously-skip-permissions --foo # x" "command: kept verbatim, in either option order"
@@ -121,6 +133,7 @@ assert_contains "$(bad <<< 'strategy = sometimes')" "unknown strategy 'sometimes
 assert_contains "$(bad <<< '[prod]')" "unknown section [prod]" "error: unknown section"
 assert_contains "$(bad <<< 'Claude')" "bad profile 'Claude'" "error: bad agent name"
 assert_contains "$(bad <<< 'claude:opus weight=x')" "unexpected ' weight=x'" "error: malformed weight"
+assert_contains "$(bad <<< 'claude args="--x')" "unexpected" "error: unterminated args"
 assert_contains "$(bad <<< 'claude:opus color=red')" "unexpected ' color=red'" "error: unknown option"
 assert_contains "$(bad <<< 'claude:op us')" "unexpected ' us'" "error: a space inside the profile"
 assert_contains "$(bad <<< 'claude command="unterminated')" "unexpected" "error: unterminated command"

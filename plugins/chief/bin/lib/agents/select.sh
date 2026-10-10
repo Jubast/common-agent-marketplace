@@ -3,11 +3,11 @@
 # after paths.sh.
 #
 #   strategy = first | round-robin | random | weighted    (default: first)
-#   <agent>[:<model>] [weight=N] [command="<launch command>"]
+#   <agent>[:<model>] [weight=N] [args="<extra CLI args>"] [command="<launch command>"]
 #   [ship] / [scout]    a pool (and strategy) for that mode only; it falls
 #                       back to the global ones. '#' starts a comment.
 #
-# chief_agent_select <mode> sets SEL_AGENT, SEL_MODEL, SEL_COMMAND. No pool
+# chief_agent_select <mode> sets SEL_AGENT, SEL_MODEL, SEL_ARGS, SEL_COMMAND. No pool
 # means claude. weighted and random draw from $CHIEF_AGENT_RANDOM when it is
 # set (a test hook), else from $RANDOM; random ignores weights.
 
@@ -22,21 +22,22 @@ chief_agent_profile() {
   P_AGENT=${BASH_REMATCH[1]} P_MODEL=${BASH_REMATCH[3]:-}
 }
 
-# _chief_agents_entry <line> - prints "agent SEP model SEP weight SEP command"
+# _chief_agents_entry <line> - prints "agent SEP model SEP weight SEP command SEP args"
 _chief_agents_entry() {
-  local rest=$1 profile weight=1 cmd=""
+  local rest=$1 profile weight=1 cmd="" args=""
   local head='^[[:space:]]*([^[:space:]#]+)(.*)$'
-  local opt='^[[:space:]]+(weight=([0-9]+)|command="([^"]*)")(.*)$'
+  local opt='^[[:space:]]+(weight=([0-9]+)|command="([^"]*)"|args="([^"]*)")(.*)$'
   [[ $rest =~ $head ]] || return 1
   profile=${BASH_REMATCH[1]} rest=${BASH_REMATCH[2]}
   chief_agent_profile "$profile" || return 1
   while [[ $rest =~ $opt ]]; do
     if [ -n "${BASH_REMATCH[2]}" ]; then weight=${BASH_REMATCH[2]}; fi
     if [ -n "${BASH_REMATCH[3]}" ]; then cmd=${BASH_REMATCH[3]}; fi
-    rest=${BASH_REMATCH[4]}
+    if [ -n "${BASH_REMATCH[4]}" ]; then args=${BASH_REMATCH[4]}; fi
+    rest=${BASH_REMATCH[5]}
   done
   [[ $rest =~ ^[[:space:]]*(#.*)?$ ]] || { echo "chief-agent: unexpected '$rest' after '$profile'" >&2; return 1; }
-  printf '%s\n' "$P_AGENT$_SEP$P_MODEL$_SEP$weight$_SEP$cmd"
+  printf '%s\n' "$P_AGENT$_SEP$P_MODEL$_SEP$weight$_SEP$cmd$_SEP$args"
 }
 
 # _chief_agents_read <mode> - sets STRATEGY and POOL (one entry per line)
@@ -104,11 +105,11 @@ _chief_agents_index() {
 
 chief_agent_select() {  # <mode>
   local idx size
-  SEL_AGENT=claude SEL_MODEL="" SEL_COMMAND=""
+  SEL_AGENT=claude SEL_MODEL="" SEL_COMMAND="" SEL_ARGS=""
   _chief_agents_read "$1" || return 1
   POOL=${POOL%$'\n'}
   [ -n "$POOL" ] || return 0
   size=$(printf '%s\n' "$POOL" | wc -l)
   idx=$(_chief_agents_index "$1" "$size") || return 1
-  IFS=$_SEP read -r SEL_AGENT SEL_MODEL _ SEL_COMMAND <<< "$(printf '%s\n' "$POOL" | sed -n "$((idx + 1))p")"
+  IFS=$_SEP read -r SEL_AGENT SEL_MODEL _ SEL_COMMAND SEL_ARGS <<< "$(printf '%s\n' "$POOL" | sed -n "$((idx + 1))p")"
 }

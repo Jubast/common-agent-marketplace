@@ -16,7 +16,7 @@
 #   agent_models           -> the model names it accepts, one per line; when
 #                             defined, any other model fails the spawn
 #
-# The agent, model and command come from the task's meta (chief-spawn.sh
+# The agent, model, extra args and command come from the task's meta (chief-spawn.sh
 # records them); a task without them runs claude.
 
 # chief_agent_list -> the available adapter names, one per line
@@ -47,6 +47,12 @@ chief_agent_use() {
   CHIEF_AGENT_MODEL=$(chief_meta_get "$1" model 2>/dev/null) || CHIEF_AGENT_MODEL=""
   CHIEF_AGENT_COMMAND=$(chief_meta_get "$1" command 2>/dev/null) || CHIEF_AGENT_COMMAND=""
   chief_agent_load "${agent:-claude}" || return 1
+  CHIEF_AGENT_ARGS=$(chief_meta_get "$1" args 2>/dev/null) || CHIEF_AGENT_ARGS=""
+  if [ -n "$CHIEF_AGENT_ARGS" ]; then
+    # Extra args are appended to the adapter's own (unattended and model flags stay).
+    CHIEF_AGENT_BASE_ARGS=$(agent_args)
+    agent_args() { echo "$CHIEF_AGENT_BASE_ARGS $CHIEF_AGENT_ARGS"; }
+  fi
   [ -z "$CHIEF_AGENT_COMMAND" ] && return 0
   # A command override replaces the launch command; herdr starts the agent's
   # own executable, so it takes just the override's arguments.

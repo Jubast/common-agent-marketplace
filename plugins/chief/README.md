@@ -31,7 +31,7 @@ Workers run on `claude` (default), `codex` or `copilot`, unattended, on herdr an
    strategy = weighted          # first (default) | round-robin | random | weighted
    claude:opus   weight=3
    codex:gpt-5   weight=2
-   copilot       command="/opt/bin/copilot --allow-all"   # weight defaults to 1
+   copilot       args="--banner" weight=1                  # weight defaults to 1
 
    [scout]                      # optional [ship] / [scout] pool and strategy; falls back to the global ones
    strategy = round-robin
@@ -44,7 +44,7 @@ Workers run on `claude` (default), `codex` or `copilot`, unattended, on herdr an
 
 The choice is recorded in the task's meta (`agent`, `model`, `command`) and reused by relaunch and promote; `chief-crew-state.sh`, `chief-backlog.sh list|show` (in-flight) and the session digest show `[agent: <agent>[:<model>]]`. Spawn fails before creating anything for an unknown agent, a malformed profile, a missing CLI, or, for an adapter that defines `agent_models`, a model outside its list; other models are passed to the agent unvalidated.
 
-A profile's `command="..."` replaces the adapter's launch command for that task. Orca runs it as given; herdr starts the agent's own executable (`--kind`), so only the command's arguments after the first word are used there.
+A profile's `args="..."` (or `--args "..."` on spawn, which replaces the configured ones) adds CLI arguments after the adapter's own unattended and model flags, on herdr and Orca alike, e.g. `claude:opus args="--verbose --add-dir /x"`. Both are split on whitespace, so a value cannot contain quotes. `command="..."` instead replaces the whole launch command (a wrapper, another binary path): Orca runs it as given, while herdr starts the agent's own executable (`--kind`) and uses only the arguments after the command's first word, so prefer `args=` unless you need a different executable. `args` and `command` cannot be combined, and an explicit `--agent` drops both of the configured ones.
 
 Adding an agent is one `bin/lib/agents/<name>.sh` implementing the contract in `agents/agent.sh`. Differences to know:
 

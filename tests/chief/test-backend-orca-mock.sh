@@ -333,6 +333,11 @@ ORCA_MOCK_NO_BYPASS=1 ORCA_MOCK_SCREEN_TEXT="  100% context left" backend_spawn 
 assert_eq "$?" "0" "backend_spawn succeeds for a codex task once its own ready text shows"
 assert_contains "$(cat "$ORCA_MOCK_LOG")" "--command codex --dangerously-bypass-approvals-and-sandbox --model gpt-5 --json" "backend_spawn launches the task's agent with its model"
 backend_spawn_cleanup "t-orca-cx" "$WORK/project" "chief/t-orca-cx"
+chief_meta_set t-orca-args agent claude; chief_meta_set t-orca-args model opus; chief_meta_set t-orca-args args "--verbose"
+: > "$ORCA_MOCK_LOG"
+backend_spawn "t-orca-args" "$WORK/project" "$BRIEF" "chief/t-orca-args" >/dev/null 2>&1
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "--command claude --dangerously-skip-permissions --model opus --verbose --json" "backend_spawn launches the agent with model and extra args"
+backend_spawn_cleanup "t-orca-args" "$WORK/project" "chief/t-orca-args"
 chief_meta_set t-orca-cmd agent claude; chief_meta_set t-orca-cmd command "my-claude --flag"
 : > "$ORCA_MOCK_LOG"
 backend_spawn "t-orca-cmd" "$WORK/project" "$BRIEF" "chief/t-orca-cmd" >/dev/null 2>&1
