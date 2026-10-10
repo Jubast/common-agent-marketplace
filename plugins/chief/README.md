@@ -8,7 +8,7 @@ Inspired by [Firstmate](https://github.com/kunchenguid/firstmate), which does th
 
 ## Layout
 
-- `bin/` - the lifecycle scripts, split into `bin/` (`chief-spawn`, `chief-watch`, `chief-teardown`, `chief-backlog`, `chief-setup`), `bin/task/` (`chief-control`, `chief-crew-state`, `chief-send`, `chief-promote`), and `bin/pr/` (`chief-pr-open`, `chief-pr-update`, `chief-pr-state`, `chief-pr-review`, `chief-pr-approve`, `chief-pr-merge`); and `bin/lib/` (`paths.sh`/`home.sh`/`meta.sh`/`lock.sh`/`brief.sh` helpers, `bin/lib/agents/` with the loader `agent.sh` (agent from `$CHIEF_AGENT` or `.chief/config/agent`, default `claude`) and its adapter `claude.sh` - the agent's launch command, screen texts and folder pre-trust - `git-sync.sh` - best-effort freshening of a project's default-branch checkout against origin, used by spawn/pr-merge/teardown - `worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one - `bin/lib/backends/` with the loader `backend.sh` and its adapters `{herdr,orca,mock}.sh`, and `bin/lib/pr-providers/` with the loader `pr-provider.sh` and its adapters `{github,gitlab,azuredevops,mock}.sh`).
+- `bin/` - the lifecycle scripts, split into `bin/` (`chief-spawn`, `chief-watch`, `chief-teardown`, `chief-backlog`, `chief-setup`), `bin/task/` (`chief-control`, `chief-crew-state`, `chief-send`, `chief-promote`), and `bin/pr/` (`chief-pr-open`, `chief-pr-update`, `chief-pr-state`, `chief-pr-review`, `chief-pr-approve`, `chief-pr-merge`); and `bin/lib/` (`paths.sh`/`home.sh`/`meta.sh`/`lock.sh`/`brief.sh` helpers, `bin/lib/agents/` with the loader and selector `agent.sh` (a task's adapter from its meta; profile selection from `.chief/config/agents`) and the adapters `{claude,codex,copilot}.sh` - the agent's launch command, screen texts and folder pre-trust - `git-sync.sh` - best-effort freshening of a project's default-branch checkout against origin, used by spawn/pr-merge/teardown - `worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one - `bin/lib/backends/` with the loader `backend.sh` and its adapters `{herdr,orca,mock}.sh`, and `bin/lib/pr-providers/` with the loader `pr-provider.sh` and its adapters `{github,gitlab,azuredevops,mock}.sh`).
 - `templates/` - the two brief templates (`brief-ship.md`, `brief-scout.md`) and the two per-task lifecycle checklists (`lifecycle-ship.md`, `lifecycle-scout.md`) rendered into `state/<id>.lifecycle` at spawn time, mirroring `skills/dispatch/SKILL.md`'s own steps so Chief can recover in-flight progress after a context compaction.
 - `skills/using-chief` - the identity/job-description skill, force-injected every session via the `SessionStart` hook so Chief always knows its role without being asked.
 - `skills/setup` - one-time CHIEF_HOME config (backend choice + gitignoring `.chief/`); only relevant before `.chief/config/backend` exists, which the `SessionStart` digest flags explicitly.
@@ -19,6 +19,46 @@ Inspired by [Firstmate](https://github.com/kunchenguid/firstmate), which does th
 Runtime state lives at `.chief/` under `CHIEF_HOME` - by default the outermost git root enclosing wherever the Chief session runs, so the operator's top-level workspace even when run from inside a project or one of its worktrees; never inside a project (`state/`, `data/`, `config/`, `worktrees/`) - created on first use, not part of the plugin package. `chief-setup.sh` gitignores it for you.
 
 Spawn syncs the project's default branch from origin (best-effort), then creates the task worktree and launches the worker in it (agent command from `agents/<agent>.sh`, brief as first prompt). With herdr, each task is its own linked-worktree workspace grouped under the project's primary workspace; with Orca, the project is registered on first spawn (`orca repo add`) and each task is an Orca-created worktree nested under the project's main worktree, running the agent in a terminal created with `terminal create --command` (Orca picks the path). Teardown closes the task's terminals and removes the worktree (and, on Orca, its worktree entry).
+
+## Agents
+
+Workers run on `claude` (default), `codex` or `copilot`, unattended, on herdr and Orca alike. **`codex` and `copilot` have no folder-trust handling:** if their CLI asks to trust a new worktree, the spawn stalls and fails as "not ready" (only `claude` is pre-trusted, see below). Which agent a task gets:
+
+1. `chief-spawn.sh ... --agent <agent[:model]>` and/or `--model <model>` win. `--model` alone overrides only the model of the profile the config selects.
+2. Else `.chief/config/agents`, if present:
+
+   ```
+   strategy = weighted          # first (default) | round-robin | random | weighted
+   claude:opus   weight=3
+   codex:gpt-5   weight=2
+   copilot       args="--banner" weight=1                  # weight defaults to 1
+
+   [builder]                    # optional pool (and strategy) for builders (ship tasks)
+   claude:opus args="--verbose"
+
+   [scout]                      # and for scouts; a missing section uses the global pool
+   strategy = round-robin
+   claude:haiku
+   codex:gpt-5-mini
+   ```
+
+   `#` starts a comment. Per entry, `weight=`, `args=` and `command=` may come in any order. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<builder|scout>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights.
+3. Else `claude` with its default model.
+
+The choice is recorded in the task's meta (`agent`, `model`, `args`, `command`) and reused by relaunch and promote; `chief-crew-state.sh`, `chief-backlog.sh list|show` (in-flight) and the session digest show `[agent: <agent>[:<model>]]`. Spawn fails before creating anything for an unknown agent, a malformed profile or weight, a missing CLI, or a bad `command=` / `args=` / model combination below. Models are passed to the agent unvalidated.
+
+A profile's `args="..."` (or `--args "..."` on spawn, which replaces the configured ones) adds CLI arguments after the adapter's own unattended and model flags, on herdr and Orca alike, e.g. `claude:opus args="--verbose --add-dir /x"`. `args=` and `command=` values are split on whitespace and may only use letters, digits, spaces and `. _ / @ : = + , -` (no quotes or shell characters), so both backends read them the same way. `weight=` is a whole number from 0 to 1000 (0 = never picked by `weighted`; a pool where every weight is 0 is an error).
+
+`command="..."` instead replaces the whole launch line (a wrapper, another binary path), so it cannot be combined with a model or `args=` (put them in the command). Orca runs it as given. herdr starts the agent's own executable (`--kind`), so the command must start with it (`claude`, `/usr/local/bin/claude`) and only its arguments are used; for another executable use `args=` or the Orca backend. An explicit `--agent` drops the configured `args` and `command`.
+
+`CHIEF_AGENT` and `.chief/config/agent` (the old single-agent selection) are gone; `.chief/config/agents` replaces them.
+
+The launch line each worker runs is the adapter's `agent_command` in `bin/lib/agents/<name>.sh` (executable, unattended flag, `--model`, then `args=`), unless the task has a `command=`; spawn prints it as `launch: ...`. Adding an agent is one `bin/lib/agents/<name>.sh` implementing the contract in `agents/agent.sh`. Differences to know:
+
+- Folder trust is pre-accepted for `claude` only (see below); for `codex` and `copilot` a trust prompt, if shown, stalls the spawn as "not ready".
+- The worker brief is agent-neutral (status file, turn-ended file, review checklist by path), but `claude` workers also get this repo's plugins and skills from their own config; `codex` and `copilot` do not, so project conventions come from `AGENTS.md` and the brief alone.
+- Approval/sandbox: `claude --dangerously-skip-permissions`, `codex --dangerously-bypass-approvals-and-sandbox`, `copilot --allow-all`.
+- Claude workers inherit the `CLAUDE_CONFIG_DIR` note below.
 
 ## Folder trust
 

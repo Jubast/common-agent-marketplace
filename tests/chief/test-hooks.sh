@@ -45,6 +45,7 @@ export CHIEF_BACKEND=mock
 out2=$("$SS")
 ctx2=$(json_field "d['hookSpecificOutput']['additionalContext']" "$out2")
 assert_contains "$ctx2" "backend: orca" "session-start: reports the configured backend"
+assert_contains "$ctx2" "agents: not configured, workers run claude" "session-start: hints when no agents are configured"
 assert_not_contains "$ctx2" "NOT CONFIGURED YET" "session-start: no longer flags as unconfigured"
 assert_contains "$ctx2" "(empty)" "session-start: reports an empty backlog plainly"
 
@@ -54,6 +55,7 @@ echo "done: finished" >> "$CHIEF_HOME/state/t-1.status"
 out3=$("$SS")
 ctx3=$(json_field "d['hookSpecificOutput']['additionalContext']" "$out3")
 assert_contains "$ctx3" "t-1: done: finished" "session-start: shows the in-flight task's latest status"
+assert_contains "$ctx3" "[agent: claude]" "session-start: shows the in-flight task's agent"
 assert_contains "$ctx3" "t-1: done: finished [mode: ship]" \
   "session-start: also shows the task's current mode, so a fresh session can tell a promoted scout from a plain ship task without reading meta by hand"
 

@@ -22,12 +22,19 @@ SKILL_FILE="$CHIEF_PLUGIN_ROOT/skills/using-chief/SKILL.md"
 [ -f "$SKILL_FILE" ] || { echo '{}'; exit 0; }
 
 STATE="$CHIEF_HOME/state"
+# shellcheck source=../bin/lib/meta.sh
+. "$CHIEF_PLUGIN_ROOT/bin/lib/meta.sh"
 BACKLOG="$CHIEF_HOME/data/backlog.md"
 BACKEND_CONFIG="$CHIEF_HOME/config/backend"
 
 digest="## Configuration"$'\n'
 if [ -f "$BACKEND_CONFIG" ]; then
   digest+="backend: $(cat "$BACKEND_CONFIG") (from .chief/config/backend)"$'\n'
+  if [ -f "$CHIEF_HOME/config/agents" ]; then
+    digest+="agents: from .chief/config/agents"$'\n'
+  else
+    digest+="agents: not configured, workers run claude (.chief/config/agents sets the agent and model)"$'\n'
+  fi
 else
   digest+="NOT CONFIGURED YET at CHIEF_HOME ($CHIEF_HOME) - load the 'setup' skill once here before dispatching anything. This is a one-time step for this CHIEF_HOME, not something to repeat inside each project you dispatch into."$'\n'
 fi
@@ -50,7 +57,7 @@ if [ -d "$STATE" ]; then
     any=1
     line=$(tail -n 1 "$STATE/$id.status" 2>/dev/null || echo "no status yet")
     mode=$(grep '^mode=' "$f" | cut -d= -f2- || echo unknown)
-    digest+="- $id: $line [mode: $mode]"$'\n'
+    digest+="- $id: $line [mode: $mode] [agent: $(chief_meta_agent "$id")]"$'\n'
   done
   [ "$any" -eq 0 ] && digest+="(none)"$'\n'
 else

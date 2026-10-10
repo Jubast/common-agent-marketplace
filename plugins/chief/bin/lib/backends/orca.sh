@@ -14,7 +14,7 @@
 # is renamed to the exact requested one, and the path is used as-is.
 #
 # Spawn and relaunch share one launch path (_chief_orca_launch): `terminal
-# create --command <agent_command>`, wait for agent_ready_text on the
+# create --command <chief_agent_command>`, wait for agent_ready_text on the
 # rendered screen, then send the brief. backend_spawn pre-trusts the new
 # worktree (agent_prepare) first.
 #
@@ -89,12 +89,19 @@ _chief_orca_start_ready() {
   return 1
 }
 
+# _chief_orca_has_text <needle> - stdin shows the needle or the agent's
+# placeholder for a long paste
+_chief_orca_has_text() {
+  local screen; screen=$(tr -s '[:space:]' ' ')
+  printf '%s' "$screen" | grep -qF -e "$1" || printf '%s' "$screen" | grep -qE "$(agent_paste_text)"
+}
+
 # _chief_orca_prompt <handle> <text> - submit <text> to <handle> and check the
-# screen: the text (or "[Pasted text ...]", how claude shows a long paste)
-# showing up means it landed, and if it still sits in the live input line (the
-# last "❯" line) a bare Enter submits it; not landed within
-# CHIEF_ORCA_PROMPT_WAIT seconds is resent once. Does NOT wait for the turn to
-# finish - a first turn on a large task can legitimately run long.
+# screen: the text (or the agent's pasted-text placeholder) showing up means
+# it landed, and if it still sits in the live input line (the last line
+# starting with the agent's input marker) a bare Enter submits it; not landed
+# within CHIEF_ORCA_PROMPT_WAIT seconds is resent once. Does NOT wait for the
+# turn to finish - a first turn on a large task can legitimately run long.
 _chief_orca_prompt() {
   local handle=$1 text=$2
   local needle screen waited=0 limit=$(( ${CHIEF_ORCA_PROMPT_WAIT:-20} * 2 ))
@@ -103,8 +110,8 @@ _chief_orca_prompt() {
     || { echo "chief-backend-orca: 'orca terminal send' failed for $handle" >&2; return 1; }
   while [ "$waited" -lt "$limit" ]; do
     screen=$(_chief_orca_screen "$handle")
-    if printf '%s' "$screen" | tr -s '[:space:]' ' ' | grep -qF -e "$needle" -e "[Pasted text"; then
-      if printf '%s\n' "$screen" | grep '^[[:space:]]*❯' | tail -n1 | tr -s '[:space:]' ' ' | grep -qF -e "$needle" -e "[Pasted text"; then
+    if printf '%s' "$screen" | _chief_orca_has_text "$needle"; then
+      if printf '%s\n' "$screen" | grep -E "^[[:space:]]*($(agent_input_marker))" | tail -n1 | _chief_orca_has_text "$needle"; then
         orca terminal send --terminal "$handle" --enter >/dev/null 2>&1
       fi
       return 0
@@ -124,7 +131,7 @@ _chief_orca_launch() {
   local json handle
   # orca's connect banner goes to stderr, --json's body to stdout even on
   # failure - discard stderr, don't merge it in (breaks the jq parse below).
-  json=$(orca terminal create --worktree "path:$worktree" --command "$(agent_command)" --json 2>/dev/null) \
+  json=$(orca terminal create --worktree "path:$worktree" --command "$(chief_agent_command)" --json 2>/dev/null) \
     || { echo "chief-backend-orca: 'orca terminal create' failed: $json" >&2; return 1; }
   handle=$(printf '%s' "$json" | jq -r '.result.handle // .result.terminal.handle // empty')
   [ -n "$handle" ] \
@@ -139,6 +146,7 @@ _chief_orca_launch() {
 backend_spawn() {
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
   local json worktree orca_branch handle
+  chief_agent_use "$id" || return 1
   _chief_orca_ensure_repo "$project_dir" || return 1
   json=$(orca worktree create --repo "path:$project_dir" --name "$id" --parent-worktree "path:$project_dir" --json 2>/dev/null) \
     || { echo "chief-backend-orca: 'orca worktree create' failed: $json" >&2; return 1; }
@@ -177,7 +185,7 @@ backend_spawn_cleanup() {
   orca_branch=${found#*$'\t'}
   orca_branch=${orca_branch#refs/heads/}
   orca terminal close --worktree "path:$worktree" --all >/dev/null 2>&1 || true
-  agent_release "$worktree"
+  chief_agent_release "$id" "$worktree"
   orca worktree rm --worktree "path:$worktree" --force >/dev/null 2>&1 \
     || git -C "$project_dir" worktree remove --force "$worktree" >/dev/null 2>&1 \
     || rm -rf "$worktree"
@@ -231,13 +239,14 @@ backend_kill() {
 # after backend_kill and before it removes the worktree via git.
 backend_teardown() {
   orca worktree rm --worktree "path:$3" --force >/dev/null 2>&1 || true
-  agent_release "$3"
+  chief_agent_release "$1" "$3"
 }
 
 backend_relaunch() {
   local id=$1 brief_path=$2
   local worktree handle
   worktree=$(chief_meta_get "$id" worktree)
+  chief_agent_use "$id" || return 1
   agent_prepare "$worktree"
   handle=$(_chief_orca_launch "$worktree" "$brief_path") || return 1
   chief_meta_set "$id" endpoint "orca:$handle"

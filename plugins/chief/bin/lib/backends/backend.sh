@@ -45,9 +45,10 @@
 #                     -> Called by chief-teardown.sh after backend_kill and
 #                        before it removes the worktree via git, so a backend
 #                        that tracks worktrees itself (orca) can forget it.
-#                        Must call `agent_release <worktree>`. Failures are ignored.
+#                        Must call `chief_agent_release <id> <worktree>`. Failures are ignored.
 #
-# The agent adapter (agents/agent.sh) is loaded alongside.
+# Every function above that touches the agent starts with `chief_agent_use <id>`
+# (agents/agent.sh), which loads the adapter recorded in the task's meta.
 #
 # Selection: $CHIEF_BACKEND env var, else $CONFIG/backend, else "herdr".
 

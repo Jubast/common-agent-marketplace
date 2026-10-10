@@ -57,9 +57,11 @@ _chief_herdr_close_task_workspace() {
 # live name <id>, with the agent's own args, never inherited from the operator's
 # session.
 _chief_herdr_start_agent() {
-  local id=$1 pane_id=$2
+  local id=$1 pane_id=$2 cmd args=""
+  cmd=$(chief_agent_command)
+  [[ $cmd != *' '* ]] || args=${cmd#* }  # herdr runs the agent's own executable: pass the words after the first
   herdr agent start "$id" --kind "$(agent_name)" --pane "$pane_id" --timeout 30000 \
-    -- $(agent_args) >/dev/null 2>&1
+    -- $args >/dev/null 2>&1
 }
 
 # _chief_herdr_prompt_box_has_text <id> <text> - true only when herdr's own
@@ -120,6 +122,7 @@ backend_spawn() {
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
   local worktree="$WORKTREES/$id"
   local json pane_id
+  chief_agent_use "$id" || return 1
   agent_prepare "$worktree"
   json=$(herdr worktree create --cwd "$project_dir" --branch "$branch" --path "$worktree" \
            --label "chief-$id" --trust-repository --no-focus 2>&1) \
@@ -145,7 +148,7 @@ backend_spawn_cleanup() {
   local id=$1 project_dir=$2 branch=$3
   local worktree="$WORKTREES/$id"
   _chief_herdr_close_task_workspace "$id"
-  agent_release "$worktree"
+  chief_agent_release "$id" "$worktree"
   git -C "$project_dir" worktree remove --force "$worktree" >/dev/null 2>&1 || rm -rf "$worktree"
   git -C "$project_dir" branch -D "$branch" >/dev/null 2>&1 || true
 }
@@ -181,7 +184,7 @@ backend_kill() {
 
 # backend_teardown <id> <project-dir> <worktree> - herdr has nothing to forget.
 backend_teardown() {
-  agent_release "$3"
+  chief_agent_release "$1" "$3"
 }
 
 backend_relaunch() {
@@ -196,6 +199,7 @@ backend_relaunch() {
 
   project=$(chief_meta_get "$id" project)
   worktree=$(chief_meta_get "$id" worktree)
+  chief_agent_use "$id" || return 1
   agent_prepare "$worktree"
 
   # --cwd is required here: without it, `herdr worktree open` resolves the

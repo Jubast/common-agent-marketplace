@@ -40,10 +40,108 @@ assert_contains "$(cat "$LIFECYCLE")" "- [ ] filed" "spawn: the ship lifecycle c
 
 CFG="$CLAUDE_CONFIG_DIR/.claude.json"
 assert_eq "$(jq -r --arg p "$CHIEF_HOME/worktrees/t-1" '.projects[$p].hasTrustDialogAccepted' "$CFG")" "true" "spawn: the task's worktree is pre-trusted"
+STATE="$CHIEF_HOME/state"; . "$BIN/lib/meta.sh"
+assert_eq "$(chief_meta_get t-1 agent)" "claude" "spawn: the default agent is recorded in meta"
 
 rm -f "$CFG"
 assert_success "spawn: CHIEF_NO_PRETRUST=1 still spawns" -- \
   env CHIEF_NO_PRETRUST=1 timeout 10 "$BIN/chief-spawn.sh" t-2 "$WORK/project" --mode ship --branch feat/t-2 --intent x
 assert_file_missing "$CFG" "spawn: CHIEF_NO_PRETRUST=1 leaves the claude config untouched"
+
+# the brief is agent-neutral: the turn-ended protocol and review checklist are paths, not Claude hooks/skills
+BRIEF_T1=$(cat "$CHIEF_HOME/data/t-1/brief.md")
+assert_contains "$BRIEF_T1" "touch $CHIEF_HOME/state/t-1.turn-ended" "brief: tells any agent to touch the turn-ended file"
+assert_contains "$BRIEF_T1" "$REPO_ROOT/plugins/chief/skills/reviewer/SKILL.md" "brief: points at the review checklist file"
+assert_not_contains "$BRIEF_T1" "{TURN_FILE}" "brief: no unfilled turn placeholder"
+assert_not_contains "$BRIEF_T1" "reviewer\` skill" "brief: does not rely on the Claude skill mechanism"
+
+# --- agent selection: flags, config, validation --------------------------
+spawn() {  # <id> [flags...]
+  local id=$1; shift
+  timeout 10 "$BIN/chief-spawn.sh" "$id" "$WORK/project" --mode ship --branch "feat/$id" --intent x "$@"
+}
+meta() { chief_meta_get "$1" "$2"; }
+leftovers() { ls "$CHIEF_HOME/state" | grep -c "^\.\?$1[.]" || true; }
+
+assert_success "spawn: --agent claude:opus" -- spawn a-1 --agent claude:opus
+assert_eq "$(meta a-1 agent):$(meta a-1 model)" "claude:opus" "spawn: --agent agent:model is recorded"
+assert_contains "$(spawn a-00 --agent codex:gpt-5 --args "--search")" "launch: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5 --search" "spawn: prints the final launch line"
+assert_success "spawn: --agent codex:gpt-5" -- spawn a-0 --agent codex:gpt-5
+assert_eq "$(meta a-0 agent):$(meta a-0 model)" "codex:gpt-5" "spawn: a codex task is recorded"
+assert_success "spawn: --model alone" -- spawn a-2 --model sonnet
+assert_eq "$(meta a-2 agent):$(meta a-2 model)" "claude:sonnet" "spawn: --model alone keeps the default agent"
+
+mkdir -p "$CHIEF_HOME/config"
+printf 'claude:opus\n' > "$CHIEF_HOME/config/agents"
+assert_success "spawn: config pool" -- spawn a-3
+assert_eq "$(meta a-3 model)" "opus" "spawn: the config's profile is used"
+assert_success "spawn: --model over config" -- spawn a-4 --model haiku
+assert_eq "$(meta a-4 model)" "haiku" "spawn: --model overrides just the model of the configured profile"
+assert_success "spawn: --agent over config" -- spawn a-5 --agent claude
+assert_eq "$(meta a-5 model)" "" "spawn: an explicit --agent wins over the config"
+
+printf 'claude command="/bin/sh --dangerously-skip-permissions"\n' > "$CHIEF_HOME/config/agents"
+assert_success "spawn: command override" -- spawn a-6
+assert_eq "$(meta a-6 command)" "/bin/sh --dangerously-skip-permissions" "spawn: the profile's command is recorded in meta"
+assert_success "spawn: explicit agent drops the override" -- spawn a-7 --agent claude
+assert_eq "$(meta a-7 command || echo none)" "none" "spawn: --agent does not inherit a configured command"
+rm "$CHIEF_HOME/config/agents"
+
+printf 'claude:opus\n[builder]\ncodex:gpt-5\n[scout]\ncopilot\n' > "$CHIEF_HOME/config/agents"
+assert_success "spawn: ship task with builder/scout pools" -- spawn a-11
+assert_eq "$(meta a-11 agent)" "codex" "spawn: a ship task uses the [builder] pool"
+assert_success "spawn: scout task with builder/scout pools" -- timeout 10 "$BIN/chief-spawn.sh" a-12 "$WORK/project" --mode scout --branch feat/a-12 --intent x
+assert_eq "$(meta a-12 agent)" "copilot" "spawn: a scout task uses the [scout] pool"
+
+printf 'claude:opus args="--verbose"\n' > "$CHIEF_HOME/config/agents"
+assert_success "spawn: config args" -- spawn a-8
+assert_eq "$(meta a-8 args)" "--verbose" "spawn: the profile's args are recorded in meta"
+assert_success "spawn: --args over config" -- spawn a-9 --args "--add-dir /x"
+assert_eq "$(meta a-9 args)" "--add-dir /x" "spawn: --args replaces the configured args"
+assert_success "spawn: --agent drops configured args" -- spawn a-10 --agent claude
+assert_eq "$(meta a-10 args || echo none)" "none" "spawn: --agent does not inherit configured args"
+rm "$CHIEF_HOME/config/agents"
+
+fails() {  # <id> <expected message> [flags...] - the spawn fails and leaves nothing behind
+  local id=$1 msg=$2; shift 2
+  local out; out=$(spawn "$id" "$@" 2>&1); local rc=$?
+  assert_eq "$rc" "1" "spawn $id: fails"
+  assert_contains "$out" "$msg" "spawn $id: says why"
+  assert_eq "$(leftovers "$id")" "0" "spawn $id: no state left behind"
+  assert_file_missing "$CHIEF_HOME/worktrees/$id" "spawn $id: no worktree left behind"
+  assert_eq "$(git -C "$WORK/project" branch --list "feat/$id" | wc -l | tr -d ' ')" "0" "spawn $id: no branch left behind"
+}
+fails b-1 "unknown agent 'nope' (available: claude" --agent nope
+fails b-2 "bad profile" --agent 'claude:$(x)'
+fails b-3 "bad profile" --model 'a b'
+printf 'strategy = sometimes\n' > "$CHIEF_HOME/config/agents"
+fails b-4 "unknown strategy"
+printf 'claude command="my-claude"\n' > "$CHIEF_HOME/config/agents"
+fails b-6 "cannot be combined with a model or args" --args "--x"
+fails b-7 "cannot be combined with a model or args" --model opus
+printf 'claude:opus command="my-claude"\n' > "$CHIEF_HOME/config/agents"
+fails b-8 "cannot be combined with a model or args"
+rm "$CHIEF_HOME/config/agents"
+fails b-9 "may only use letters" --args "--add-dir '/a b'"
+fails b-10 "args" --args '$(x)'
+# herdr runs the agent's own executable: a command must start with it
+printf 'claude command="/opt/wrap.sh --x"\n' > "$CHIEF_HOME/config/agents"
+out=$(CHIEF_BACKEND=herdr spawn b-11 2>&1); rc=$?
+assert_eq "$rc" "1" "spawn: a command with another executable fails on herdr"
+assert_contains "$out" "herdr starts the agent's own executable (claude)" "spawn: and says to use args= or orca"
+assert_eq "$(leftovers b-11)" "0" "spawn b-11: no state left behind"
+printf 'claude command="%s --x"\n' "$HARNESS_BIN/claude" > "$CHIEF_HOME/config/agents"
+mkdir "$WORK/fakeherdr"; printf '#!/bin/sh\nexit 1\n' > "$WORK/fakeherdr/herdr"; chmod +x "$WORK/fakeherdr/herdr"
+out=$(PATH="$WORK/fakeherdr:$PATH" CHIEF_BACKEND=herdr spawn b-12 2>&1)
+assert_not_contains "$out" "starts the agent's own executable" "spawn: the same executable by path passes the herdr check"
+assert_contains "$out" "herdr" "spawn: and goes on to the backend"
+printf 'claude command="/bin/sh --x"\n' > "$CHIEF_HOME/config/agents"
+assert_success "spawn: any executable is fine on the mock backend" -- spawn b-13
+rm "$CHIEF_HOME/config/agents"
+rm "$CHIEF_HOME/config/agents"
+out=$(PATH=/usr/bin:/bin timeout 10 "$BIN/chief-spawn.sh" b-5 "$WORK/project" --mode ship --branch feat/b-5 --intent x 2>&1); rc=$?
+assert_eq "$rc" "1" "spawn: a missing agent CLI fails"
+assert_contains "$out" "the 'claude' CLI is not installed" "spawn: and says which CLI"
+assert_eq "$(leftovers b-5)" "0" "spawn: and leaves no state behind"
 
 harness_summary

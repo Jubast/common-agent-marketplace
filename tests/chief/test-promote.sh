@@ -22,7 +22,7 @@ assert_failure "promote: refuses an unknown id" -- \
 
 assert_success "backlog: file the scout" -- "$BIN/chief-backlog.sh" add s-1 "Investigate rate limiting options"
 assert_success "spawn: scout task" -- \
-  timeout 10 "$BIN/chief-spawn.sh" s-1 "$WORK/project" --mode scout --branch feat/s-1 --intent "Investigate rate limiting options"
+  timeout 10 "$BIN/chief-spawn.sh" s-1 "$WORK/project" --mode scout --branch feat/s-1 --intent "Investigate rate limiting options" --agent claude:haiku
 echo "findings: use a token bucket" > "$CHIEF_HOME/data/s-1/report.md"
 
 SCOUT_BRIEF="$(cat "$CHIEF_HOME/data/s-1/brief.md")"
@@ -35,9 +35,11 @@ assert_success "spawn: a ship task, to prove promote rejects non-scouts" -- \
 assert_failure "promote: refuses a ship task" -- \
   "$BIN/task/chief-promote.sh" b-1 --intent "x"
 
+echo "codex:gpt-5" > "$CHIEF_HOME/config/agents"
 assert_success "promote: succeeds on the scout" -- \
   "$BIN/task/chief-promote.sh" s-1 --intent "Add token-bucket rate limiting" --spec "Use the existing http middleware layer"
 
+assert_contains "$(cat "$CHIEF_HOME/state/s-1.meta")" "model=haiku" "promote: keeps the recorded agent instead of re-selecting"
 assert_contains "$(cat "$CHIEF_HOME/state/s-1.meta")" "mode=ship" "promote: meta flips mode to ship"
 assert_file_exists "$CHIEF_HOME/worktrees/s-1" "promote: same worktree still exists, nothing new was created"
 assert_eq "$(git -C "$WORK/project" worktree list | grep -c 'worktrees/s-1')" "1" "promote: exactly one worktree for s-1, no duplicate"

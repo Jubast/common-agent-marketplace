@@ -3,16 +3,15 @@
 #
 # state/<id>.status is an append-only EVENT log (a builder appends only on a
 # phase change), so its last line can go stale the moment the builder keeps
-# working without another reportable event. Because Chief supports only
-# Claude Code, every builder's own Stop hook touches state/<id>.turn-ended
-# each time ITS turn ends - that one fact is enough to tell "quietly still
-# working" apart from "actually stalled" without pane-diffing or any
-# backend-specific heuristic.
+# working without another reportable event. The brief tells every builder,
+# whatever its agent, to touch state/<id>.turn-ended each time ITS turn ends;
+# that one fact is enough to tell "quietly still working" apart from
+# "actually stalled" without pane-diffing or any backend-specific heuristic.
 #
 # Usage: chief-crew-state.sh <id>
-# Prints one line: "state: <working|done|blocked|needs-decision|failed|stale> · <detail> [mode: <ship|scout>]"
+# Prints one line: "state: <working|done|blocked|needs-decision|failed|stale> · <detail> [mode: <ship|scout>] [agent: <agent[:model]>]"
 #
-# mode is appended, not prefixed, so it doesn't break prefix matches on
+# mode and agent are appended, not prefixed, so it doesn't break prefix matches on
 # state/detail elsewhere. Read it fresh here - chief-promote.sh can flip a
 # scout to ship mid-task, same id.
 set -euo pipefail
@@ -32,7 +31,7 @@ chief_meta_exists "$ID" || fail "no such task: $ID"
 STATUS_FILE="$STATE/$ID.status"
 TURN_FILE="$STATE/$ID.turn-ended"
 MODE=$(chief_meta_get "$ID" mode 2>/dev/null || true)
-MODE_SUFFIX=" [mode: ${MODE:-unknown}]"
+MODE_SUFFIX=" [mode: ${MODE:-unknown}] [agent: $(chief_meta_agent "$ID")]"
 
 # "spawning" without chief-spawn.sh's lock means the spawn was interrupted.
 if [ "$(chief_meta_get "$ID" status 2>/dev/null || true)" = "spawning" ]; then

@@ -24,6 +24,7 @@
 backend_spawn() {
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
   local worktree="$WORKTREES/$id"
+  chief_agent_use "$id" || return 1
   agent_prepare "$worktree"
   git -C "$project_dir" worktree add -q -b "$branch" "$worktree" >/dev/null
   local log="$STATE/$id.term.log"
@@ -59,7 +60,7 @@ backend_spawn_cleanup() {
   local id=$1 project_dir=$2 branch=$3
   local worktree="$WORKTREES/$id"
   local pid
-  agent_release "$worktree"
+  chief_agent_release "$id" "$worktree"
   pid=$(cat "$STATE/$id.term.pid" 2>/dev/null) || true
   [ -n "${pid:-}" ] && kill "$pid" 2>/dev/null
   rm -f "$STATE/$id.term.pid" "$STATE/$id.term.log"
@@ -86,6 +87,7 @@ backend_busy() {
 
 backend_relaunch() {
   local id=$1 brief_path=$2
+  chief_agent_use "$id" || return 1
   agent_prepare "$(chief_meta_get "$id" worktree)"
   echo "[mock] relaunch for $id" >> "$STATE/$id.term.log"
   echo "[mock] brief: $brief_path" >> "$STATE/$id.term.log"
@@ -96,7 +98,7 @@ backend_relaunch() {
 }
 
 backend_teardown() {
-  agent_release "$3"
+  chief_agent_release "$1" "$3"
 }
 
 backend_kill() {
