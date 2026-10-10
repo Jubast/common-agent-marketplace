@@ -59,6 +59,10 @@ chief_agent_use() {  # <id> - loads the adapter recorded in the task's meta
   fi
 }
 
+chief_agent_release() {  # <id> <dir> - agent_release with the task's adapter
+  chief_agent_use "$1" && agent_release "$2"
+}
+
 # --- selection -------------------------------------------------------------
 #
 # .chief/config/agents (no file: claude):

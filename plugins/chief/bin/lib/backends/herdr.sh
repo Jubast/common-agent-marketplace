@@ -146,7 +146,7 @@ backend_spawn_cleanup() {
   local id=$1 project_dir=$2 branch=$3
   local worktree="$WORKTREES/$id"
   _chief_herdr_close_task_workspace "$id"
-  chief_agent_use "$id" && agent_release "$worktree"
+  chief_agent_release "$id" "$worktree"
   git -C "$project_dir" worktree remove --force "$worktree" >/dev/null 2>&1 || rm -rf "$worktree"
   git -C "$project_dir" branch -D "$branch" >/dev/null 2>&1 || true
 }
@@ -182,8 +182,7 @@ backend_kill() {
 
 # backend_teardown <id> <project-dir> <worktree> - herdr has nothing to forget.
 backend_teardown() {
-  chief_agent_use "$1" || return 1
-  agent_release "$3"
+  chief_agent_release "$1" "$3"
 }
 
 backend_relaunch() {

@@ -56,15 +56,12 @@ _claude_untrust() {  # <dir>
   done < <(_claude_dirs "$1")
 }
 
-agent_prepare() {  # <dir>...
-  local d
+agent_prepare() {  # <dir>
   if [ "${CHIEF_NO_PRETRUST:-}" = 1 ]; then
     echo "chief-agent: CHIEF_NO_PRETRUST=1, folders are not pre-trusted; workers will stall at the trust dialog unless trusted another way" >&2
     return 0
   fi
-  for d in "$@"; do
-    _claude_locked _claude_trust "$d" || echo "chief-agent: could not pre-trust $d; the worker may stall at the trust dialog" >&2
-  done
+  _claude_locked _claude_trust "$1" || echo "chief-agent: could not pre-trust $1; the worker may stall at the trust dialog" >&2
   return 0
 }
 

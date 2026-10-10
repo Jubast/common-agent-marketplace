@@ -185,7 +185,7 @@ backend_spawn_cleanup() {
   orca_branch=${found#*$'\t'}
   orca_branch=${orca_branch#refs/heads/}
   orca terminal close --worktree "path:$worktree" --all >/dev/null 2>&1 || true
-  chief_agent_use "$id" && agent_release "$worktree"
+  chief_agent_release "$id" "$worktree"
   orca worktree rm --worktree "path:$worktree" --force >/dev/null 2>&1 \
     || git -C "$project_dir" worktree remove --force "$worktree" >/dev/null 2>&1 \
     || rm -rf "$worktree"
@@ -239,7 +239,7 @@ backend_kill() {
 # after backend_kill and before it removes the worktree via git.
 backend_teardown() {
   orca worktree rm --worktree "path:$3" --force >/dev/null 2>&1 || true
-  chief_agent_use "$1" && agent_release "$3"
+  chief_agent_release "$1" "$3"
 }
 
 backend_relaunch() {

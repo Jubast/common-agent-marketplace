@@ -60,7 +60,7 @@ backend_spawn_cleanup() {
   local id=$1 project_dir=$2 branch=$3
   local worktree="$WORKTREES/$id"
   local pid
-  chief_agent_use "$id" && agent_release "$worktree"
+  chief_agent_release "$id" "$worktree"
   pid=$(cat "$STATE/$id.term.pid" 2>/dev/null) || true
   [ -n "${pid:-}" ] && kill "$pid" 2>/dev/null
   rm -f "$STATE/$id.term.pid" "$STATE/$id.term.log"
@@ -98,8 +98,7 @@ backend_relaunch() {
 }
 
 backend_teardown() {
-  chief_agent_use "$1" || return 1
-  agent_release "$3"
+  chief_agent_release "$1" "$3"
 }
 
 backend_kill() {

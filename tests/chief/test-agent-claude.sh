@@ -29,7 +29,7 @@ agent_prepare /a
 assert_eq "$(flag /a)" "true" "trust: creates the config when missing and sets the flag"
 
 echo '{"theme":"dark","projects":{"/b":{"allowedTools":["x"]}}}' > "$CFG"
-agent_prepare /b /b2
+agent_prepare /b; agent_prepare /b2
 assert_eq "$(jq -r .theme "$CFG")" "dark" "trust: preserves unrelated top-level keys"
 assert_eq "$(jq -c '.projects["/b"].allowedTools' "$CFG")" '["x"]' "trust: preserves the project's other keys"
 assert_eq "$(flag /b2)" "true" "trust: handles several dirs"
