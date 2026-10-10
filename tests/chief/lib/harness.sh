@@ -17,7 +17,7 @@ harness_reap_mock() {
   done < "$CHIEF_MOCK_PID_LOG"
   rm -f "$CHIEF_MOCK_PID_LOG"
 }
-_harness_exit() { harness_reap_mock; rm -rf "$CLAUDE_CONFIG_DIR"; eval "$HARNESS_CLEANUP"; }
+_harness_exit() { harness_reap_mock; rm -rf "$CLAUDE_CONFIG_DIR" "$HARNESS_BIN"; eval "$HARNESS_CLEANUP"; }
 harness_trap() {
   HARNESS_CLEANUP=$1
   CHIEF_MOCK_PID_LOG=$(mktemp)
@@ -25,6 +25,10 @@ harness_trap() {
   # Keep pre-trust edits off the real ~/.claude.json.
   CLAUDE_CONFIG_DIR=$(mktemp -d)
   export CLAUDE_CONFIG_DIR
+  # Stand-ins for the agent CLIs chief-spawn.sh requires; a real install wins.
+  HARNESS_BIN=$(mktemp -d)
+  for _cli in claude codex copilot; do printf '#!/bin/sh\n' > "$HARNESS_BIN/$_cli"; chmod +x "$HARNESS_BIN/$_cli"; done
+  PATH="$PATH:$HARNESS_BIN"
   trap _harness_exit EXIT
   trap 'exit 130' INT
   trap 'exit 143' TERM

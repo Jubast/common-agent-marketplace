@@ -3,18 +3,23 @@
 # configured backend, launch the builder, record its meta.
 #
 # Usage: chief-spawn.sh <id> <project-dir> --mode ship|scout --branch <name> \
-#                        --intent "<operator's ask>" [--spec "<build instructions>"]
+#                        --intent "<operator's ask>" [--spec "<build instructions>"] \
+#                        [--agent <agent[:model]>] [--model <model>]
+#
+# The agent and model come from --agent/--model, else .chief/config/agents
+# (see lib/agents/select.sh), else claude with its default model.
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
 . "$CHIEF_ROOT/bin/lib/meta.sh"
 . "$CHIEF_ROOT/bin/lib/backends/backend.sh"
+. "$CHIEF_ROOT/bin/lib/agents/select.sh"
 . "$CHIEF_ROOT/bin/lib/git-sync.sh"
 
 fail() { echo "chief-spawn: $*" >&2; exit 1; }
 
 ID=${1:-}; PROJECT=${2:-}
-[ -n "$ID" ] && [ -n "$PROJECT" ] || fail "usage: chief-spawn.sh <id> <project-dir> --mode ship|scout --branch <name> --intent \"...\" [--spec \"...\"]"
+[ -n "$ID" ] && [ -n "$PROJECT" ] || fail "usage: chief-spawn.sh <id> <project-dir> --mode ship|scout --branch <name> --intent \"...\" [--spec \"...\"] [--agent <agent[:model]>] [--model <model>]"
 shift 2
 [ -d "$PROJECT" ] || fail "no such project directory: $PROJECT"
 PROJECT=$(cd "$PROJECT" && pwd)
@@ -35,12 +40,16 @@ MODE=""
 BRANCH=""
 INTENT=""
 SPEC="(none given - use your own judgement within the intent above.)"
+AGENT_ARG=""
+MODEL_ARG=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --mode) MODE=$2; shift 2 ;;
     --branch) BRANCH=$2; shift 2 ;;
     --intent) INTENT=$2; shift 2 ;;
     --spec) SPEC=$2; shift 2 ;;
+    --agent) AGENT_ARG=$2; shift 2 ;;
+    --model) MODEL_ARG=$2; shift 2 ;;
     *) fail "unknown argument: $1" ;;
   esac
 done
@@ -54,7 +63,23 @@ for ref in "refs/heads/$BRANCH" "refs/remotes/origin/$BRANCH"; do
   git -C "$PROJECT" show-ref --verify --quiet "$ref" && fail "branch $BRANCH already exists - pick a new name"
 done
 
-AGENT=claude MODEL="" COMMAND=""
+# Explicit flags win over the config; --model alone overrides just the model.
+if [ -n "$AGENT_ARG" ]; then
+  chief_agent_profile "$AGENT_ARG" || exit 1
+  AGENT=$P_AGENT MODEL=$P_MODEL COMMAND=""
+else
+  chief_agent_select "$MODE" || exit 1
+  AGENT=$SEL_AGENT MODEL=$SEL_MODEL COMMAND=$SEL_COMMAND
+fi
+if [ -n "$MODEL_ARG" ]; then
+  chief_agent_profile "$AGENT:$MODEL_ARG" || exit 1
+  MODEL=$P_MODEL
+fi
+chief_agent_load "$AGENT" || exit 1
+agent_require || exit 1
+if [ -n "$MODEL" ] && declare -F agent_models >/dev/null && ! agent_models | grep -qxF -- "$MODEL"; then
+  fail "unknown model '$MODEL' for $AGENT (known: $(agent_models | paste -sd' ' -))"
+fi
 
 mkdir -p "$DATA/$ID"
 BRIEF="$DATA/$ID/brief.md"
