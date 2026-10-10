@@ -75,6 +75,10 @@ assert_not_contains "$(git -C "$WORK/project" branch --list)" "feat/t-fail" \
   "spawn (backend_spawn failed): branch was rolled back, not left orphaned"
 assert_file_missing "$CHIEF_HOME/state/t-fail.meta" \
   "spawn (backend_spawn failed): no meta record was left behind"
+assert_eq "$(jq -r --arg p "$CHIEF_HOME/worktrees/t-fail" '.projects[$p].hasTrustDialogAccepted // "unset"' "$CLAUDE_CONFIG_DIR/.claude.json")" "unset" \
+  "spawn (backend_spawn failed): the pre-trust was released"
+assert_eq "$(grep -c t-fail "$CHIEF_HOME/state/trust-owned" 2>/dev/null)" "0" \
+  "spawn (backend_spawn failed): no trust-owned entry left"
 
 # --- backend_spawn "succeeds" but returns malformed output ----------------
 assert_failure \

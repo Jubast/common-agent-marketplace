@@ -33,7 +33,7 @@ echo "findings: use an LRU cache" > "$CHIEF_HOME/data/s-1/report.md"
 # Simulate the scout doing exactly what its brief invites: a throwaway
 # commit in its own scratch worktree, never meant to land.
 (
-  cd "$CHIEF_HOME/worktrees/s-1"
+  cd "$CHIEF_HOME/worktrees/s-1" || exit 1
   echo scratch > scratch.txt
   git add scratch.txt
   git -c user.email=t@t -c user.name=t commit -q -m "scratch"
@@ -52,7 +52,7 @@ assert_success "backlog: file the ship" -- "$BIN/chief-backlog.sh" add b-1 "Add 
 assert_success "spawn: ship task" -- \
   timeout 10 "$BIN/chief-spawn.sh" b-1 "$WORK/project" --mode ship --branch feat/b-1 --intent "Add hello.txt" --spec "content: hello"
 (
-  cd "$CHIEF_HOME/worktrees/b-1"
+  cd "$CHIEF_HOME/worktrees/b-1" || exit 1
   echo hello > hello.txt
   git add hello.txt
   git -c user.email=t@t -c user.name=t commit -q -m "add hello.txt"
@@ -72,7 +72,7 @@ assert_success "backlog: file a second ship" -- "$BIN/chief-backlog.sh" add b-2 
 assert_success "spawn: second ship task" -- \
   timeout 10 "$BIN/chief-spawn.sh" b-2 "$WORK/project" --mode ship --branch feat/b-2 --intent "Add world.txt" --spec "content: world"
 (
-  cd "$CHIEF_HOME/worktrees/b-2"
+  cd "$CHIEF_HOME/worktrees/b-2" || exit 1
   echo world > world.txt
   git add world.txt
   git -c user.email=t@t -c user.name=t commit -q -m "add world.txt"
@@ -89,7 +89,7 @@ assert_success "backlog: file a third ship" -- "$BIN/chief-backlog.sh" add b-3 "
 assert_success "spawn: third ship task" -- \
   timeout 10 "$BIN/chief-spawn.sh" b-3 "$WORK/project" --mode ship --branch feat/b-3 --intent "Add moon.txt" --spec "content: moon"
 (
-  cd "$CHIEF_HOME/worktrees/b-3"
+  cd "$CHIEF_HOME/worktrees/b-3" || exit 1
   echo moon > moon.txt
   git add moon.txt
   git -c user.email=t@t -c user.name=t commit -q -m "add moon.txt"
@@ -123,7 +123,7 @@ assert_success "backlog: file a fourth ship" -- "$BIN/chief-backlog.sh" add b-4 
 assert_success "spawn: fourth ship task" -- \
   timeout 10 "$BIN/chief-spawn.sh" b-4 "$WORK/project" --mode ship --branch feat/b-4 --intent "Add sun.txt" --spec "content: sun"
 (
-  cd "$CHIEF_HOME/worktrees/b-4"
+  cd "$CHIEF_HOME/worktrees/b-4" || exit 1
   echo sun > sun.txt
   git add sun.txt
   git -c user.email=t@t -c user.name=t commit -q -m "add sun.txt"
@@ -134,5 +134,16 @@ assert_contains "$(git -C "$BARE" branch --list feat/b-4)" "feat/b-4" "setup: fe
 git -C "$WORK/project" merge --ff-only feat/b-4 >/dev/null
 assert_success "teardown: a landed ship deletes its now-merged remote branch" -- "$BIN/chief-teardown.sh" b-4
 assert_eq "$(git -C "$BARE" branch --list feat/b-4)" "" "teardown: remote branch feat/b-4 deleted from origin"
+
+# --- teardown releases the task's pre-trusted worktree -------------------
+export CHIEF_HOME="$WORK/.chief-trust"
+CFG="$CLAUDE_CONFIG_DIR/.claude.json"
+trusted() { jq -r --arg p "$CHIEF_HOME/worktrees/p-1" '.projects[$p].hasTrustDialogAccepted // "unset"' "$CFG"; }
+. "$BIN/lib/agents/claude.sh"
+timeout 10 "$BIN/chief-spawn.sh" p-1 "$WORK/project" --mode scout --branch feat/p-1 --intent x >/dev/null
+STATE="$CHIEF_HOME/state" agent_prepare "$CHIEF_HOME/worktrees/p-1"
+assert_eq "$(trusted)" "true" "setup: worktree trusted"
+"$BIN/chief-teardown.sh" p-1 >/dev/null
+assert_eq "$(trusted)" "unset" "teardown: worktree untrusted"
 
 harness_summary

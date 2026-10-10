@@ -34,7 +34,7 @@ assert_contains "$(cat "$CHIEF_HOME/data/t-1/brief.md")" "report \`working" "spa
 
 # Simulate the builder actually doing its job - a real commit in its worktree.
 (
-  cd "$CHIEF_HOME/worktrees/t-1"
+  cd "$CHIEF_HOME/worktrees/t-1" || exit 1
   echo hello > hello.txt
   git add hello.txt
   git -c user.email=t@t -c user.name=t commit -q -m "add hello.txt"

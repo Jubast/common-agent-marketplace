@@ -5,9 +5,9 @@
 # chief_meta_get to recover their own endpoint identifier); nothing above
 # this file should know whether it's talking to herdr or Orca.
 #
-# Adapter contract - each backends/<name>.sh must define all five:
+# Adapter contract - each backends/<name>.sh must define all of:
 #   backend_spawn   <id> <project-dir> <brief-path> <branch>
-#                     -> creates the worktree + terminal, launches claude in
+#                     -> creates the worktree + terminal, launches the agent in
 #                        it pointed at the brief, prints the worktree path on
 #                        its own stdout line first, then the backend's own
 #                        endpoint identifier on a second line.
@@ -22,7 +22,7 @@
 #   backend_kill    <id> -> tears down the terminal/session. Never touches
 #                           the worktree or its git history.
 #   backend_relaunch <id> <brief-path>
-#                     -> launches a fresh claude in the EXISTING worktree
+#                     -> launches a fresh agent in the EXISTING worktree
 #                        (recorded in state/<id>.meta) pointed at the given
 #                        brief, after backend_kill already stopped the old
 #                        one. Does not create a new worktree or branch.
@@ -42,11 +42,12 @@
 #                        caller's `|| true`) rather than erroring.
 #
 #   backend_teardown <id> <project-dir> <worktree>
-#                     -> OPTIONAL. Called by chief-teardown.sh after
-#                        backend_kill and before it removes the worktree via
-#                        git, so a backend that tracks worktrees itself (orca)
-#                        can forget it. Failures are ignored. Backends that
-#                        don't define it are skipped.
+#                     -> Called by chief-teardown.sh after backend_kill and
+#                        before it removes the worktree via git, so a backend
+#                        that tracks worktrees itself (orca) can forget it.
+#                        Must call `agent_release <worktree>`. Failures are ignored.
+#
+# The agent adapter (agents/agent.sh) is loaded alongside.
 #
 # Selection: $CHIEF_BACKEND env var, else $CONFIG/backend, else "herdr".
 
@@ -70,4 +71,10 @@ case "$CHIEF_BACKEND" in
 esac
 
 # shellcheck source=/dev/null
+. "$CHIEF_ROOT/bin/lib/agents/agent.sh"
 . "$CHIEF_ROOT/bin/lib/backends/$CHIEF_BACKEND.sh"
+
+for _fn in backend_spawn backend_send backend_capture backend_busy backend_kill backend_relaunch backend_teardown; do
+  declare -F "$_fn" >/dev/null || { echo "chief-backend: '$CHIEF_BACKEND' does not define $_fn" >&2; exit 1; }
+done
+unset _fn

@@ -181,6 +181,7 @@ cleanup_claude() {
   return 0
 }
 cleanup() {
+  agent_release "${WORKTREE:-}"; agent_release "${WORKTREE2:-}"
   cleanup_orca
   cleanup_claude
   rm -rf "$WORK"
@@ -193,6 +194,7 @@ trap 'exit 129' HUP
 export CHIEF_HOME="$WORK/.chief"
 . "$CHIEF_BIN/lib/paths.sh"
 . "$CHIEF_BIN/lib/meta.sh"
+. "$CHIEF_BIN/lib/agents/agent.sh"
 . "$CHIEF_BIN/lib/backends/orca.sh"
 
 BRIEF="$WORK/brief.md"
