@@ -127,12 +127,23 @@ cmd_done() {
   return 0
 }
 
+# Appends " [agent: <agent[:model]>]" to the header of an in-flight record.
+_annotate() {
+  local line
+  while IFS= read -r line; do
+    if [[ $line =~ ^##\ ([^\ ]+)\ \[in-flight\] ]] && chief_meta_exists "${BASH_REMATCH[1]}"; then
+      line+=" [agent: $(chief_meta_agent "${BASH_REMATCH[1]}")]"
+    fi
+    printf '%s\n' "$line"
+  done
+}
+
 cmd_list() {
   local filter=${1:-}
   if [ -n "$filter" ]; then
-    grep "^## .* \[$filter\] " "$BACKLOG" || true
+    { grep "^## .* \[$filter\] " "$BACKLOG" || true; } | _annotate
   else
-    grep "^## " "$BACKLOG" || true
+    { grep "^## " "$BACKLOG" || true; } | _annotate
   fi
 }
 
@@ -146,7 +157,7 @@ cmd_show() {
     $0 ~ "^## " id " \\[" { print; in_record=1; next }
     in_record && /^## / { exit }
     in_record { print }
-  ' "$BACKLOG"
+  ' "$BACKLOG" | _annotate
 }
 
 case "${1:-}" in

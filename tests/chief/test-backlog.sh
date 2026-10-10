@@ -63,6 +63,15 @@ assert_contains "$("$BL" show t-5)" "[in-flight]" "backlog show reflects in-flig
 assert_eq "$(chief_meta_get t-5 status)" "working" \
   "the documented un-hold step (status in-flight) restores meta status to working, so chief-watch.sh's in_flight_ids picks it back up"
 
+assert_success "file a task with an agent" -- "$BL" add t-6 "Sixth task"
+chief_meta_set t-6 agent codex; chief_meta_set t-6 model gpt-5
+assert_not_contains "$("$BL" show t-6)" "[agent:" "show: a queued record carries no agent"
+"$BL" status t-6 in-flight >/dev/null
+assert_contains "$("$BL" show t-6)" "## t-6 [in-flight] Sixth task [agent: codex:gpt-5]" "show: an in-flight record appends its agent after the title"
+assert_contains "$("$BL" list in-flight)" "## t-6 [in-flight] Sixth task [agent: codex:gpt-5]" "list: an in-flight record appends its agent"
+assert_contains "$("$BL" list)" "## t-5 [in-flight] Fifth task" "list: other records keep their prefix format"
+assert_eq "$("$BL" next)" "" "next: unaffected"
+
 assert_success "status in-flight is a no-op on task meta when the task has no meta record yet" -- "$BL" status t-2 in-flight
 assert_eq "$(chief_meta_get t-2 status 2>/dev/null || true)" "" "no meta record was created for t-2 by the in-flight transition"
 assert_eq "$(chief_meta_get t-4 status)" "done" "done advances a spawned task's meta status away from working"
