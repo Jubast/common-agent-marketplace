@@ -10,6 +10,8 @@
 #   agent_prepare <dir>... -> before a worker starts: pre-accept its folder trust
 #   agent_release <dir>    -> undo agent_prepare for <dir> (teardown, spawn rollback)
 #   agent_ready_text       -> screen text (egrep) meaning it is ready for a prompt
+#   agent_paste_text       -> screen text (egrep) it shows for a long pasted prompt
+#   agent_input_marker     -> the glyph (egrep) its input line starts with
 # and optionally:
 #   agent_models           -> the model names it accepts, one per line; when
 #                             defined, any other model fails the spawn

@@ -325,6 +325,20 @@ assert_not_contains "$(cat "$ORCA_MOCK_LOG")" "tui-idle" "backend_spawn does not
 assert_eq "$(jq -r --arg p "$ORCA_MOCK_WORKTREES/t-orca-ready" '.projects[$p].hasTrustDialogAccepted' "$CLAUDE_CONFIG_DIR/.claude.json")" "true" "backend_spawn pre-trusts the new worktree"
 backend_spawn_cleanup "t-orca-ready" "$WORK/project" "chief/t-orca-ready"
 
+# The task's own agent drives the launch command, the readiness check and the
+# command override (recorded in meta by chief-spawn.sh).
+chief_meta_set t-orca-cx agent codex; chief_meta_set t-orca-cx model gpt-5
+: > "$ORCA_MOCK_LOG"
+ORCA_MOCK_NO_BYPASS=1 ORCA_MOCK_SCREEN_TEXT="  100% context left" backend_spawn "t-orca-cx" "$WORK/project" "$BRIEF" "chief/t-orca-cx" >/dev/null 2>&1
+assert_eq "$?" "0" "backend_spawn succeeds for a codex task once its own ready text shows"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "--command codex --dangerously-bypass-approvals-and-sandbox --model gpt-5 --json" "backend_spawn launches the task's agent with its model"
+backend_spawn_cleanup "t-orca-cx" "$WORK/project" "chief/t-orca-cx"
+chief_meta_set t-orca-cmd agent claude; chief_meta_set t-orca-cmd command "my-claude --flag"
+: > "$ORCA_MOCK_LOG"
+backend_spawn "t-orca-cmd" "$WORK/project" "$BRIEF" "chief/t-orca-cmd" >/dev/null 2>&1
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "--command my-claude --flag --json" "backend_spawn launches a command override as given"
+backend_spawn_cleanup "t-orca-cmd" "$WORK/project" "chief/t-orca-cmd"
+
 # Spawn failure modes: each fails the spawn AND rolls back its own worktree,
 # branch and terminals, leaving nothing for chief-spawn.sh to clean up.
 spawn_fails() {  # <label> <id> [env assignments...] - runs backend_spawn with the env set

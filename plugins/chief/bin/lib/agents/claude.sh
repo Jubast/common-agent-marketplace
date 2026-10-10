@@ -13,6 +13,8 @@ agent_args() { echo "--dangerously-skip-permissions${CHIEF_AGENT_MODEL:+ --model
 agent_command() { echo "claude $(agent_args)"; }
 agent_require() { command -v claude >/dev/null || { echo "chief-agent: the 'claude' CLI is not installed" >&2; return 1; }; }
 agent_ready_text() { echo 'bypass permissions'; }
+agent_paste_text() { echo '\[Pasted text'; }
+agent_input_marker() { echo '❯'; }
 
 _claude_json() { readlink -f "${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json"; }
 

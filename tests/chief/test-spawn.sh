@@ -58,6 +58,8 @@ leftovers() { ls "$CHIEF_HOME/state" | grep -c "^\.\?$1[.]" || true; }
 
 assert_success "spawn: --agent claude:opus" -- spawn a-1 --agent claude:opus
 assert_eq "$(meta a-1 agent):$(meta a-1 model)" "claude:opus" "spawn: --agent agent:model is recorded"
+assert_success "spawn: --agent codex:gpt-5" -- spawn a-0 --agent codex:gpt-5
+assert_eq "$(meta a-0 agent):$(meta a-0 model)" "codex:gpt-5" "spawn: a codex task is recorded"
 assert_success "spawn: --model alone" -- spawn a-2 --model sonnet
 assert_eq "$(meta a-2 agent):$(meta a-2 model)" "claude:sonnet" "spawn: --model alone keeps the default agent"
 

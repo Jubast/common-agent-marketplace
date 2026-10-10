@@ -89,12 +89,19 @@ _chief_orca_start_ready() {
   return 1
 }
 
+# _chief_orca_has_text <needle> - stdin shows the needle or the agent's
+# placeholder for a long paste
+_chief_orca_has_text() {
+  local screen; screen=$(tr -s '[:space:]' ' ')
+  printf '%s' "$screen" | grep -qF -e "$1" || printf '%s' "$screen" | grep -qE "$(agent_paste_text)"
+}
+
 # _chief_orca_prompt <handle> <text> - submit <text> to <handle> and check the
-# screen: the text (or "[Pasted text ...]", how claude shows a long paste)
-# showing up means it landed, and if it still sits in the live input line (the
-# last "❯" line) a bare Enter submits it; not landed within
-# CHIEF_ORCA_PROMPT_WAIT seconds is resent once. Does NOT wait for the turn to
-# finish - a first turn on a large task can legitimately run long.
+# screen: the text (or the agent's pasted-text placeholder) showing up means
+# it landed, and if it still sits in the live input line (the last line
+# starting with the agent's input marker) a bare Enter submits it; not landed
+# within CHIEF_ORCA_PROMPT_WAIT seconds is resent once. Does NOT wait for the
+# turn to finish - a first turn on a large task can legitimately run long.
 _chief_orca_prompt() {
   local handle=$1 text=$2
   local needle screen waited=0 limit=$(( ${CHIEF_ORCA_PROMPT_WAIT:-20} * 2 ))
@@ -103,8 +110,8 @@ _chief_orca_prompt() {
     || { echo "chief-backend-orca: 'orca terminal send' failed for $handle" >&2; return 1; }
   while [ "$waited" -lt "$limit" ]; do
     screen=$(_chief_orca_screen "$handle")
-    if printf '%s' "$screen" | tr -s '[:space:]' ' ' | grep -qF -e "$needle" -e "[Pasted text"; then
-      if printf '%s\n' "$screen" | grep '^[[:space:]]*❯' | tail -n1 | tr -s '[:space:]' ' ' | grep -qF -e "$needle" -e "[Pasted text"; then
+    if printf '%s' "$screen" | _chief_orca_has_text "$needle"; then
+      if printf '%s\n' "$screen" | grep -E "^[[:space:]]*($(agent_input_marker))" | tail -n1 | _chief_orca_has_text "$needle"; then
         orca terminal send --terminal "$handle" --enter >/dev/null 2>&1
       fi
       return 0
