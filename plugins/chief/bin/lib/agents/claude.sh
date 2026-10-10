@@ -9,9 +9,7 @@
 . "$CHIEF_ROOT/bin/lib/lock.sh"
 
 agent_name() { echo claude; }
-agent_args() { echo "--dangerously-skip-permissions${CHIEF_AGENT_MODEL:+ --model $CHIEF_AGENT_MODEL}"; }
-agent_command() { echo "claude $(agent_args)"; }
-agent_require() { command -v claude >/dev/null || { echo "chief-agent: the 'claude' CLI is not installed" >&2; return 1; }; }
+agent_flags() { echo "--dangerously-skip-permissions${CHIEF_AGENT_MODEL:+ --model $CHIEF_AGENT_MODEL}"; }
 agent_ready_text() { echo 'bypass permissions'; }
 agent_paste_text() { echo '\[Pasted text'; }
 agent_input_marker() { echo '❯'; }

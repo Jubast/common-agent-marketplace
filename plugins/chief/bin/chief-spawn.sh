@@ -77,12 +77,14 @@ if [ -n "$MODEL_ARG" ]; then
   MODEL=$P_MODEL
 fi
 [ -z "$ARGS_ARG" ] || ARGS=$ARGS_ARG
-[ -z "$ARGS" ] || [ -z "$COMMAND" ] || fail "args and command cannot be combined (command replaces the whole launch command)"
+chief_agent_words args "$ARGS" || exit 1
+[ -z "$COMMAND" ] || [ -z "$ARGS$MODEL" ] || fail "command= replaces the whole launch line, so it cannot be combined with a model or args - put them in the command"
 chief_agent_load "$AGENT" || exit 1
-agent_require || exit 1
-if [ -n "$MODEL" ] && declare -F agent_models >/dev/null && ! agent_models | grep -qxF -- "$MODEL"; then
-  fail "unknown model '$MODEL' for $AGENT (known: $(agent_models | paste -sd' ' -))"
+CHIEF_AGENT_MODEL=$MODEL CHIEF_AGENT_ARGS=$ARGS CHIEF_AGENT_COMMAND=$COMMAND
+if [ -n "$COMMAND" ] && [ "$CHIEF_BACKEND" = herdr ] && [ "$(basename "${COMMAND%% *}")" != "$(agent_name)" ]; then
+  fail "herdr starts the agent's own executable ($(agent_name)), so command= must start with it; use args= or the orca backend for another executable"
 fi
+agent_require || exit 1
 
 mkdir -p "$DATA/$ID"
 BRIEF="$DATA/$ID/brief.md"

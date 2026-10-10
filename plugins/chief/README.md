@@ -22,7 +22,7 @@ Spawn syncs the project's default branch from origin (best-effort), then creates
 
 ## Agents
 
-Workers run on `claude` (default), `codex` or `copilot`, unattended, on herdr and Orca alike. Which one is chosen per task:
+Workers run on `claude` (default), `codex` or `copilot`, unattended, on herdr and Orca alike. **`codex` and `copilot` have no folder-trust handling:** if their CLI asks to trust a new worktree, the spawn stalls and fails as "not ready" (only `claude` is pre-trusted, see below). Which agent a task gets:
 
 1. `chief-spawn.sh ... --agent <agent[:model]>` and/or `--model <model>` win. `--model` alone overrides only the model of the profile the config selects.
 2. Else `.chief/config/agents`, if present:
@@ -42,12 +42,16 @@ Workers run on `claude` (default), `codex` or `copilot`, unattended, on herdr an
    codex:gpt-5-mini
    ```
 
-   `#` starts a comment. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<builder|scout>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights.
+   `#` starts a comment. Per entry, `weight=`, `args=` and `command=` may come in any order. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<builder|scout>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights.
 3. Else `claude` with its default model.
 
-The choice is recorded in the task's meta (`agent`, `model`, `args`, `command`) and reused by relaunch and promote; `chief-crew-state.sh`, `chief-backlog.sh list|show` (in-flight) and the session digest show `[agent: <agent>[:<model>]]`. Spawn fails before creating anything for an unknown agent, a malformed profile, a missing CLI, or, for an adapter that defines `agent_models`, a model outside its list; other models are passed to the agent unvalidated.
+The choice is recorded in the task's meta (`agent`, `model`, `args`, `command`) and reused by relaunch and promote; `chief-crew-state.sh`, `chief-backlog.sh list|show` (in-flight) and the session digest show `[agent: <agent>[:<model>]]`. Spawn fails before creating anything for an unknown agent, a malformed profile or weight, a missing CLI, or a bad `command=` / `args=` / model combination below. Models are passed to the agent unvalidated.
 
-A profile's `args="..."` (or `--args "..."` on spawn, which replaces the configured ones) adds CLI arguments after the adapter's own unattended and model flags, on herdr and Orca alike, e.g. `claude:opus args="--verbose --add-dir /x"`. Both are split on whitespace, so a value cannot contain quotes. `command="..."` instead replaces the whole launch command (a wrapper, another binary path): Orca runs it as given, while herdr starts the agent's own executable (`--kind`) and uses only the arguments after the command's first word, so prefer `args=` unless you need a different executable. `args` and `command` cannot be combined, and an explicit `--agent` drops both of the configured ones.
+A profile's `args="..."` (or `--args "..."` on spawn, which replaces the configured ones) adds CLI arguments after the adapter's own unattended and model flags, on herdr and Orca alike, e.g. `claude:opus args="--verbose --add-dir /x"`. `args=` and `command=` values are split on whitespace and may only use letters, digits, spaces and `. _ / @ : = + , -` (no quotes or shell characters), so both backends read them the same way. `weight=` is a whole number from 0 to 1000 (0 = never picked by `weighted`; a pool where every weight is 0 is an error).
+
+`command="..."` instead replaces the whole launch line (a wrapper, another binary path), so it cannot be combined with a model or `args=` (put them in the command). Orca runs it as given. herdr starts the agent's own executable (`--kind`), so the command must start with it (`claude`, `/usr/local/bin/claude`) and only its arguments are used; for another executable use `args=` or the Orca backend. An explicit `--agent` drops the configured `args` and `command`.
+
+`CHIEF_AGENT` and `.chief/config/agent` (the old single-agent selection) are gone; `.chief/config/agents` replaces them.
 
 Adding an agent is one `bin/lib/agents/<name>.sh` implementing the contract in `agents/agent.sh`. Differences to know:
 

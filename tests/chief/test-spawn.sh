@@ -79,9 +79,9 @@ assert_eq "$(meta a-4 model)" "haiku" "spawn: --model overrides just the model o
 assert_success "spawn: --agent over config" -- spawn a-5 --agent claude
 assert_eq "$(meta a-5 model)" "" "spawn: an explicit --agent wins over the config"
 
-printf 'claude:opus command="my-claude --dangerously-skip-permissions"\n' > "$CHIEF_HOME/config/agents"
+printf 'claude command="/bin/sh --dangerously-skip-permissions"\n' > "$CHIEF_HOME/config/agents"
 assert_success "spawn: command override" -- spawn a-6
-assert_eq "$(meta a-6 command)" "my-claude --dangerously-skip-permissions" "spawn: the profile's command is recorded in meta"
+assert_eq "$(meta a-6 command)" "/bin/sh --dangerously-skip-permissions" "spawn: the profile's command is recorded in meta"
 assert_success "spawn: explicit agent drops the override" -- spawn a-7 --agent claude
 assert_eq "$(meta a-7 command || echo none)" "none" "spawn: --agent does not inherit a configured command"
 rm "$CHIEF_HOME/config/agents"
@@ -116,18 +116,31 @@ fails b-3 "bad profile" --model 'a b'
 printf 'strategy = sometimes\n' > "$CHIEF_HOME/config/agents"
 fails b-4 "unknown strategy"
 printf 'claude command="my-claude"\n' > "$CHIEF_HOME/config/agents"
-fails b-6 "args and command cannot be combined" --args "--x"
+fails b-6 "cannot be combined with a model or args" --args "--x"
+fails b-7 "cannot be combined with a model or args" --model opus
+printf 'claude:opus command="my-claude"\n' > "$CHIEF_HOME/config/agents"
+fails b-8 "cannot be combined with a model or args"
+rm "$CHIEF_HOME/config/agents"
+fails b-9 "may only use letters" --args "--add-dir '/a b'"
+fails b-10 "args" --args '$(x)'
+# herdr runs the agent's own executable: a command must start with it
+printf 'claude command="/opt/wrap.sh --x"\n' > "$CHIEF_HOME/config/agents"
+out=$(CHIEF_BACKEND=herdr spawn b-11 2>&1); rc=$?
+assert_eq "$rc" "1" "spawn: a command with another executable fails on herdr"
+assert_contains "$out" "herdr starts the agent's own executable (claude)" "spawn: and says to use args= or orca"
+assert_eq "$(leftovers b-11)" "0" "spawn b-11: no state left behind"
+printf 'claude command="%s --x"\n' "$HARNESS_BIN/claude" > "$CHIEF_HOME/config/agents"
+mkdir "$WORK/fakeherdr"; printf '#!/bin/sh\nexit 1\n' > "$WORK/fakeherdr/herdr"; chmod +x "$WORK/fakeherdr/herdr"
+out=$(PATH="$WORK/fakeherdr:$PATH" CHIEF_BACKEND=herdr spawn b-12 2>&1)
+assert_not_contains "$out" "starts the agent's own executable" "spawn: the same executable by path passes the herdr check"
+assert_contains "$out" "herdr" "spawn: and goes on to the backend"
+printf 'claude command="/bin/sh --x"\n' > "$CHIEF_HOME/config/agents"
+assert_success "spawn: any executable is fine on the mock backend" -- spawn b-13
+rm "$CHIEF_HOME/config/agents"
 rm "$CHIEF_HOME/config/agents"
 out=$(PATH=/usr/bin:/bin timeout 10 "$BIN/chief-spawn.sh" b-5 "$WORK/project" --mode ship --branch feat/b-5 --intent x 2>&1); rc=$?
 assert_eq "$rc" "1" "spawn: a missing agent CLI fails"
 assert_contains "$out" "the 'claude' CLI is not installed" "spawn: and says which CLI"
 assert_eq "$(leftovers b-5)" "0" "spawn: and leaves no state behind"
-
-# agent_models, when an adapter defines it, rejects other models
-cp -r "$REPO_ROOT/plugins/chief" "$WORK/plugin"
-printf '%s\n' '. "$CHIEF_ROOT/bin/lib/agents/claude.sh"' 'agent_models() { printf "%s\n" fast slow; }' > "$WORK/plugin/bin/lib/agents/strict.sh"
-sp() { CHIEF_ROOT_OVERRIDE="$WORK/plugin" timeout 10 "$WORK/plugin/bin/chief-spawn.sh" "$1" "$WORK/project" --mode ship --branch "feat/$1" --intent x "${@:2}" 2>&1; }
-assert_contains "$(sp c-1 --agent strict:medium)" "unknown model 'medium' for strict (known: fast slow)" "spawn: agent_models rejects an unknown model"
-assert_contains "$(sp c-2 --agent strict:fast)" "spawned: c-2" "spawn: agent_models accepts a known model"
 
 harness_summary

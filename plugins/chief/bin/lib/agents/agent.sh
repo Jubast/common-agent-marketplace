@@ -2,20 +2,16 @@
 # agent.sh - loads a task's agent adapter and selects a new task's agent
 # profile. Sourced after paths.sh and meta.sh.
 #
-# Adapter contract - each agents/<name>.sh defines all of (the model and
-# extra args, if any, are in $CHIEF_AGENT_MODEL / $CHIEF_AGENT_ARGS):
-#   agent_name             -> the agent's native kind (herdr --kind)
-#   agent_args             -> CLI args the backends start it with
-#   agent_command          -> full command line to start it
-#   agent_require          -> fails (with a message) unless the agent's CLI is installed
+# Adapter contract - each agents/<name>.sh defines all of:
+#   agent_name             -> the agent's native kind and executable (herdr --kind)
+#   agent_flags            -> its unattended-mode and model flags (model: $CHIEF_AGENT_MODEL)
 #   agent_prepare <dir>    -> before a worker starts: pre-accept its folder trust
 #   agent_release <dir>    -> undo agent_prepare for <dir> (teardown, spawn rollback)
 #   agent_ready_text       -> screen text (egrep) meaning it is ready for a prompt
 #   agent_paste_text       -> screen text (egrep) it shows for a long pasted prompt
 #   agent_input_marker     -> the glyph (egrep) its input line starts with
-# and optionally:
-#   agent_models           -> the model names it accepts, one per line; when
-#                             defined, any other model fails the spawn
+# This file adds agent_args (herdr), agent_command (orca) and agent_require,
+# from those plus the task's args= / command= ($CHIEF_AGENT_ARGS / _COMMAND).
 #
 # A task's agent, model, args and command come from its meta (chief-spawn.sh
 # records them); a task without them runs claude.
@@ -34,7 +30,6 @@ chief_agent_load() {  # <agent> - sources the adapter
     echo "chief-agent: unknown agent '$1' (available: $(chief_agent_list | paste -sd' ' -))" >&2
     return 1
   fi
-  unset -f agent_models
   # shellcheck source=/dev/null
   . "$CHIEF_ROOT/bin/lib/agents/$1.sh"
 }
@@ -45,18 +40,26 @@ chief_agent_use() {  # <id> - loads the adapter recorded in the task's meta
   CHIEF_AGENT_MODEL=$(chief_meta_get "$1" model 2>/dev/null) || CHIEF_AGENT_MODEL=""
   CHIEF_AGENT_ARGS=$(chief_meta_get "$1" args 2>/dev/null) || CHIEF_AGENT_ARGS=""
   CHIEF_AGENT_COMMAND=$(chief_meta_get "$1" command 2>/dev/null) || CHIEF_AGENT_COMMAND=""
-  chief_agent_load "${agent:-claude}" || return 1
-  if [ -n "$CHIEF_AGENT_ARGS" ]; then
-    # Appended to the adapter's own args (the unattended and model flags stay).
-    CHIEF_AGENT_BASE_ARGS=$(agent_args)
-    agent_args() { echo "$CHIEF_AGENT_BASE_ARGS $CHIEF_AGENT_ARGS"; }
+  chief_agent_load "${agent:-claude}"
+}
+
+# herdr: the arguments for the agent's own executable (a command override
+# contributes the words after its first)
+agent_args() {
+  if [ -z "${CHIEF_AGENT_COMMAND:-}" ]; then
+    echo "$(agent_flags)${CHIEF_AGENT_ARGS:+ $CHIEF_AGENT_ARGS}"
+  elif [[ $CHIEF_AGENT_COMMAND == *' '* ]]; then
+    echo "${CHIEF_AGENT_COMMAND#* }"
   fi
-  if [ -n "$CHIEF_AGENT_COMMAND" ]; then
-    # Replaces the launch command; herdr starts the agent's own executable,
-    # so it takes just the override's arguments.
-    agent_command() { echo "$CHIEF_AGENT_COMMAND"; }
-    agent_args() { [[ $CHIEF_AGENT_COMMAND != *' '* ]] || echo "${CHIEF_AGENT_COMMAND#* }"; }
-  fi
+}
+
+# orca: the whole launch line
+agent_command() { echo "${CHIEF_AGENT_COMMAND:-$(agent_name) $(agent_args)}"; }
+
+agent_require() {
+  local exe=${CHIEF_AGENT_COMMAND:-$(agent_name)}
+  exe=${exe%% *}
+  command -v "$exe" >/dev/null || { echo "chief-agent: the '$exe' CLI is not installed" >&2; return 1; }
 }
 
 chief_agent_release() {  # <id> <dir> - agent_release with the task's adapter
@@ -83,6 +86,12 @@ chief_agent_profile() {  # <agent[:model]> - validates, sets P_AGENT and P_MODEL
   P_AGENT=${BASH_REMATCH[1]} P_MODEL=${BASH_REMATCH[3]:-}
 }
 
+chief_agent_words() {  # <name> <value> - args and command are plain words: no quotes or shell characters
+  [[ $2 =~ ^[A-Za-z0-9._/@:=+,\ -]*$ ]] && return 0
+  echo "chief-agent: $1 '$2' may only use letters, digits, spaces and . _ / @ : = + , - (no quotes or shell characters)" >&2
+  return 1
+}
+
 # _chief_agent_entry <line> - prints "agent SEP model SEP weight SEP command SEP args"
 _chief_agent_entry() {
   local rest=$1 weight=1 cmd="" args="" profile
@@ -95,6 +104,9 @@ _chief_agent_entry() {
     rest=${BASH_REMATCH[5]}
   done
   [[ $rest =~ ^[[:space:]]*(#.*)?$ ]] || { echo "chief-agent: unexpected '$rest' after '$profile'" >&2; return 1; }
+  chief_agent_words args "$args" && chief_agent_words command "$cmd" || return 1
+  [[ $weight =~ ^[0-9]{1,4}$ ]] && [ $((10#$weight)) -le 1000 ] || { echo "chief-agent: weight $weight must be 0 to 1000" >&2; return 1; }
+  weight=$((10#$weight))
   printf '%s\n' "$P_AGENT$SEP$P_MODEL$SEP$weight$SEP$cmd$SEP$args"
 }
 
@@ -107,6 +119,7 @@ _chief_agent_read() {
   [ -f "$file" ] || return 0
   while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
+    line=${line%$'\r'}
     read -r line <<< "$line"  # trim
     case "$line" in
       ""|"#"*) continue ;;
@@ -135,7 +148,7 @@ _chief_agent_read() {
 }
 
 chief_agent_select() {  # <mode>
-  local section=${1/ship/builder} cursor rec w i expanded=""
+  local section=${1/ship/builder} cursor rec
   SEL_AGENT=claude SEL_MODEL="" SEL_ARGS="" SEL_COMMAND=""
   _chief_agent_read "$section" || return 1
   [ -n "$POOL" ] || return 0
@@ -148,15 +161,13 @@ chief_agent_select() {  # <mode>
       echo $((cursor + 1)) > "$STATE/agent-cursor-$section"
       chief_lock_release "$STATE/.agent-select.lock"
       rec=$(sed -n "$((cursor % $(wc -l <<< "$POOL") + 1))p" <<< "$POOL") ;;
-    *)  # weighted or random: draw from the pool with each entry repeated by its weight
-      while IFS= read -r rec; do
-        IFS=$SEP read -r _ _ w _ <<< "$rec"
-        if [ "$STRATEGY" = random ]; then w=1; fi
-        for ((i = 0; i < w; i++)); do expanded+="$rec"$'\n'; done
-      done <<< "$POOL"
-      expanded=${expanded%$'\n'}
-      [ -n "$expanded" ] || { echo "chief-agent: every weight is 0" >&2; return 1; }
-      rec=$(sed -n "$(( ${CHIEF_AGENT_RANDOM:-$((RANDOM * 32768 + RANDOM))} % $(wc -l <<< "$expanded") + 1 ))p" <<< "$expanded") ;;
+    *)  # weighted or random: a cumulative-weight pick
+      rec=$(awk -F"$SEP" -v r="${CHIEF_AGENT_RANDOM:-$((RANDOM * 32768 + RANDOM))}" -v equal="$([ "$STRATEGY" = random ] && echo 1 || echo 0)" '
+        { w[NR] = equal ? 1 : $3; line[NR] = $0; total += w[NR] }
+        END { if (!total) exit 1
+              r %= total
+              for (i = 1; i <= NR; i++) { if (r < w[i]) { print line[i]; exit } r -= w[i] } }' <<< "$POOL") \
+        || { echo "chief-agent: every weight in the pool is 0" >&2; return 1; } ;;
   esac
   IFS=$SEP read -r SEL_AGENT SEL_MODEL _ SEL_COMMAND SEL_ARGS <<< "$rec"
 }

@@ -12,7 +12,8 @@ harness_trap 'rm -rf "$WORK"'
 export CHIEF_HOME="$WORK/.chief"
 . "$LIB/paths.sh"
 . "$LIB/meta.sh"
-. "$LIB/agents/claude.sh"
+. "$LIB/agents/agent.sh"
+chief_agent_load claude
 CFG="$CLAUDE_CONFIG_DIR/.claude.json"
 flag() { jq -r --arg p "$1" '.projects[$p].hasTrustDialogAccepted // "unset"' "$CFG"; }
 
