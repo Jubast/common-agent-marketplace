@@ -92,6 +92,7 @@ _ws_exists() {  # <workspace-id> -> the id again if still open, else empty
     | jq -r --arg id "$1" '.result.workspaces[]? | select(.workspace_id == $id) | .workspace_id'
 }
 cleanup() {
+  agent_release "$WORK/.chief/worktrees/$ID"; agent_release "$WORK/.chief/worktrees/$ID2"
   # Safety net independent of how far the test got: close every workspace
   # this run could have produced, even if backend_spawn/relaunch failed
   # partway through and left one open without ever reporting it. Covers
@@ -114,34 +115,15 @@ git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
 export CHIEF_HOME="$WORK/.chief"
 . "$CHIEF_BIN/lib/paths.sh"
 . "$CHIEF_BIN/lib/meta.sh"
+. "$CHIEF_BIN/lib/agents/agent.sh"
 . "$CHIEF_BIN/lib/backends/herdr.sh"
 
 BRIEF="$WORK/brief.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF"
 
-# Structural (non-racy) proof that a brand-new worktree path really does
-# trigger Claude Code's trust dialog on `agent start`, before trusting
-# backend_spawn to have exercised _chief_herdr_start_agent's handling of it
-# below. A throwaway probe pane, closed immediately - no claude turn, no
-# tokens spent.
-PROBE_ID="$ID-probe"
-PROBE_JSON=$(herdr worktree create --cwd "$WORK/project" --branch "chief/$PROBE_ID" \
-  --path "$WORK/.chief/worktrees/$PROBE_ID" --label "chief-$PROBE_ID" --trust-repository --no-focus 2>/dev/null)
-PROBE_PANE=$(printf '%s' "$PROBE_JSON" | jq -r '.result.root_pane.pane_id // empty')
-herdr agent start "$PROBE_ID" --kind claude --pane "$PROBE_PANE" --timeout 30000 >/dev/null 2>"$WORK/probe.err"
-assert_contains "$(cat "$WORK/probe.err")" "agent_not_ready" \
-  "a brand-new worktree path hits Claude Code's trust dialog on 'agent start' (not just an immediately-idle agent)"
-herdr workspace close "$(_chief_herdr_workspace_id "$PROBE_PANE")" >/dev/null 2>&1
-git -C "$WORK/project" worktree remove --force "$WORK/.chief/worktrees/$PROBE_ID" >/dev/null 2>&1 || true
-git -C "$WORK/project" branch -D "chief/$PROBE_ID" >/dev/null 2>&1 || true
-# The probe above may itself have auto-opened a primary workspace for
-# $WORK/project - close it, so backend_spawn below is what opens it.
-PROBE_PRIMARY=$(_primary_ws "$WORK/project")
-[ -n "$PROBE_PRIMARY" ] && herdr workspace close "$PROBE_PRIMARY" >/dev/null 2>&1
-
 SPAWN_OUTPUT=$(backend_spawn "$ID" "$WORK/project" "$BRIEF" "chief/$ID" 2>"$WORK/spawn.err")
 SPAWN_RC=$?
-assert_eq "$SPAWN_RC" "0" "backend_spawn succeeds (clears the same trust dialog internally, then delivers the brief)"
+assert_eq "$SPAWN_RC" "0" "backend_spawn succeeds (pre-trusts the worktree, then delivers the brief)"
 [ "$SPAWN_RC" = "0" ] || cat "$WORK/spawn.err"
 
 WORKTREE=$(printf '%s\n' "$SPAWN_OUTPUT" | sed -n 1p)
@@ -161,6 +143,7 @@ assert_eq "$(_ws_label "$WS1")" "chief-$ID" "the task is its own workspace label
 assert_eq "$(_ws_count_for_root "$WORK/project")" "2" "the primary plus one task workspace exist for the project"
 assert_eq "$(_linked_ws_count "$WORK/project")" "1" "the task workspace is a linked worktree"
 
+assert_eq "$(jq -r --arg p "$WORKTREE" '.projects[$p].hasTrustDialogAccepted' "${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json")" "true" "backend_spawn pre-trusts the worktree in .claude.json"
 chief_meta_set "$ID" endpoint "$ENDPOINT"
 chief_meta_set "$ID" worktree "$WORKTREE"
 chief_meta_set "$ID" project "$WORK/project"

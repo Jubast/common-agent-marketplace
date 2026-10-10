@@ -36,7 +36,7 @@ assert_success "spawn: creates the worktree and launches the mock backend" -- \
 # Simulate the builder finishing its work and reporting done, the same way
 # test-lifecycle.sh does.
 (
-  cd "$CHIEF_HOME/worktrees/t-1"
+  cd "$CHIEF_HOME/worktrees/t-1" || exit 1
   echo hello > hello.txt
   git add hello.txt
   git -c user.email=t@t -c user.name=t commit -q -m "add hello.txt"

@@ -62,7 +62,7 @@ assert_eq "$arm_rc2" "2" "stop-watch-arm: exits 2 (rewake) once a task hits a te
 assert_contains "$arm_out2" "t-1" "stop-watch-arm: the rewake reason names the task"
 
 echo "---"
-cd "$CHIEF_HOME/worktrees/t-1"
+cd "$CHIEF_HOME/worktrees/t-1" || exit 1
 out4=$("$SS")
 assert_eq "$out4" "{}" "session-start: stands down completely inside the builder's own worktree"
 "$ARM" >/dev/null 2>&1

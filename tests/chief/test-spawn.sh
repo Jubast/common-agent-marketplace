@@ -38,4 +38,12 @@ assert_contains "$(cat "$LIFECYCLE")" "t-1" "spawn: the {TASK_ID} placeholder wa
 assert_not_contains "$(cat "$LIFECYCLE")" "{TASK_ID}" "spawn: no unfilled {TASK_ID} placeholder remains"
 assert_contains "$(cat "$LIFECYCLE")" "- [ ] filed" "spawn: the ship lifecycle checklist's first step is present"
 
+CFG="$CLAUDE_CONFIG_DIR/.claude.json"
+assert_eq "$(jq -r --arg p "$CHIEF_HOME/worktrees/t-1" '.projects[$p].hasTrustDialogAccepted' "$CFG")" "true" "spawn: the task's worktree is pre-trusted"
+
+rm -f "$CFG"
+assert_success "spawn: CHIEF_NO_PRETRUST=1 still spawns" -- \
+  env CHIEF_NO_PRETRUST=1 timeout 10 "$BIN/chief-spawn.sh" t-2 "$WORK/project" --mode ship --branch feat/t-2 --intent x
+assert_file_missing "$CFG" "spawn: CHIEF_NO_PRETRUST=1 leaves the claude config untouched"
+
 harness_summary

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # mock.sh - DEV/TEST ONLY fake terminal backend.
 #
-# Real backends launch `claude` in a real terminal. This one launches a
+# Real backends launch the agent in a real terminal. This one launches a
 # harmless placeholder background process instead, so the rest of Chief's
 # scripts (spawn/control/crew-state/watch/teardown) can be exercised end to
 # end without herdr, Orca, or spending real model tokens. A test then plays
@@ -24,6 +24,7 @@
 backend_spawn() {
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
   local worktree="$WORKTREES/$id"
+  agent_prepare "$worktree"
   git -C "$project_dir" worktree add -q -b "$branch" "$worktree" >/dev/null
   local log="$STATE/$id.term.log"
   : > "$log"
@@ -58,6 +59,7 @@ backend_spawn_cleanup() {
   local id=$1 project_dir=$2 branch=$3
   local worktree="$WORKTREES/$id"
   local pid
+  agent_release "$worktree"
   pid=$(cat "$STATE/$id.term.pid" 2>/dev/null) || true
   [ -n "${pid:-}" ] && kill "$pid" 2>/dev/null
   rm -f "$STATE/$id.term.pid" "$STATE/$id.term.log"
@@ -84,12 +86,17 @@ backend_busy() {
 
 backend_relaunch() {
   local id=$1 brief_path=$2
+  agent_prepare "$(chief_meta_get "$id" worktree)"
   echo "[mock] relaunch for $id" >> "$STATE/$id.term.log"
   echo "[mock] brief: $brief_path" >> "$STATE/$id.term.log"
   ( exec -a "chief-mock-$id" sleep 100000 ) >/dev/null 2>&1 &
   disown
   echo $! > "$STATE/$id.term.pid"
   [ -z "${CHIEF_MOCK_PID_LOG:-}" ] || echo $! >> "$CHIEF_MOCK_PID_LOG"
+}
+
+backend_teardown() {
+  agent_release "$3"
 }
 
 backend_kill() {

@@ -39,12 +39,14 @@ assert_eq "$TASK_STATUS" "exited" "exit records status=exited"
 
 assert_failure "relaunch without --note is refused" -- "$CTL" t-1 relaunch
 
+rm -f "$CLAUDE_CONFIG_DIR/.claude.json"
 assert_success "relaunch with --note succeeds" -- "$CTL" t-1 relaunch --note "was mid-way adding hello.txt"
 assert_contains "$(tail -6 "$WORK/.chief/data/t-1/brief.md")" "was mid-way adding hello.txt" "the checkpoint note is appended to the brief"
 assert_contains "$(tail -6 "$WORK/.chief/data/t-1/brief.md")" "Relaunch checkpoint" "the checkpoint section is clearly marked"
 new_pid=$(cat "$CHIEF_HOME/state/t-1.term.pid")
 kill -0 "$new_pid" 2>/dev/null
 assert_eq "$?" "0" "relaunch starts a new backend process in the same worktree"
+assert_eq "$(jq -r --arg p "$CHIEF_HOME/worktrees/t-1" '.projects[$p].hasTrustDialogAccepted' "$CLAUDE_CONFIG_DIR/.claude.json")" "true" "relaunch re-trusts the worktree"
 TASK_STATUS2=$(. "$META_LIB"; STATE="$CHIEF_HOME/state"; chief_meta_get t-1 status)
 assert_eq "$TASK_STATUS2" "working" "relaunch records status=working again"
 
