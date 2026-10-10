@@ -40,6 +40,8 @@ assert_contains "$(cat "$LIFECYCLE")" "- [ ] filed" "spawn: the ship lifecycle c
 
 CFG="$CLAUDE_CONFIG_DIR/.claude.json"
 assert_eq "$(jq -r --arg p "$CHIEF_HOME/worktrees/t-1" '.projects[$p].hasTrustDialogAccepted' "$CFG")" "true" "spawn: the task's worktree is pre-trusted"
+STATE="$CHIEF_HOME/state"; . "$BIN/lib/meta.sh"
+assert_eq "$(chief_meta_get t-1 agent)" "claude" "spawn: the default agent is recorded in meta"
 
 rm -f "$CFG"
 assert_success "spawn: CHIEF_NO_PRETRUST=1 still spawns" -- \

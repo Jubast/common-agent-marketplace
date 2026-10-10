@@ -21,6 +21,9 @@ echo "test-agent-claude:"
 assert_eq "$(agent_name)" "claude" "agent: name"
 assert_eq "$(agent_command)" "claude --dangerously-skip-permissions" "agent: command"
 assert_eq "$(agent_ready_text)" "bypass permissions" "agent: ready text"
+CHIEF_AGENT_MODEL=sonnet
+assert_eq "$(agent_command)" "claude --dangerously-skip-permissions --model sonnet" "agent: model flag when a model is set"
+CHIEF_AGENT_MODEL=
 
 agent_prepare /a
 assert_eq "$(flag /a)" "true" "trust: creates the config when missing and sets the flag"

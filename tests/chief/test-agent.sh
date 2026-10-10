@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-agent.sh - agents/agent.sh loader: default, config file, unknown agent.
+# test-agent.sh - agents/agent.sh loader: per-task adapter from meta, command override, unknown agent.
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,19 +9,42 @@ LIB="$(cd "$TEST_DIR/../.." && pwd)/plugins/chief/bin/lib"
 WORK=$(mktemp -d)
 harness_trap 'rm -rf "$WORK"'
 export CHIEF_HOME="$WORK/.chief"
-unset CHIEF_AGENT
+. "$LIB/paths.sh"
+. "$LIB/meta.sh"
+. "$LIB/agents/agent.sh"
 
 echo "test-agent:"
 
-load() { bash -c '. "$1/paths.sh"; . "$1/agents/agent.sh"; agent_name' _ "$LIB" 2>&1; }
+assert_eq "$(chief_agent_use none >/dev/null 2>&1; agent_name)" "claude" "use: a task without meta runs claude"
 
-assert_eq "$(load)" "claude" "loader: defaults to claude"
-mkdir -p "$CHIEF_HOME/config"; echo claude > "$CHIEF_HOME/config/agent"
-assert_eq "$(load)" "claude" "loader: reads \$CONFIG/agent"
-echo nope > "$CHIEF_HOME/config/agent"
-assert_contains "$(load)" "unsupported agent 'nope'" "loader: unknown agent in config errors"
-assert_contains "$(CHIEF_AGENT=bogus load)" "unsupported agent 'bogus'" "loader: unknown \$CHIEF_AGENT errors"
-assert_contains "$(CHIEF_AGENT=../claude load)" "unsupported agent '../claude'" "loader: a name with a slash is refused"
-assert_contains "$(CHIEF_AGENT=Claude load)" "unsupported agent 'Claude'" "loader: only [a-z0-9-] names are accepted"
+chief_meta_set t1 agent claude
+chief_meta_set t1 model opus
+chief_agent_use t1
+assert_eq "$(agent_command)" "claude --dangerously-skip-permissions --model opus" "use: the model reaches the adapter"
+
+chief_meta_set t2 agent claude
+chief_meta_set t2 model ""
+chief_agent_use t2
+assert_eq "$(agent_command)" "claude --dangerously-skip-permissions" "use: no model, no model flag"
+
+chief_meta_set t3 agent claude
+chief_meta_set t3 command "/opt/wrap/claude --foo --bar=1"
+chief_agent_use t3
+assert_eq "$(agent_command)" "/opt/wrap/claude --foo --bar=1" "command override: replaces the launch command"
+assert_eq "$(agent_args)" "--foo --bar=1" "command override: herdr gets the override's arguments"
+chief_meta_set t4 agent claude
+chief_meta_set t4 command "wrapper"
+chief_agent_use t4
+assert_eq "$(agent_args)" "" "command override: a bare command has no arguments"
+chief_agent_use t1
+assert_eq "$(agent_command)" "claude --dangerously-skip-permissions --model opus" "use: the next task does not inherit the override"
+
+chief_meta_set bad agent nope
+assert_contains "$(chief_agent_use bad 2>&1)" "unknown agent 'nope' (available: claude" "load: unknown agent lists the adapters"
+chief_meta_set bad agent ../claude
+assert_contains "$(chief_agent_use bad 2>&1)" "unknown agent '../claude'" "load: a name with a slash is refused"
+chief_meta_set bad agent select
+assert_contains "$(chief_agent_use bad 2>&1)" "unknown agent ''" "load: the loader files are not adapters"
+assert_eq "$(chief_agent_list | grep -cx 'agent\|select')" "0" "list: only adapters"
 
 harness_summary

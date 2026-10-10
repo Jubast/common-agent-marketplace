@@ -139,6 +139,7 @@ _chief_orca_launch() {
 backend_spawn() {
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
   local json worktree orca_branch handle
+  chief_agent_use "$id" || return 1
   _chief_orca_ensure_repo "$project_dir" || return 1
   json=$(orca worktree create --repo "path:$project_dir" --name "$id" --parent-worktree "path:$project_dir" --json 2>/dev/null) \
     || { echo "chief-backend-orca: 'orca worktree create' failed: $json" >&2; return 1; }
@@ -177,7 +178,7 @@ backend_spawn_cleanup() {
   orca_branch=${found#*$'\t'}
   orca_branch=${orca_branch#refs/heads/}
   orca terminal close --worktree "path:$worktree" --all >/dev/null 2>&1 || true
-  agent_release "$worktree"
+  chief_agent_use "$id" && agent_release "$worktree"
   orca worktree rm --worktree "path:$worktree" --force >/dev/null 2>&1 \
     || git -C "$project_dir" worktree remove --force "$worktree" >/dev/null 2>&1 \
     || rm -rf "$worktree"
@@ -231,13 +232,14 @@ backend_kill() {
 # after backend_kill and before it removes the worktree via git.
 backend_teardown() {
   orca worktree rm --worktree "path:$3" --force >/dev/null 2>&1 || true
-  agent_release "$3"
+  chief_agent_use "$1" && agent_release "$3"
 }
 
 backend_relaunch() {
   local id=$1 brief_path=$2
   local worktree handle
   worktree=$(chief_meta_get "$id" worktree)
+  chief_agent_use "$id" || return 1
   agent_prepare "$worktree"
   handle=$(_chief_orca_launch "$worktree" "$brief_path") || return 1
   chief_meta_set "$id" endpoint "orca:$handle"

@@ -54,6 +54,8 @@ for ref in "refs/heads/$BRANCH" "refs/remotes/origin/$BRANCH"; do
   git -C "$PROJECT" show-ref --verify --quiet "$ref" && fail "branch $BRANCH already exists - pick a new name"
 done
 
+AGENT=claude MODEL="" COMMAND=""
+
 mkdir -p "$DATA/$ID"
 BRIEF="$DATA/$ID/brief.md"
 STATUS_FILE="$STATE/$ID.status"
@@ -105,6 +107,9 @@ chief_sync_default_branch "$PROJECT"
 # watch and teardown. `worktree` is a best-effort guess, overwritten on success.
 chief_meta_set "$ID" project "$PROJECT"
 chief_meta_set "$ID" mode "$MODE"
+chief_meta_set "$ID" agent "$AGENT"
+chief_meta_set "$ID" model "$MODEL"
+[ -z "$COMMAND" ] || chief_meta_set "$ID" command "$COMMAND"
 chief_meta_set "$ID" branch "$BRANCH"
 chief_meta_set "$ID" worktree "$WORKTREES/$ID"
 chief_meta_set "$ID" status spawning

@@ -47,7 +47,8 @@
 #                        that tracks worktrees itself (orca) can forget it.
 #                        Must call `agent_release <worktree>`. Failures are ignored.
 #
-# The agent adapter (agents/agent.sh) is loaded alongside.
+# Every function above that touches the agent starts with `chief_agent_use <id>`
+# (agents/agent.sh), which loads the adapter recorded in the task's meta.
 #
 # Selection: $CHIEF_BACKEND env var, else $CONFIG/backend, else "herdr".
 
