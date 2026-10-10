@@ -30,6 +30,11 @@ BACKEND_CONFIG="$CHIEF_HOME/config/backend"
 digest="## Configuration"$'\n'
 if [ -f "$BACKEND_CONFIG" ]; then
   digest+="backend: $(cat "$BACKEND_CONFIG") (from .chief/config/backend)"$'\n'
+  if [ -f "$CHIEF_HOME/config/agents" ]; then
+    digest+="agents: from .chief/config/agents"$'\n'
+  else
+    digest+="agents: not configured, workers run claude (.chief/config/agents sets the agent and model)"$'\n'
+  fi
 else
   digest+="NOT CONFIGURED YET at CHIEF_HOME ($CHIEF_HOME) - load the 'setup' skill once here before dispatching anything. This is a one-time step for this CHIEF_HOME, not something to repeat inside each project you dispatch into."$'\n'
 fi

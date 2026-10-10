@@ -45,6 +45,7 @@ export CHIEF_BACKEND=mock
 out2=$("$SS")
 ctx2=$(json_field "d['hookSpecificOutput']['additionalContext']" "$out2")
 assert_contains "$ctx2" "backend: orca" "session-start: reports the configured backend"
+assert_contains "$ctx2" "agents: not configured, workers run claude" "session-start: hints when no agents are configured"
 assert_not_contains "$ctx2" "NOT CONFIGURED YET" "session-start: no longer flags as unconfigured"
 assert_contains "$ctx2" "(empty)" "session-start: reports an empty backlog plainly"
 
