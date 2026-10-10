@@ -53,7 +53,7 @@ A profile's `args="..."` (or `--args "..."` on spawn, which replaces the configu
 
 `CHIEF_AGENT` and `.chief/config/agent` (the old single-agent selection) are gone; `.chief/config/agents` replaces them.
 
-Adding an agent is one `bin/lib/agents/<name>.sh` implementing the contract in `agents/agent.sh`. Differences to know:
+The launch line each worker runs is the adapter's `agent_command` in `bin/lib/agents/<name>.sh` (executable, unattended flag, `--model`, then `args=`), unless the task has a `command=`; spawn prints it as `launch: ...`. Adding an agent is one `bin/lib/agents/<name>.sh` implementing the contract in `agents/agent.sh`. Differences to know:
 
 - Folder trust is pre-accepted for `claude` only (see below); for `codex` and `copilot` a trust prompt, if shown, stalls the spawn as "not ready".
 - The worker brief is agent-neutral (status file, turn-ended file, review checklist by path), but `claude` workers also get this repo's plugins and skills from their own config; `codex` and `copilot` do not, so project conventions come from `AGENTS.md` and the brief alone.

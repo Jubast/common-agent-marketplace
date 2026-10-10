@@ -85,6 +85,7 @@ if [ -n "$COMMAND" ] && [ "$CHIEF_BACKEND" = herdr ] && [ "$(basename "${COMMAND
   fail "herdr starts the agent's own executable ($(agent_name)), so command= must start with it; use args= or the orca backend for another executable"
 fi
 agent_require || exit 1
+echo "launch: $(chief_agent_command)"
 
 mkdir -p "$DATA/$ID"
 BRIEF="$DATA/$ID/brief.md"

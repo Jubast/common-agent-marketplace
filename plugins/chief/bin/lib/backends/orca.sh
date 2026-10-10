@@ -14,7 +14,7 @@
 # is renamed to the exact requested one, and the path is used as-is.
 #
 # Spawn and relaunch share one launch path (_chief_orca_launch): `terminal
-# create --command <agent_command>`, wait for agent_ready_text on the
+# create --command <chief_agent_command>`, wait for agent_ready_text on the
 # rendered screen, then send the brief. backend_spawn pre-trusts the new
 # worktree (agent_prepare) first.
 #
@@ -131,7 +131,7 @@ _chief_orca_launch() {
   local json handle
   # orca's connect banner goes to stderr, --json's body to stdout even on
   # failure - discard stderr, don't merge it in (breaks the jq parse below).
-  json=$(orca terminal create --worktree "path:$worktree" --command "$(agent_command)" --json 2>/dev/null) \
+  json=$(orca terminal create --worktree "path:$worktree" --command "$(chief_agent_command)" --json 2>/dev/null) \
     || { echo "chief-backend-orca: 'orca terminal create' failed: $json" >&2; return 1; }
   handle=$(printf '%s' "$json" | jq -r '.result.handle // .result.terminal.handle // empty')
   [ -n "$handle" ] \

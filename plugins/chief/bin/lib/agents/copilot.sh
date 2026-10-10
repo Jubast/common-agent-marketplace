@@ -5,7 +5,7 @@
 
 agent_name() { echo copilot; }
 # verified: --help
-agent_flags() { echo "--allow-all${CHIEF_AGENT_MODEL:+ --model $CHIEF_AGENT_MODEL}"; }
+agent_command() { echo "copilot --allow-all${CHIEF_AGENT_MODEL:+ --model $CHIEF_AGENT_MODEL}${CHIEF_AGENT_ARGS:+ $CHIEF_AGENT_ARGS}"; }
 agent_prepare() { :; }
 agent_release() { :; }
 # assumed: not confirmed against a running copilot

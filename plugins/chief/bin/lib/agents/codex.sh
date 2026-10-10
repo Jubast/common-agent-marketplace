@@ -5,7 +5,7 @@
 
 agent_name() { echo codex; }
 # verified: --help
-agent_flags() { echo "--dangerously-bypass-approvals-and-sandbox${CHIEF_AGENT_MODEL:+ --model $CHIEF_AGENT_MODEL}"; }
+agent_command() { echo "codex --dangerously-bypass-approvals-and-sandbox${CHIEF_AGENT_MODEL:+ --model $CHIEF_AGENT_MODEL}${CHIEF_AGENT_ARGS:+ $CHIEF_AGENT_ARGS}"; }
 agent_prepare() { :; }
 agent_release() { :; }
 # verified: string in the codex binary

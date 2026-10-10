@@ -4,14 +4,15 @@
 #
 # Adapter contract - each agents/<name>.sh defines all of:
 #   agent_name             -> the agent's native kind and executable (herdr --kind)
-#   agent_flags            -> its unattended-mode and model flags (model: $CHIEF_AGENT_MODEL)
+#   agent_command          -> its complete default launch line: the executable,
+#                             the unattended flag, ${CHIEF_AGENT_MODEL:+ --model ..}
+#                             and ${CHIEF_AGENT_ARGS:+ ...} (extra args from args=)
 #   agent_prepare <dir>    -> before a worker starts: pre-accept its folder trust
 #   agent_release <dir>    -> undo agent_prepare for <dir> (teardown, spawn rollback)
 #   agent_ready_text       -> screen text (egrep) meaning it is ready for a prompt
 #   agent_paste_text       -> screen text (egrep) it shows for a long pasted prompt
 #   agent_input_marker     -> the glyph (egrep) its input line starts with
-# This file adds agent_args (herdr), agent_command (orca) and agent_require,
-# from those plus the task's args= / command= ($CHIEF_AGENT_ARGS / _COMMAND).
+# Backends run chief_agent_command: the task's command= if set, else agent_command.
 #
 # A task's agent, model, args and command come from its meta (chief-spawn.sh
 # records them); a task without them runs claude.
@@ -43,22 +44,10 @@ chief_agent_use() {  # <id> - loads the adapter recorded in the task's meta
   chief_agent_load "${agent:-claude}"
 }
 
-# herdr: the arguments for the agent's own executable (a command override
-# contributes the words after its first)
-agent_args() {
-  if [ -z "${CHIEF_AGENT_COMMAND:-}" ]; then
-    echo "$(agent_flags)${CHIEF_AGENT_ARGS:+ $CHIEF_AGENT_ARGS}"
-  elif [[ $CHIEF_AGENT_COMMAND == *' '* ]]; then
-    echo "${CHIEF_AGENT_COMMAND#* }"
-  fi
-}
-
-# orca: the whole launch line
-agent_command() { echo "${CHIEF_AGENT_COMMAND:-$(agent_name) $(agent_args)}"; }
+chief_agent_command() { echo "${CHIEF_AGENT_COMMAND:-$(agent_command)}"; }
 
 agent_require() {
-  local exe=${CHIEF_AGENT_COMMAND:-$(agent_name)}
-  exe=${exe%% *}
+  local exe; exe=$(chief_agent_command); exe=${exe%% *}
   command -v "$exe" >/dev/null || { echo "chief-agent: the '$exe' CLI is not installed" >&2; return 1; }
 }
 

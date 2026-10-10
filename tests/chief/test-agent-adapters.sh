@@ -21,15 +21,15 @@ done
 
 chief_agent_use n-codex
 assert_eq "$(agent_name)" "codex" "codex: herdr kind"
-assert_eq "$(agent_command)" "codex --dangerously-bypass-approvals-and-sandbox" "codex: no-approval flag, no model flag without a model"
+assert_eq "$(chief_agent_command)" "codex --dangerously-bypass-approvals-and-sandbox" "codex: no-approval flag, no model flag without a model"
 chief_agent_use m-codex
-assert_eq "$(agent_command)" "codex --dangerously-bypass-approvals-and-sandbox --model big" "codex: model flag with a model"
+assert_eq "$(chief_agent_command)" "codex --dangerously-bypass-approvals-and-sandbox --model big" "codex: model flag with a model"
 
 chief_agent_use n-copilot
 assert_eq "$(agent_name)" "copilot" "copilot: herdr kind"
-assert_eq "$(agent_command)" "copilot --allow-all" "copilot: allow-all flag, no model flag without a model"
+assert_eq "$(chief_agent_command)" "copilot --allow-all" "copilot: allow-all flag, no model flag without a model"
 chief_agent_use m-copilot
-assert_eq "$(agent_command)" "copilot --allow-all --model big" "copilot: model flag with a model"
+assert_eq "$(chief_agent_command)" "copilot --allow-all --model big" "copilot: model flag with a model"
 
 for a in codex copilot; do
   chief_agent_use "n-$a"
@@ -46,12 +46,21 @@ PATH="$WORK/bin:$PATH"
 . "$LIB/backends/herdr.sh"
 chief_agent_use m-codex; _chief_herdr_start_agent t1 pane-1
 assert_contains "$(cat "$WORK/herdr.log")" "agent start t1 --kind codex --pane pane-1 --timeout 30000 -- --dangerously-bypass-approvals-and-sandbox --model big" "herdr: starts the task's agent kind with its args"
+chief_meta_set y1 agent copilot; chief_meta_set y1 model m; chief_meta_set y1 args "--banner"
+chief_agent_use y1
+assert_eq "$(chief_agent_command)" "copilot --allow-all --model m --banner" "copilot: model flag, then extra args"
+chief_meta_set y2 agent codex; chief_meta_set y2 args "--search"
+chief_agent_use y2
+assert_eq "$(chief_agent_command)" "codex --dangerously-bypass-approvals-and-sandbox --search" "codex: extra args without a model"
 chief_meta_set x1 agent codex; chief_meta_set x1 model gpt-5; chief_meta_set x1 args "--search"
 chief_agent_use x1; _chief_herdr_start_agent t3 pane-3
 assert_contains "$(cat "$WORK/herdr.log")" "agent start t3 --kind codex --pane pane-3 --timeout 30000 -- --dangerously-bypass-approvals-and-sandbox --model gpt-5 --search" "herdr: model and args both reach the agent's own executable"
-assert_eq "$(agent_command)" "codex --dangerously-bypass-approvals-and-sandbox --model gpt-5 --search" "orca: the launch command carries model and args too"
+assert_eq "$(chief_agent_command)" "codex --dangerously-bypass-approvals-and-sandbox --model gpt-5 --search" "orca: the launch command carries model and args too"
 chief_meta_set o1 agent copilot; chief_meta_set o1 command "copilot --allow-all --model other"
 chief_agent_use o1; _chief_herdr_start_agent t2 pane-2
 assert_contains "$(cat "$WORK/herdr.log")" "agent start t2 --kind copilot --pane pane-2 --timeout 30000 -- --allow-all --model other" "herdr: a command override supplies the args"
+chief_meta_set o2 agent copilot; chief_meta_set o2 command "copilot"
+chief_agent_use o2; _chief_herdr_start_agent t4 pane-4
+assert_contains "$(tail -1 "$WORK/herdr.log")" "agent start t4 --kind copilot --pane pane-4 --timeout 30000 --" "herdr: a bare command passes no arguments"
 
 harness_summary

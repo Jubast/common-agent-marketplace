@@ -9,7 +9,7 @@
 . "$CHIEF_ROOT/bin/lib/lock.sh"
 
 agent_name() { echo claude; }
-agent_flags() { echo "--dangerously-skip-permissions${CHIEF_AGENT_MODEL:+ --model $CHIEF_AGENT_MODEL}"; }
+agent_command() { echo "claude --dangerously-skip-permissions${CHIEF_AGENT_MODEL:+ --model $CHIEF_AGENT_MODEL}${CHIEF_AGENT_ARGS:+ $CHIEF_AGENT_ARGS}"; }
 agent_ready_text() { echo 'bypass permissions'; }
 agent_paste_text() { echo '\[Pasted text'; }
 agent_input_marker() { echo '❯'; }

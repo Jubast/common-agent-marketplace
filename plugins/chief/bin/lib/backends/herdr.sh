@@ -57,9 +57,11 @@ _chief_herdr_close_task_workspace() {
 # live name <id>, with the agent's own args, never inherited from the operator's
 # session.
 _chief_herdr_start_agent() {
-  local id=$1 pane_id=$2
+  local id=$1 pane_id=$2 cmd args=""
+  cmd=$(chief_agent_command)
+  [[ $cmd != *' '* ]] || args=${cmd#* }  # herdr runs the agent's own executable: pass the words after the first
   herdr agent start "$id" --kind "$(agent_name)" --pane "$pane_id" --timeout 30000 \
-    -- $(agent_args) >/dev/null 2>&1
+    -- $args >/dev/null 2>&1
 }
 
 # _chief_herdr_prompt_box_has_text <id> <text> - true only when herdr's own
