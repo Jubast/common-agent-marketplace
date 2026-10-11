@@ -42,4 +42,22 @@ Loads setup skill first when unconfigured: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT"
 assert_contains "$output" "Loads setup skill first when unconfigured:.*yes" "Loads setup before dispatch when unconfigured"
 echo ""
 
+echo "Test 5: Rule 4 has one exception, the brainstormer..."
+output=$(run_claude "According to the using-chief skill's hard rule 4, may any worker agent address the operator directly, and if so which one, and may Chief relay that conversation? Answer using exactly this structure:
+Exception exists: <yes or no>
+Exception worker: <worker name>
+Chief relays that conversation: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
+
+assert_contains "$output" "Exception exists:.*yes" "Rule 4 has an exception"
+assert_contains "$output" "Exception worker:.*brainstormer" "The exception is the brainstormer"
+assert_contains "$output" "Chief relays that conversation:.*no" "Chief never relays the brainstormer conversation"
+echo ""
+
+echo "Test 6: Rule 5 allows explaining how to attach..."
+output=$(run_claude "According to the using-chief skill's hard rule 5, is Chief allowed to tell the operator how to attach to a brainstormer's pane even though rule 5 says not to narrate internals? Answer using exactly this structure:
+Allowed to explain how to attach: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
+
+assert_contains "$output" "Allowed to explain how to attach:.*yes" "Rule 5 carves out telling the operator how to attach"
+echo ""
+
 echo "=== All using-chief skill tests passed ==="
