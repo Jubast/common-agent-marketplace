@@ -40,6 +40,10 @@
 #                        that hasn't implemented this yet simply leaves the
 #                        call a no-op (command-not-found, swallowed by the
 #                        caller's `|| true`) rather than erroring.
+#   backend_attach_hint <id>   (optional)
+#                     -> prints one line telling the operator how to reach the
+#                        task's pane. chief-spawn.sh records it as attach= for a
+#                        brainstormer. Fails or is absent when there is none.
 #
 #   backend_teardown <id> <project-dir> <worktree>
 #                     -> Called by chief-teardown.sh after backend_kill and

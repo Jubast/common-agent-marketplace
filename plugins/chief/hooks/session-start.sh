@@ -57,7 +57,12 @@ if [ -d "$STATE" ]; then
     any=1
     line=$(tail -n 1 "$STATE/$id.status" 2>/dev/null || echo "no status yet")
     mode=$(grep '^mode=' "$f" | cut -d= -f2- || echo unknown)
-    digest+="- $id: $line [mode: $mode] [agent: $(chief_meta_agent "$id")]"$'\n'
+    attach=""
+    if [ "$mode" = brainstormer ]; then
+      attach=$(chief_meta_get "$id" attach 2>/dev/null || true)
+      [ -z "$attach" ] || attach=" [attach: $attach]"
+    fi
+    digest+="- $id: $line [mode: $mode] [agent: $(chief_meta_agent "$id")]$attach"$'\n'
   done
   [ "$any" -eq 0 ] && digest+="(none)"$'\n'
 else

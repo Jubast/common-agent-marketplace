@@ -85,6 +85,10 @@ backend_busy() {
   kill -0 "$pid" 2>/dev/null
 }
 
+backend_attach_hint() {
+  printf 'tail -f %s\n' "$STATE/$1.term.log"
+}
+
 backend_relaunch() {
   local id=$1 brief_path=$2
   chief_agent_use "$id" || return 1
