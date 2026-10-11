@@ -59,7 +59,7 @@ Do exactly what they decide, nothing more:
 
 ## Handing off a researcher
 
-A done researcher with a report can be followed by a **successor** - a new worker in a fresh worktree whose brief carries the report (earlier stages are linked). Targets: a builder (usual) or another researcher; never the same role. The report is the whole handoff, so skim it first and send the researcher back (`chief-send.sh`) to fix a thin one - it must stand alone for an agent that saw none of the conversation.
+A done researcher with a report can be followed by a **successor** - a new worker in a fresh worktree whose brief carries the report (earlier stages are linked). Target: a builder. The report is the whole handoff, so skim it first and send the researcher back (`chief-send.sh`) to fix a thin one - it must stand alone for an agent that saw none of the conversation.
 
 The successor runs the **target role's** configured agent, not the researcher's, so a strong researcher does not make an expensive builder. Carrying the researcher's agent over takes an explicit `--agent`, which runs the builder on that model - say so in the go-ahead.
 
