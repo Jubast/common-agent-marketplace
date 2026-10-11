@@ -1,20 +1,20 @@
 ---
 name: dispatch
-description: Use when the user wants to hand off a piece of work to an isolated agent instead of doing it inline - dispatching a task, spawning a builder/scout, checking on in-flight work, steering, or merging/tearing down finished work, once CHIEF_HOME (the operator's one shared home, not one per project) is configured (or where the user asks to set it up).
+description: Use when the user wants to hand off a piece of work to an isolated agent instead of doing it inline - dispatching a task, spawning a builder/researcher, checking on in-flight work, steering, or merging/tearing down finished work, once CHIEF_HOME (the operator's one shared home, not one per project) is configured (or where the user asks to set it up).
 ---
 
 # Chief: dispatch
 
-Chief runs isolated worker agents ("builders" for code changes, "scouts" for investigation-only reports) in their own git worktree, tracks them in a plain-markdown backlog, and supervises them at near-zero token cost between your turns. You are the operator's single point of contact for this; you do not do the dispatched work yourself once you've handed it off.
+Chief runs isolated worker agents ("builders" for code changes, "researchers" for investigation-only reports) in their own git worktree, tracks them in a plain-markdown backlog, and supervises them at near-zero token cost between your turns. You are the operator's single point of contact for this; you do not do the dispatched work yourself once you've handed it off.
 
 All commands live in ${CLAUDE_PLUGIN_ROOT}/bin/. Runtime state lives in `.chief/` at `CHIEF_HOME` - resolved from the git root of wherever the Chief session itself runs, typically the operator's top-level workspace, *not* inside any individual `<project-dir>` you dispatch into (created on first use). One `CHIEF_HOME` dispatches into many `<project-dir>` targets; don't run `chief:setup` separately inside each project you plan to dispatch to.
 
-## Deciding ship vs scout
+## Deciding builder vs researcher
 
-- **ship** (default): the deliverable is a code change on a branch. Use for anything with clear enough intent to implement.
-- **scout**: the deliverable is a written report only - no commit, no push. Use only when the operator explicitly wants a separate investigation/design artifact, or genuine uncertainty about *what* to build would make implementing now wasteful.
+- **builder** (default): the deliverable is a code change on a branch. Use for anything with clear enough intent to implement.
+- **researcher**: the deliverable is a written report only - no commit, no push. Use only when the operator explicitly wants a separate investigation/design artifact, or genuine uncertainty about *what* to build would make implementing now wasteful.
 
-Don't launch a scout to resolve ordinary ambiguity - ask one concise question instead. Reserve scouts for uncertainty big enough to change the outcome.
+Don't launch a researcher to resolve ordinary ambiguity - ask one concise question instead. Reserve researchers for uncertainty big enough to change the outcome.
 
 ## The lifecycle
 
@@ -25,9 +25,9 @@ Every task's `state/<id>.lifecycle` (rendered by `chief-spawn.sh`) is the checkl
    Pick a short id yourself (e.g. `t-001`, or a slug like `rate-limit`).
 
 2. **Spawn.**
-   `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <id> <project-dir> --mode ship|scout --branch "<type>/<short-kebab-description>" --intent "<the operator's own ask, close to verbatim>" --spec "<your build instructions, only what the intent requires>"`
+   `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <id> <project-dir> --mode builder|researcher --branch "<type>/<short-kebab-description>" --intent "<the operator's own ask, close to verbatim>" --spec "<your build instructions, only what the intent requires>"`
    `--branch` is required - always pass it, named per the `conventional-branches` scheme (`<type>/<short-kebab-case-description>`) and a new name; spawn errors otherwise.
-   The worker's agent and model come from `.chief/config/agents` unless the operator names one: then add `--agent <agent[:model]>` and/or `--model <model>`.
+   The worker's agent and model come from the role's pool in `.chief/config/agents` (then the global pool) unless the operator names one: then add `--agent <agent[:model]>` and/or `--model <model>`. Spawn prints the chosen `agent:`; `${CLAUDE_PLUGIN_ROOT}/bin/chief-agents.sh` lists the agent each role would get now, marking a role that falls back to the global pool.
    Keep `--intent` narrow - it becomes the acceptance criteria. Keep `--spec` to only what's needed; a generalization or extra hardening nobody asked for is a note for later, not something to build now.
    This creates an isolated worktree+branch, renders the brief, and launches the builder. It also marks the backlog item in-flight if it exists.
    Returns once the builder's first turn has started (typically seconds) - it doesn't wait for that turn to finish. Still run it in the background (e.g. `run_in_background` on the Bash tool, or your host's equivalent) rather than the foreground as good practice.
@@ -35,7 +35,7 @@ Every task's `state/<id>.lifecycle` (rendered by `chief-spawn.sh`) is the checkl
 3. **It runs on its own.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-watch.sh` (armed by a Stop hook, zero model cost) polls it between your turns and only interrupts you when it's finished, failed, blocked, or needs a decision. On `blocked` or `needs-decision`, run `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "<why, one line>"`.
 
 4. **Check on it anytime:**
-   `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-crew-state.sh <id>` - deterministic current state (working/done/blocked/needs-decision/failed/stale) plus a `[mode: ship|scout]` tag (promotion can change it after spawn).
+   `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-crew-state.sh <id>` - deterministic current state (working/done/blocked/needs-decision/failed/stale) plus a `[mode: builder|researcher]` tag.
 
 5. **Steer it if needed:**
    `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <id> "<instruction>"` - delivered through a durable inbox the builder acknowledges; safe to send mid-task. If the item is `held`, move it back with `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh status <id> in-flight` once you've sent the unblocking instruction.
@@ -50,12 +50,22 @@ Every task's `state/<id>.lifecycle` (rendered by `chief-spawn.sh`) is the checkl
 
 Do exactly what they decide, nothing more:
 
-- **Not satisfied** - move the task back to in-flight (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh status <id> in-flight`) before sending further instructions, then `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <id> "<instruction>"` back to the builder, or send the scout to investigate further.
-- **Ready to land** (ship only) - compose a conventional-commit-style title and a structured body yourself (the same way this project's own PR conventions - a `conventional-pull-requests`-style skill if installed, or its CLAUDE.md/AGENTS.md rules - would produce), then `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-open.sh <id> --confirm --title "<title>" --body "<body>"` to push and open a PR/MR. `--title`/`--body` are required - you must compose them yourself, there is no auto-derived fallback.
-- **Accepted** - ship: `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-merge.sh <id> --confirm` (merges the open PR, defaults to squash). Scout to become a ship: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-promote.sh <id> --intent "<ask>" [--spec "<instructions>"]` - converts it in place; its findings become context, not the deliverable. Same backend round-trip as spawn (step 2) - run it in the background too.
-- **Accepted, no ship needed** (scout only) - `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>` then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>` discards the worktree; the report at `.chief/data/<id>/report.md` survives.
+- **Not satisfied** - move the task back to in-flight (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh status <id> in-flight`) before sending further instructions, then `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <id> "<instruction>"` back to the builder, or send the researcher to investigate further.
+- **Ready to land** (builder only) - compose a conventional-commit-style title and a structured body yourself (the same way this project's own PR conventions - a `conventional-pull-requests`-style skill if installed, or its CLAUDE.md/AGENTS.md rules - would produce), then `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-open.sh <id> --confirm --title "<title>" --body "<body>"` to push and open a PR/MR. `--title`/`--body` are required - you must compose them yourself, there is no auto-derived fallback.
+- **Accepted** - builder: `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-merge.sh <id> --confirm` (merges the open PR, defaults to squash). Researcher to be built on: see "Handing off a researcher" below.
+- **Accepted as-is** (researcher only) - `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>` then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>` discards the worktree; the report at `.chief/data/<id>/report.md` survives.
 
 `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-open.sh`, `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-update.sh`, and `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-merge.sh` all require `--confirm` - pass it only once the operator has explicitly said so in this conversation.
+
+## Handing off a researcher
+
+A done researcher with a report can be followed by a **successor** - a new worker in a fresh worktree whose brief carries the report (earlier stages are linked). Targets: a builder (usual) or another researcher; never the same role. The report is the whole handoff, so skim it first and send the researcher back (`chief-send.sh`) to fix a thin one - it must stand alone for an agent that saw none of the conversation.
+
+The successor runs the **target role's** configured agent, not the researcher's, so a strong researcher does not make an expensive builder. Carrying the researcher's agent over takes an explicit `--agent`, which runs the builder on that model - say so in the go-ahead.
+
+1. Propose the branch (`conventional-branches` scheme) and preview the agent: `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <new-id> <project-dir> --mode builder --from <id> --branch "<type>/<short-kebab-description>" --intent "<ask>" --dry-run` prints the exact `agent:` and `launch:` (a weighted or random pool is printed as the pool - the pick happens at spawn). It creates nothing.
+2. Ask the operator's go-ahead naming that agent and branch, and that the researcher's session ends (its report survives under `.chief/data/<id>/`).
+3. On the go-ahead, file `<new-id>` (`chief-backlog.sh add`), then `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-promote.sh <id> --to builder --as <new-id> --branch "<branch>" --intent "<ask>" [--spec "<instructions>"]` - a wrapper that runs `chief-spawn.sh --from` and then tears the researcher down. `--keep-source` leaves it running; `--dry-run` previews. Same backend round-trip as spawn (step 2) - run it in the background too.
 
 ## Once a PR is open
 
