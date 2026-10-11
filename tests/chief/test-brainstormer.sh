@@ -38,6 +38,8 @@ assert_contains "$BRIEF" "$DATA/bs-1/report.md" "brief: the spec goes to the sta
 assert_contains "$BRIEF" "touch $STATE/bs-1.turn-ended" "brief: the turn-ended protocol is present"
 assert_contains "$BRIEF" "working: brainstorming with operator" "brief: names the first status line"
 assert_contains "$BRIEF" "done: spec ready" "brief: names the final status line"
+assert_contains "$BRIEF" "report \`working: revising spec\` first" "brief: a revision after done starts with a working line"
+assert_contains "$BRIEF" "Edit no project files" "brief: forbids project edits"
 for section in Goal "In scope" "Out of scope" "Behavior and acceptance criteria" Decisions "Open questions"; do
   assert_contains "$BRIEF" "**$section**" "brief: the spec skeleton has $section"
 done
