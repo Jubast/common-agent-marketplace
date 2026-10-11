@@ -14,11 +14,8 @@
 # mode and agent are appended, not prefixed, so it doesn't break prefix matches on
 # state/detail elsewhere. A non-terminal brainstormer also carries [attach: ...].
 #
-# A brainstormer waits on the operator in its own pane, so while idle it reads
-# "working · awaiting operator in pane" instead of stale, until
-# CHIEF_INTERACTIVE_STALE_AFTER_SECS (default 14400 = 4h) without a turn.
-# The stale line is stable between polls so chief-watch.sh's notify-baseline
-# can silence it: it wakes Chief once, until the next turn.
+# A brainstormer waits on the operator in its own pane, so while idle it always
+# reads "working · awaiting operator in pane", never stale.
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
@@ -26,8 +23,6 @@ set -euo pipefail
 . "$CHIEF_ROOT/bin/lib/backends/backend.sh"
 
 STALE_AFTER_SECS="${CHIEF_STALE_AFTER_SECS:-120}"
-INTERACTIVE_STALE_AFTER_SECS="${CHIEF_INTERACTIVE_STALE_AFTER_SECS:-14400}"
-case "$INTERACTIVE_STALE_AFTER_SECS" in ''|*[!0-9]*) INTERACTIVE_STALE_AFTER_SECS=14400 ;; esac
 
 fail() { echo "chief-crew-state: $*" >&2; exit 1; }
 
@@ -70,21 +65,20 @@ if backend_busy "$ID" 2>/dev/null; then
   exit 0
 fi
 
+if [ "$MODE" = brainstormer ]; then
+  echo "state: working · awaiting operator in pane$MODE_SUFFIX"
+  exit 0
+fi
+
 now=$(date +%s)
 turn_age=999999
-[ "$MODE" != brainstormer ] || turn_age=0
 if [ -f "$TURN_FILE" ]; then
   turn_mtime=$(stat -c %Y "$TURN_FILE" 2>/dev/null || stat -f %m "$TURN_FILE" 2>/dev/null || echo 0)
   turn_age=$(( now - turn_mtime ))
 fi
 
-limit=$STALE_AFTER_SECS
-[ "$MODE" != brainstormer ] || limit=$INTERACTIVE_STALE_AFTER_SECS
-
-if [ "$turn_age" -gt "$limit" ]; then
-  echo "state: stale · ${LAST:-no status ever}, no turn activity for over ${limit}s$MODE_SUFFIX"
-elif [ "$MODE" = brainstormer ]; then
-  echo "state: working · awaiting operator in pane$MODE_SUFFIX"
-else
+if [ "$turn_age" -le "$STALE_AFTER_SECS" ]; then
   echo "state: working · ${LAST:-no status yet}, turn ended ${turn_age}s ago$MODE_SUFFIX"
+else
+  echo "state: stale · ${LAST:-no status ever}, no turn activity for ${turn_age}s$MODE_SUFFIX"
 fi

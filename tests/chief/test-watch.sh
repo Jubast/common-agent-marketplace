@@ -100,7 +100,7 @@ OUT8=$(timeout 10 "$BIN/chief-watch.sh")
 assert_contains "$OUT8" "t-2: state: done · switched to the new approach" \
   "and keeps re-surfacing that new state on every subsequent Stop hook, same as the general case"
 
-# --- brainstormer: an operator-wait does not wake Chief; stale and done do ---
+# --- brainstormer: an operator-wait never wakes Chief; done does ---
 "$BIN/chief-backlog.sh" hold t-2 "reported" >/dev/null
 assert_success "spawn: brainstormer" -- \
   timeout 10 "$BIN/chief-spawn.sh" bs-1 "$WORK/project" --mode brainstormer --branch feat/bs-1 --intent "shape an idea"
@@ -113,23 +113,12 @@ silent() {  # <name> - the watcher keeps waiting: no output, killed by timeout (
   assert_eq "$rc:$out" "124:" "$1"
 }
 
+silent "brainstormer with no turn-ended file: watch does not wake Chief"
 turn_ago 3600
-silent "brainstormer idle for 1h: watch keeps waiting, it does not wake Chief"
-turn_ago 20000
-assert_contains "$(watch_bs)" "bs-1: state: stale" "brainstormer idle past 4h: watch wakes Chief with stale"
-assert_contains "$(watch_bs)" "bs-1: state: stale" "unsnoozed, the stale wake repeats"
-"$BIN/chief-backlog.sh" add bs-1 "brainstorm" >/dev/null
-"$BIN/chief-backlog.sh" hold bs-1 "stale, operator keeps it" >/dev/null
-"$BIN/chief-backlog.sh" status bs-1 in-flight >/dev/null
-turn_ago 21000
-silent "snooze (hold, then in-flight): the same stale no longer wakes Chief"
-turn_ago 100
-silent "a new turn: back to awaiting, still silent"
-turn_ago 20000
-assert_contains "$(watch_bs)" "bs-1: state: stale" "stale after the next long idle wakes Chief again"
-"$BIN/chief-backlog.sh" hold bs-1 "x" >/dev/null; "$BIN/chief-backlog.sh" status bs-1 in-flight >/dev/null
-silent "snoozed again"
+silent "brainstormer idle for 1h: watch does not wake Chief"
+turn_ago 1000000
+silent "brainstormer idle for days: watch still does not wake Chief"
 echo "done: spec ready" >> "$CHIEF_HOME/state/bs-1.status"
-assert_contains "$(watch_bs)" "bs-1: state: done · spec ready" "brainstormer done: a snoozed task still wakes Chief immediately"
+assert_contains "$(watch_bs)" "bs-1: state: done · spec ready" "brainstormer done: watch wakes Chief immediately"
 
 harness_summary
