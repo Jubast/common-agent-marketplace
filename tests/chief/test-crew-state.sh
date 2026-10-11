@@ -72,7 +72,7 @@ printf 'project=%s\nmode=brainstormer\nbranch=feat/bs-1\nworktree=%s\nendpoint=m
 echo "working: brainstorming with operator" >> "$CHIEF_HOME/state/bs-1.status"
 turn_ago() { touch -d "@$(($(date +%s) - $1))" "$CHIEF_HOME/state/bs-1.turn-ended"; }
 
-assert_contains "$("$CS" bs-1)" "state: stale" "a brainstormer with no turn activity at all reads as stale"
+assert_contains "$("$CS" bs-1)" "awaiting operator in pane" "a brainstormer with no turn-ended file yet reads as awaiting the operator"
 turn_ago 500
 out=$("$CS" bs-1)
 assert_contains "$out" "state: working · awaiting operator in pane" "an idle brainstormer past the builder threshold still reads as awaiting the operator"
@@ -84,7 +84,15 @@ turn_ago 14500
 out=$("$CS" bs-1)
 assert_contains "$out" "state: stale" "a brainstormer idle past the default 4h reads as stale"
 assert_contains "$out" "[attach: tail -f x.log]" "the stale line repeats the attach hint"
+assert_eq "$("$CS" bs-1)" "$("$CS" bs-1)" "the stale line is stable between polls"
+assert_contains "$out" "no turn activity for over 14400s" "the stale line names the threshold, not the changing age"
 turn_ago 500
+for bad in 4h abc 1e3 300.5 -5; do
+  turn_ago 14500
+  assert_contains "$(CHIEF_INTERACTIVE_STALE_AFTER_SECS=$bad "$CS" bs-1)" "state: stale" "an invalid threshold ($bad) falls back to 4h"
+  turn_ago 500
+  assert_contains "$(CHIEF_INTERACTIVE_STALE_AFTER_SECS=$bad "$CS" bs-1)" "awaiting operator" "an invalid threshold ($bad) does not make it stale early"
+done
 assert_contains "$(CHIEF_INTERACTIVE_STALE_AFTER_SECS=300 "$CS" bs-1)" "state: stale" "CHIEF_INTERACTIVE_STALE_AFTER_SECS sets the brainstormer threshold"
 assert_not_contains "$(CHIEF_STALE_AFTER_SECS=60 "$CS" bs-1)" "stale" "CHIEF_STALE_AFTER_SECS does not apply to a brainstormer"
 printf 'project=%s\nmode=researcher\nbranch=chief/t-3\nworktree=x\nendpoint=mock:t-3\nstatus=working\n' "$WORK/project" > "$CHIEF_HOME/state/t-3.meta"

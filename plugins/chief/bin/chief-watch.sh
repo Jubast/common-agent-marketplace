@@ -49,6 +49,10 @@ while true; do
         echo "$id: $line"
         exit 0
         ;;
+      *)
+        # Back to non-terminal: the next terminal line is news again.
+        [ -z "$(chief_meta_get "$id" notify-baseline 2>/dev/null || true)" ] || chief_meta_set "$id" notify-baseline ""
+        ;;
     esac
   done < <(in_flight_ids)
 

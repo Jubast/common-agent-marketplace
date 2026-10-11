@@ -108,13 +108,28 @@ kill "$(cat "$CHIEF_HOME/state/bs-1.term.pid")"; sleep 1
 echo "working: brainstorming with operator" >> "$CHIEF_HOME/state/bs-1.status"
 turn_ago() { touch -d "@$(($(date +%s) - $1))" "$CHIEF_HOME/state/bs-1.turn-ended"; }
 watch_bs() { CHIEF_POLL=1 timeout 3 "$BIN/chief-watch.sh"; }
+silent() {  # <name> - the watcher keeps waiting: no output, killed by timeout (124)
+  local out rc; out=$(watch_bs); rc=$?
+  assert_eq "$rc:$out" "124:" "$1"
+}
 
 turn_ago 3600
-assert_eq "$(watch_bs)" "" "brainstormer idle for 1h: watch keeps waiting, it does not wake Chief"
+silent "brainstormer idle for 1h: watch keeps waiting, it does not wake Chief"
 turn_ago 20000
 assert_contains "$(watch_bs)" "bs-1: state: stale" "brainstormer idle past 4h: watch wakes Chief with stale"
-turn_ago 3600
+assert_contains "$(watch_bs)" "bs-1: state: stale" "unsnoozed, the stale wake repeats"
+"$BIN/chief-backlog.sh" add bs-1 "brainstorm" >/dev/null
+"$BIN/chief-backlog.sh" hold bs-1 "stale, operator keeps it" >/dev/null
+"$BIN/chief-backlog.sh" status bs-1 in-flight >/dev/null
+turn_ago 21000
+silent "snooze (hold, then in-flight): the same stale no longer wakes Chief"
+turn_ago 100
+silent "a new turn: back to awaiting, still silent"
+turn_ago 20000
+assert_contains "$(watch_bs)" "bs-1: state: stale" "stale after the next long idle wakes Chief again"
+"$BIN/chief-backlog.sh" hold bs-1 "x" >/dev/null; "$BIN/chief-backlog.sh" status bs-1 in-flight >/dev/null
+silent "snoozed again"
 echo "done: spec ready" >> "$CHIEF_HOME/state/bs-1.status"
-assert_contains "$(watch_bs)" "bs-1: state: done · spec ready" "brainstormer done: watch wakes Chief immediately"
+assert_contains "$(watch_bs)" "bs-1: state: done · spec ready" "brainstormer done: a snoozed task still wakes Chief immediately"
 
 harness_summary
