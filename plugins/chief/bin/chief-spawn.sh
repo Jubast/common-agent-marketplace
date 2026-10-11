@@ -115,15 +115,15 @@ LIFECYCLE_TEMPLATE="$CHIEF_ROOT/templates/lifecycle-$MODE.md"
 
 # Explicit flags win over the config; --model alone overrides just the model.
 PEEK=""; [ "$DRY_RUN" -eq 0 ] || PEEK=peek
-AGENT_DESC=""
+AGENT_NOTE=""
 if [ -n "$AGENT_ARG" ]; then
   chief_agent_profile "$AGENT_ARG" || exit 1
   AGENT=$P_AGENT MODEL=$P_MODEL COMMAND="" ARGS=""
 else
   chief_agent_select "$MODE" $PEEK || exit 1
   AGENT=$SEL_AGENT MODEL=$SEL_MODEL COMMAND=$SEL_COMMAND ARGS=$SEL_ARGS
-  AGENT_DESC=$(chief_agent_describe)
-  if [ -n "$SEL_POOL_DESC" ]; then echo "agent: $AGENT_DESC"; exit 0; fi
+  AGENT_NOTE=$(chief_agent_note)
+  if [ -n "$SEL_POOL_DESC" ]; then echo "agent: $(chief_agent_describe)"; exit 0; fi
 fi
 if [ -n "$MODEL_ARG" ]; then
   chief_agent_profile "$AGENT:$MODEL_ARG" || exit 1
@@ -138,7 +138,7 @@ if [ -n "$COMMAND" ] && [ "$CHIEF_BACKEND" = herdr ] && [ "$(basename "${COMMAND
   fail "herdr starts the agent's own executable ($(agent_name)), so command= must start with it; use args= or the orca backend for another executable"
 fi
 agent_require || exit 1
-echo "agent: ${AGENT_DESC:-$AGENT${MODEL:+:$MODEL}}"
+echo "agent: $AGENT${MODEL:+:$MODEL}${AGENT_NOTE:+ $AGENT_NOTE}"
 echo "launch: $(chief_agent_command)"
 [ "$DRY_RUN" -eq 0 ] || exit 0
 

@@ -170,11 +170,15 @@ chief_agent_select() {  # <role> [peek]
   IFS=$SEP read -r SEL_AGENT SEL_MODEL _ SEL_COMMAND SEL_ARGS <<< "$rec"
 }
 
-chief_agent_describe() {  # after chief_agent_select - "agent[:model]" (or the pool) plus a fallback marker
-  local d=${SEL_POOL_DESC:-$SEL_AGENT${SEL_MODEL:+:$SEL_MODEL}}
+chief_agent_note() {  # after chief_agent_select - the marker for a pool that is not the role's own
   case "$POOL_SRC" in
-    global) d+=" (global fallback)" ;;
-    default) d+=" (no pool configured)" ;;
+    global) echo "(global fallback)" ;;
+    default) echo "(no pool configured)" ;;
   esac
-  echo "$d"
+}
+
+chief_agent_describe() {  # after chief_agent_select - "agent[:model]" (or the pool) plus the marker
+  local d=${SEL_POOL_DESC:-$SEL_AGENT${SEL_MODEL:+:$SEL_MODEL}} note
+  note=$(chief_agent_note)
+  echo "$d${note:+ $note}"
 }

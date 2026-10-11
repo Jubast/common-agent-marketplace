@@ -91,6 +91,10 @@ assert_failure "spawn: the old mode ship is rejected" -- timeout 10 "$BIN/chief-
 assert_failure "spawn: the old mode scout is rejected" -- timeout 10 "$BIN/chief-spawn.sh" a-x "$WORK/project" --mode scout --branch feat/a-x --intent x
 assert_contains "$(spawn a-90 --agent claude:haiku)" "agent: claude:haiku" "spawn: prints the agent line"
 assert_contains "$(spawn a-91 --agent claude --model opus)" "agent: claude:opus" "spawn: the agent line reflects --model"
+printf 'claude:opus\n' > "$CHIEF_HOME/config/agents"
+assert_contains "$(spawn a-92 --model haiku --dry-run)" "agent: claude:haiku (global fallback)" "spawn: with a pool, the agent line reflects --model and keeps the fallback marker"
+assert_contains "$(spawn a-92 --model haiku)" "agent: claude:haiku (global fallback)" "spawn: the real spawn prints the same agent line"
+assert_eq "$(meta a-92 model)" "haiku" "spawn: the printed model is the recorded one"
 
 printf 'claude:opus\n[builder]\ncodex:gpt-5\n[researcher]\ncopilot\n' > "$CHIEF_HOME/config/agents"
 assert_success "spawn: builder task with builder/researcher pools" -- spawn a-11
