@@ -60,13 +60,17 @@ chief_agent_release() {  # <id> <dir> - agent_release with the task's adapter
 # .chief/config/agents (no file: claude):
 #   strategy = first | round-robin | random | weighted        (default first)
 #   <agent>[:<model>] [weight=N] [args="<extra CLI args>"] [command="<launch command>"]
-#   [builder] / [scout]   a pool (and strategy) for that kind of worker only;
-#                         each falls back to the global one. '#' starts a comment.
+#   [builder] [researcher] [reviewer] [brainstormer]
+#                         a pool (and strategy) for that role only; each falls
+#                         back to the global one. '#' starts a comment.
 #
-# chief_agent_select <mode> sets SEL_AGENT, SEL_MODEL, SEL_ARGS, SEL_COMMAND
-# (mode ship is the builder). weighted and random draw from $CHIEF_AGENT_RANDOM
-# when it is set (a test hook), else from $RANDOM; random ignores weights.
+# chief_agent_select <role> [peek] sets SEL_AGENT, SEL_MODEL, SEL_ARGS,
+# SEL_COMMAND and POOL_SRC (the role, global, or default when no pool is
+# configured). weighted and random draw from $CHIEF_AGENT_RANDOM when it is set
+# (a test hook), else from $RANDOM; random ignores weights. peek advances no
+# cursor and, for weighted and random, picks nothing: it sets SEL_POOL_DESC.
 
+CHIEF_ROLES="builder researcher reviewer brainstormer"
 SEP=$'\x1f'
 
 chief_agent_profile() {  # <agent[:model]> - validates, sets P_AGENT and P_MODEL
@@ -99,12 +103,12 @@ _chief_agent_entry() {
   printf '%s\n' "$P_AGENT$SEP$P_MODEL$SEP$weight$SEP$cmd$SEP$args"
 }
 
-# _chief_agent_read <builder|scout> - sets STRATEGY and POOL (one entry per
-# line) from the section's lines, else the global ones
+# _chief_agent_read <role> - sets STRATEGY, POOL (one entry per line) and
+# POOL_SRC from the role's section, else the global lines
 _chief_agent_read() {
   local want=$1 file="$CONFIG/agents" line entry section="" n=0
   local gstrategy="" sstrategy="" gpool="" spool=""
-  STRATEGY=first POOL=""
+  STRATEGY=first POOL="" POOL_SRC=default
   [ -f "$file" ] || return 0
   while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
@@ -114,10 +118,9 @@ _chief_agent_read() {
       ""|"#"*) continue ;;
       "["*)
         read -r entry <<< "${line%%#*}"
-        case "$entry" in
-          "[builder]"|"[scout]") section=${entry//[][]/} ;;
-          *) echo "chief-agent: $file:$n: unknown section $entry (builder or scout)" >&2; return 1 ;;
-        esac ;;
+        section=${entry//[][]/}
+        [[ " $CHIEF_ROLES " == *" $section "* ]] \
+          || { echo "chief-agent: $file:$n: unknown section $entry (${CHIEF_ROLES// /, })" >&2; return 1; } ;;
       strategy*=*)
         read -r entry <<< "${line#*=}"
         entry=${entry%%#*}; read -r entry <<< "$entry"
@@ -134,20 +137,26 @@ _chief_agent_read() {
   STRATEGY=${sstrategy:-${gstrategy:-first}}
   POOL=${spool:-$gpool}
   POOL=${POOL%$'\n'}
+  if [ -n "$spool" ]; then POOL_SRC=$want; elif [ -n "$gpool" ]; then POOL_SRC=global; fi
 }
 
-chief_agent_select() {  # <mode>
-  local section=${1/ship/builder} cursor rec
-  SEL_AGENT=claude SEL_MODEL="" SEL_ARGS="" SEL_COMMAND=""
+chief_agent_select() {  # <role> [peek]
+  local section=$1 peek=${2:-} cursor rec
+  SEL_AGENT=claude SEL_MODEL="" SEL_ARGS="" SEL_COMMAND="" SEL_POOL_DESC=""
   _chief_agent_read "$section" || return 1
   [ -n "$POOL" ] || return 0
+  if [ -n "$peek" ] && { [ "$STRATEGY" = random ] || [ "$STRATEGY" = weighted ]; }; then
+    SEL_POOL_DESC="$STRATEGY pool: $(awk -F"$SEP" -v w="$([ "$STRATEGY" = weighted ] && echo 1 || echo 0)" \
+      '{ printf "%s%s%s%s", (NR > 1 ? ", " : ""), $1, ($2 != "" ? ":" $2 : ""), (w ? " (" $3 ")" : "") }' <<< "$POOL")"
+    return 0
+  fi
   case "$STRATEGY" in
     first) rec=$(head -n 1 <<< "$POOL") ;;
     round-robin)
       chief_lock_acquire "$STATE/.agent-select.lock" 10 || { echo "chief-agent: selection lock busy" >&2; return 1; }
       cursor=$(cat "$STATE/agent-cursor-$section" 2>/dev/null || true)
       [[ $cursor =~ ^[0-9]+$ ]] || cursor=0
-      echo $((cursor + 1)) > "$STATE/agent-cursor-$section"
+      [ -n "$peek" ] || echo $((cursor + 1)) > "$STATE/agent-cursor-$section"
       chief_lock_release "$STATE/.agent-select.lock"
       rec=$(sed -n "$((cursor % $(wc -l <<< "$POOL") + 1))p" <<< "$POOL") ;;
     *)  # weighted or random: a cumulative-weight pick
@@ -159,4 +168,13 @@ chief_agent_select() {  # <mode>
         || { echo "chief-agent: every weight in the pool is 0" >&2; return 1; } ;;
   esac
   IFS=$SEP read -r SEL_AGENT SEL_MODEL _ SEL_COMMAND SEL_ARGS <<< "$rec"
+}
+
+chief_agent_describe() {  # after chief_agent_select - "agent[:model]" (or the pool) plus a fallback marker
+  local d=${SEL_POOL_DESC:-$SEL_AGENT${SEL_MODEL:+:$SEL_MODEL}}
+  case "$POOL_SRC" in
+    global) d+=" (global fallback)" ;;
+    default) d+=" (no pool configured)" ;;
+  esac
+  echo "$d"
 }

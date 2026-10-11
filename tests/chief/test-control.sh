@@ -20,7 +20,7 @@ echo "test-control:"
 
 assert_failure "refuses an unknown task id" -- "$CTL" nope interrupt
 
-timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode ship --branch feat/t-1 --intent "test" --spec "test" --agent claude:opus --args "--verbose" >/dev/null
+timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode builder --branch feat/t-1 --intent "test" --spec "test" --agent claude:opus --args "--verbose" >/dev/null
 
 assert_failure "refuses an unknown verb" -- "$CTL" t-1 bogus
 

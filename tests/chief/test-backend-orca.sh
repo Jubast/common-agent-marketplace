@@ -291,7 +291,7 @@ assert_eq "$?" "1" "backend_teardown leaves no stale worktree entry in 'orca wor
 assert_eq "$(_child_count)" "0" "no task remains nested under the main worktree"
 
 # --- end to end: the real lifecycle scripts on this backend ---------------
-# A scout, so teardown needs no landed branch. A real claude turn, driven only
+# A researcher, so teardown needs no landed branch. A real claude turn, driven only
 # through chief-spawn / chief-send / chief-control / chief-crew-state /
 # chief-teardown.
 export CHIEF_BACKEND=orca
@@ -308,7 +308,7 @@ wait_for_status() {  # <prefix> [timeout-s] - the task's last status line starts
   return 1
 }
 
-timeout 240 "$CHIEF_BIN/chief-spawn.sh" "$E2E" "$PROJECT" --mode scout --branch "$E2E_BRANCH" \
+timeout 240 "$CHIEF_BIN/chief-spawn.sh" "$E2E" "$PROJECT" --mode researcher --branch "$E2E_BRANCH" \
   --intent "Reply with exactly the single word: ok. Also write that word into the report file, then finish with a done status line." \
   >"$WORK/e2e-spawn.out" 2>&1
 E2E_RC=$?

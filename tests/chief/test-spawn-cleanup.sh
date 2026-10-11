@@ -33,7 +33,7 @@ echo "test-spawn-cleanup:"
 
 # --- a missing --branch fails before anything is created -------------------
 assert_failure "spawn: fails without --branch" -- \
-  "$BIN/chief-spawn.sh" t-nobranch "$WORK/project" --mode ship --intent "no branch"
+  "$BIN/chief-spawn.sh" t-nobranch "$WORK/project" --mode builder --intent "no branch"
 
 assert_file_missing "$CHIEF_HOME/worktrees/t-nobranch" \
   "spawn (no --branch): no worktree created"
@@ -50,7 +50,7 @@ assert_eq "$(git -C "$WORK/project" branch --list | wc -l | tr -d ' ')" "1" \
 git -C "$WORK/project" branch feat/t-exists
 EXISTS_SHA=$(git -C "$WORK/project" rev-parse feat/t-exists)
 assert_failure "spawn: fails when --branch already exists" -- \
-  "$BIN/chief-spawn.sh" t-exists "$WORK/project" --mode ship --branch feat/t-exists --intent "taken"
+  "$BIN/chief-spawn.sh" t-exists "$WORK/project" --mode builder --branch feat/t-exists --intent "taken"
 
 assert_eq "$(git -C "$WORK/project" rev-parse feat/t-exists 2>/dev/null)" "$EXISTS_SHA" \
   "spawn (existing branch): the branch and its commit survive"
@@ -67,7 +67,7 @@ assert_file_missing "$CHIEF_HOME/state/.t-exists.spawning" \
 assert_failure \
   "spawn: fails when backend_spawn itself fails" -- \
   env CHIEF_MOCK_SPAWN_FAIL=1 "$BIN/chief-spawn.sh" t-fail "$WORK/project" \
-    --mode ship --branch feat/t-fail --intent "should fail"
+    --mode builder --branch feat/t-fail --intent "should fail"
 
 assert_file_missing "$CHIEF_HOME/worktrees/t-fail" \
   "spawn (backend_spawn failed): worktree was rolled back, not left orphaned"
@@ -84,7 +84,7 @@ assert_eq "$(grep -c t-fail "$CHIEF_HOME/state/trust-owned" 2>/dev/null)" "0" \
 assert_failure \
   "spawn: fails when backend_spawn returns malformed output" -- \
   env CHIEF_MOCK_SPAWN_MALFORMED=1 "$BIN/chief-spawn.sh" t-malformed "$WORK/project" \
-    --mode ship --branch feat/t-malformed --intent "malformed output"
+    --mode builder --branch feat/t-malformed --intent "malformed output"
 
 assert_file_missing "$CHIEF_HOME/worktrees/t-malformed" \
   "spawn (malformed output): worktree was rolled back, not left orphaned"
@@ -95,7 +95,7 @@ assert_file_missing "$CHIEF_HOME/state/t-malformed.meta" \
 
 # --- an interrupted spawn leaves a status=spawning stub -------------------
 mkdir -p "$CHIEF_HOME/state"
-printf 'project=%s\nmode=ship\nbranch=chief/t-stub\nworktree=%s\nstatus=spawning\n' \
+printf 'project=%s\nmode=builder\nbranch=chief/t-stub\nworktree=%s\nstatus=spawning\n' \
   "$WORK/project" "$CHIEF_HOME/worktrees/t-stub" > "$CHIEF_HOME/state/t-stub.meta"
 
 assert_contains "$("$BIN/task/chief-crew-state.sh" t-stub)" "state: blocked" \
@@ -116,7 +116,7 @@ mkdir -p "$CHIEF_HOME/state"
 : > "$CHIEF_HOME/state/.t-locked.spawning"
 
 assert_failure "spawn: refuses a same-id spawn while the lock is held" -- \
-  "$BIN/chief-spawn.sh" t-locked "$WORK/project" --mode ship --branch feat/t-locked --intent "should be locked out"
+  "$BIN/chief-spawn.sh" t-locked "$WORK/project" --mode builder --branch feat/t-locked --intent "should be locked out"
 
 assert_file_missing "$CHIEF_HOME/worktrees/t-locked" \
   "spawn (locked): never even reached backend_spawn - no worktree created"
@@ -125,7 +125,7 @@ assert_file_missing "$CHIEF_HOME/state/t-locked.meta" \
 
 rm -f "$CHIEF_HOME/state/.t-locked.spawning"
 assert_success "spawn: succeeds once the lock is released" -- \
-  "$BIN/chief-spawn.sh" t-locked "$WORK/project" --mode ship --branch feat/t-locked --intent "should now succeed"
+  "$BIN/chief-spawn.sh" t-locked "$WORK/project" --mode builder --branch feat/t-locked --intent "should now succeed"
 
 # --- the lock is released after both a failed and a successful spawn ------
 assert_file_missing "$CHIEF_HOME/state/.t-fail.spawning" \

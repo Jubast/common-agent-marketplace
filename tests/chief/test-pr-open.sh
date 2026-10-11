@@ -33,7 +33,7 @@ export CHIEF_HOME="$WORK/.chief"
 chief_meta_set t1 project "$WORK/project"
 chief_meta_set t1 branch chief/t1
 chief_meta_set t1 worktree "$WORK/worktrees/t1"
-chief_meta_set t1 mode ship
+chief_meta_set t1 mode builder
 chief_meta_set t1 status working
 
 export CHIEF_PR_PROVIDER=mock
@@ -82,7 +82,7 @@ git -C "$WORK/project" worktree add -q -b chief/t2 "$WORK/worktrees/t2"
 chief_meta_set t2 project "$WORK/project"
 chief_meta_set t2 branch chief/t2
 chief_meta_set t2 worktree "$WORK/worktrees/t2"
-chief_meta_set t2 mode ship
+chief_meta_set t2 mode builder
 echo dirty > "$WORK/worktrees/t2/scratch.txt"
 
 "$CHIEF_BIN/pr/chief-pr-open.sh" t2 --confirm --title "T2 title" --body "T2 body" >/dev/null 2>"$WORK/err-dirty"
@@ -99,7 +99,7 @@ git -C "$WORK/project" worktree add -q -b chief/t4 "$WORK/worktrees/t4"
 chief_meta_set t4 project "$WORK/project"
 chief_meta_set t4 branch chief/t4
 chief_meta_set t4 worktree "$WORK/worktrees/t4"
-chief_meta_set t4 mode ship
+chief_meta_set t4 mode builder
 
 export CHIEF_PR_MOCK_URL=$'https://example.invalid/mock/pr/9\nsome stray extra line'
 : > "$CHIEF_PR_MOCK_LOG"
@@ -109,21 +109,21 @@ assert_eq "$?" "1" "refuses a multi-line URL from the provider"
 assert_contains "$(cat "$WORK/err-multiline")" "more than one line" "names the malformed-URL refusal"
 assert_eq "$(chief_meta_get t4 pr_url 2>/dev/null || true)" "" "does not record the malformed URL in task meta"
 
-# --- a scout task (a report, not a branch meant to be pushed) -----------
+# --- a researcher task (a report, not a branch meant to be pushed) -----------
 git -C "$WORK/project" worktree add -q -b chief/t5 "$WORK/worktrees/t5"
 chief_meta_set t5 project "$WORK/project"
 chief_meta_set t5 branch chief/t5
 chief_meta_set t5 worktree "$WORK/worktrees/t5"
-chief_meta_set t5 mode scout
+chief_meta_set t5 mode researcher
 
 export CHIEF_PR_MOCK_URL="https://example.invalid/mock/pr/10"
 : > "$CHIEF_PR_MOCK_LOG"
-"$CHIEF_BIN/pr/chief-pr-open.sh" t5 --confirm --title "T5 title" --body "T5 body" >/dev/null 2>"$WORK/err-scout"
-assert_eq "$?" "1" "refuses a scout task - its deliverable is a report, not a branch"
-assert_contains "$(cat "$WORK/err-scout")" "not a ship task" "names the mode refusal"
-assert_eq "$(chief_meta_get t5 pr_url 2>/dev/null || true)" "" "does not record a pr_url for the refused scout"
+"$CHIEF_BIN/pr/chief-pr-open.sh" t5 --confirm --title "T5 title" --body "T5 body" >/dev/null 2>"$WORK/err-researcher"
+assert_eq "$?" "1" "refuses a researcher task - its deliverable is a report, not a branch"
+assert_contains "$(cat "$WORK/err-researcher")" "not a builder task" "names the mode refusal"
+assert_eq "$(chief_meta_get t5 pr_url 2>/dev/null || true)" "" "does not record a pr_url for the refused researcher"
 assert_eq "$(cat "$CHIEF_PR_MOCK_LOG")" "" "refuses before ever calling the provider - no push, no PR"
 assert_eq "$(git -C "$WORK/remote.git" rev-parse --verify chief/t5 2>/dev/null || echo MISSING)" "MISSING" \
-  "refuses before ever pushing the scout's branch to origin"
+  "refuses before ever pushing the researcher's branch to origin"
 
 harness_summary

@@ -1,4 +1,4 @@
-# Lifecycle checklist: {TASK_ID} (ship)
+# Lifecycle checklist: {TASK_ID} (builder)
 
 - [ ] filed (chief-backlog.sh add)
 - [ ] spawned (chief-spawn.sh)

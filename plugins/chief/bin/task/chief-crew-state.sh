@@ -9,11 +9,10 @@
 # "actually stalled" without pane-diffing or any backend-specific heuristic.
 #
 # Usage: chief-crew-state.sh <id>
-# Prints one line: "state: <working|done|blocked|needs-decision|failed|stale> · <detail> [mode: <ship|scout>] [agent: <agent[:model]>]"
+# Prints one line: "state: <working|done|blocked|needs-decision|failed|stale> · <detail> [mode: <builder|researcher|reviewer|brainstormer>] [agent: <agent[:model]>]"
 #
 # mode and agent are appended, not prefixed, so it doesn't break prefix matches on
-# state/detail elsewhere. Read it fresh here - chief-promote.sh can flip a
-# scout to ship mid-task, same id.
+# state/detail elsewhere.
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"

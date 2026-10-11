@@ -23,7 +23,7 @@ assert_failure "refuses an unknown task id" -- "$CS" nope
 
 # Minimal meta + a live mock terminal process, no status written yet.
 mkdir -p "$CHIEF_HOME/state"
-printf 'project=%s\nmode=ship\nbranch=chief/t-1\nworktree=%s\nendpoint=mock:t-1\nstatus=working\n' \
+printf 'project=%s\nmode=builder\nbranch=chief/t-1\nworktree=%s\nendpoint=mock:t-1\nstatus=working\n' \
   "$WORK/project" "$WORK/.chief/worktrees/t-1" > "$CHIEF_HOME/state/t-1.meta"
 
 ( exec -a chief-mock-t-1 sleep 100000 ) >/dev/null 2>&1 &
@@ -31,11 +31,11 @@ disown
 echo $! > "$CHIEF_HOME/state/t-1.term.pid"
 
 assert_contains "$("$CS" t-1)" "state: working" "a live backend process with no status yet reads as working"
-assert_contains "$("$CS" t-1)" "[mode: ship]" "the state line reports the task's mode, so Chief can tell a promoted scout from a plain one without re-reading meta by hand"
+assert_contains "$("$CS" t-1)" "[mode: builder]" "the state line reports the task's mode, so Chief can tell a researcher from a builder without re-reading meta by hand"
 
 assert_contains "$("$CS" t-1)" "[agent: claude]" "a task without agent meta reports claude"
 printf 'agent=codex\nmodel=gpt-5\n' >> "$CHIEF_HOME/state/t-1.meta"
-assert_contains "$("$CS" t-1)" "[mode: ship] [agent: codex:gpt-5]" "the state line appends agent:model after the mode"
+assert_contains "$("$CS" t-1)" "[mode: builder] [agent: codex:gpt-5]" "the state line appends agent:model after the mode"
 assert_contains "$("$CS" t-1)" "state: working" "the state prefix is unchanged"
 
 kill "$(cat "$CHIEF_HOME/state/t-1.term.pid")"
@@ -59,11 +59,11 @@ assert_contains "$("$CS" t-1)" "state: failed" "failed status line is authoritat
 
 echo "done: added hello.txt" >> "$CHIEF_HOME/state/t-1.status"
 assert_contains "$("$CS" t-1)" "state: done · added hello.txt" "done status line is authoritative and carries its detail"
-assert_contains "$("$CS" t-1)" "[mode: ship]" "mode still reports correctly once the task is done"
+assert_contains "$("$CS" t-1)" "[mode: builder]" "mode still reports correctly once the task is done"
 
-printf 'project=%s\nmode=scout\nbranch=chief/t-2\nworktree=%s\nendpoint=mock:t-2\nstatus=working\n' \
+printf 'project=%s\nmode=researcher\nbranch=chief/t-2\nworktree=%s\nendpoint=mock:t-2\nstatus=working\n' \
   "$WORK/project" "$WORK/.chief/worktrees/t-2" > "$CHIEF_HOME/state/t-2.meta"
 echo "done: wrote report.md" >> "$CHIEF_HOME/state/t-2.status"
-assert_contains "$("$CS" t-2)" "[mode: scout]" "a scout task reports its own mode, distinct from a ship task"
+assert_contains "$("$CS" t-2)" "[mode: researcher]" "a researcher task reports its own mode, distinct from a builder task"
 
 harness_summary

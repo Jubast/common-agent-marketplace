@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # chief-teardown.sh - kills the terminal, removes the worktree, marks the
-# backlog item done. A SHIP task refuses unless its branch has landed on the
-# default branch, unless --abandon force-discards it. A SCOUT task discards
+# backlog item done. A BUILDER task refuses unless its branch has landed on the
+# default branch, unless --abandon force-discards it. Any other role discards
 # unconditionally - its deliverable is the report at $DATA/<id>/report.md,
 # outside the worktree, untouched either way.
 #
@@ -9,7 +9,7 @@
 # the work landed without a recorded PR/provider (e.g. merged by hand) and
 # for when provider-side deletion in pr_merge is unavailable or fails.
 #
-# A ship whose PR was squash- or rebase-merged has a branch that's never a
+# A builder whose PR was squash- or rebase-merged has a branch that's never a
 # local ancestor of the default branch (both methods create new commits
 # with no ancestry back to it) - so when the ancestry check fails, this
 # also asks the provider directly whether the recorded PR is merged before
@@ -54,10 +54,13 @@ _chief_discard() {  # <reason-for-the-echo-line>
   echo "torn down: $ID ($1)"
 }
 
-if [ "$MODE" = "scout" ]; then
-  _chief_discard "scout, discarded - its deliverable is the report, not this worktree"
-  exit 0
-fi
+case "$MODE" in
+  builder) ;;
+  researcher|reviewer|brainstormer)
+    _chief_discard "$MODE, discarded - its deliverable is the report, not this worktree"
+    exit 0 ;;
+  *) [ "$ABANDON" -eq 1 ] || fail "task $ID has unknown mode '${MODE:-none}' - tear it down with --abandon" ;;
+esac
 
 if [ "$ABANDON" -eq 1 ]; then
   _chief_discard "abandoned - work had not landed, discarded on the operator's explicit instruction"

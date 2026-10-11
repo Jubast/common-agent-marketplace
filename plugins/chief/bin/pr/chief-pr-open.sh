@@ -2,8 +2,8 @@
 # chief-pr-open.sh - push a task's branch and open a PR/MR for it, then
 # record the result on the task so review/approve/state/merge can find it.
 # Requires --confirm - only pass it once the operator has explicitly said to
-# open a PR for <id>. Ship agents never do this themselves (see
-# templates/brief-ship.md rule 1).
+# open a PR for <id>. Builder agents never do this themselves (see
+# templates/brief-builder.md rule 1).
 #
 # --title/--body are REQUIRED, not derived - Chief must compose a real title
 # and description itself for the PR to be worth reading.
@@ -41,7 +41,7 @@ EXISTING=$(chief_meta_get "$ID" pr_url 2>/dev/null || true)
 [ -z "$EXISTING" ] || fail "PR already open: $EXISTING - use chief-pr-state.sh to check it"
 
 MODE=$(chief_meta_get "$ID" mode 2>/dev/null || true)
-[ "$MODE" = "ship" ] || fail "$ID is not a ship task (mode=${MODE:-unknown}) - only a ship task's branch is meant to be pushed and opened as a PR/MR"
+[ "$MODE" = "builder" ] || fail "$ID is not a builder task (mode=${MODE:-unknown}) - only a builder task's branch is meant to be pushed and opened as a PR/MR"
 
 PROJECT=$(chief_meta_require "$ID" project)
 BRANCH=$(chief_meta_require "$ID" branch)
