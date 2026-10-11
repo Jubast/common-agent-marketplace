@@ -5,14 +5,14 @@ description: Use when Chief has not been configured yet at CHIEF_HOME (no .chief
 
 # Chief: setup
 
-Only needed once per `CHIEF_HOME` - the operator's single shared home, typically their top-level workspace root, not each individual project you dispatch into - when `.chief/config/backend` doesn't exist there yet.
+Needed once per `CHIEF_HOME` (the operator's shared home, typically the top-level workspace root, not each project), when `.chief/config/backend` doesn't exist yet.
 
 All commands live in `${CLAUDE_PLUGIN_ROOT}/bin/`.
 
 1. Ask the operator which backend to use: `herdr` or `orca`. Skip this if they already said.
 2. Run `${CLAUDE_PLUGIN_ROOT}/bin/chief-setup.sh --backend <choice>`. It writes the config, checks the tool is on PATH, and adds `.chief/` to `.gitignore` if missing - safe to re-run.
-3. If it warns the backend isn't on PATH, tell the operator plainly - dispatching won't work until it's installed (and for Orca, actually running; the PATH check can't confirm that part).
-4. Ask which agent[:model] the dispatched workers should run, per role (builder, researcher and brainstormer), typically a stronger agent for researchers and brainstormers and a cheaper one for builders: `claude` (default), `codex` or `copilot`, e.g. `claude:opus`. Optional per profile: `weight=N`, `args="..."` (extra CLI arguments), `command="..."` (replaces the launch command). One profile each, or a pool with a strategy (`first`, `round-robin`, `random`, `weighted`). Skip it if they decline: with no `.chief/config/agents`, workers run `claude`.
-5. Write `.chief/config/agents` (format and example: the plugin README's "Agents" section), with a section per role (`[builder]`, `[researcher]`, `[brainstormer]`) for separate pools and the global lines above them for a shared one. A role without a section uses the global pool, which may be an expensive agent: give `[builder]` its own section. `[reviewer]` is a valid section but that worker is not spawnable yet, so do not ask about it. Only dispatched workers are configurable; the agent of this Chief session is set by the operator themselves, there is no option for it.
-6. Run `${CLAUDE_PLUGIN_ROOT}/bin/chief-agents.sh` and show the operator the agent each role gets; flag any `(global fallback)` they did not intend.
+3. If it warns the backend isn't on PATH, tell the operator: dispatching needs it installed (and, for Orca, running; the PATH check can't confirm that).
+4. Ask which agent[:model] each dispatched role (builder, researcher, brainstormer) should run: `claude` (default), `codex` or `copilot`, e.g. `claude:opus`. Optional per profile: `weight=N`, `args="..."`, `command="..."`. One profile, or a pool with a strategy (`first`, `round-robin`, `random`, `weighted`). If they decline, skip it: with no `.chief/config/agents`, workers run `claude`.
+5. Write `.chief/config/agents` (format: the plugin README's "Agents" section): a section per role (`[builder]`, `[researcher]`, `[brainstormer]`) for its own pool, global lines above them for a shared pool. A role without a section uses the global pool. Don't ask about `[reviewer]` (not spawnable yet). This Chief session's own agent is not configurable here.
+6. Run `${CLAUDE_PLUGIN_ROOT}/bin/chief-agents.sh` and show the operator the agent each role gets, flagging any `(global fallback)`.
 7. Done. From here on, use `dispatch` for actual work.
