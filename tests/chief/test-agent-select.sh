@@ -19,9 +19,9 @@ echo "test-agent-select:"
 pick() { chief_agent_select "$1" && echo "$SEL_AGENT:$SEL_MODEL|$SEL_COMMAND"; }
 cfg() { cat > "$CFG"; }
 
-assert_eq "$(pick ship)" "claude:|" "no config: claude, default model"
+assert_eq "$(pick builder)" "claude:|" "no config: claude, default model"
 cfg <<< "# only comments"
-assert_eq "$(pick ship)" "claude:|" "a config with no pool: claude"
+assert_eq "$(pick builder)" "claude:|" "a config with no pool: claude"
 
 cfg <<'EOF2'
 # the pool
@@ -29,8 +29,8 @@ cfg <<'EOF2'
 claude:opus
 codex:gpt-5   # trailing comment
 EOF2
-assert_eq "$(pick ship)" "claude:opus|" "first: the first entry (strategy omitted)"
-assert_eq "$(pick ship)" "claude:opus|" "first: always the same"
+assert_eq "$(pick builder)" "claude:opus|" "first: the first entry (strategy omitted)"
+assert_eq "$(pick builder)" "claude:opus|" "first: always the same"
 
 cfg <<'EOF2'
 strategy = round-robin   # rotate
@@ -38,17 +38,17 @@ claude:opus
 codex:gpt-5
 copilot
 EOF2
-assert_eq "$(pick ship; pick ship; pick ship; pick ship)" "claude:opus|
+assert_eq "$(pick builder; pick builder; pick builder; pick builder)" "claude:opus|
 codex:gpt-5|
 copilot:|
 claude:opus|" "round-robin: rotates and wraps"
 assert_eq "$(cat "$STATE/agent-cursor-builder")" "4" "round-robin: the cursor is persisted"
-assert_eq "$(pick scout)" "claude:opus|" "round-robin: each mode has its own cursor"
+assert_eq "$(pick researcher)" "claude:opus|" "round-robin: each mode has its own cursor"
 printf 'junk' > "$STATE/agent-cursor-builder"
-assert_eq "$(pick ship)" "claude:opus|" "round-robin: a corrupt cursor restarts at the first entry"
+assert_eq "$(pick builder)" "claude:opus|" "round-robin: a corrupt cursor restarts at the first entry"
 
 rm -f "$STATE"/agent-cursor-*
-for i in 1 2 3 4 5 6; do (chief_agent_select ship; echo "$SEL_AGENT:$SEL_MODEL") & done > "$WORK/par.out"; wait
+for i in 1 2 3 4 5 6; do (chief_agent_select builder; echo "$SEL_AGENT:$SEL_MODEL") & done > "$WORK/par.out"; wait
 assert_eq "$(sort "$WORK/par.out" | uniq -c | awk '{print $1}' | tr '\n' ' ')" "2 2 2 " "round-robin: parallel spawns never pick the same entry twice in a row"
 
 cfg <<'EOF2'
@@ -57,7 +57,7 @@ claude:opus   weight=3
 codex:gpt-5   weight=2
 copilot       weight=1
 EOF2
-w() { CHIEF_AGENT_RANDOM=$1 pick ship; }
+w() { CHIEF_AGENT_RANDOM=$1 pick builder; }
 assert_eq "$(w 0; w 2; w 3; w 4; w 5; w 6)" "claude:opus|
 claude:opus|
 codex:gpt-5|
@@ -75,7 +75,7 @@ cfg <<'EOF2'
 strategy = weighted
 claude weight=0
 EOF2
-assert_contains "$(pick ship 2>&1)" "every weight in the pool is 0" "weighted: all zero errors"
+assert_contains "$(pick builder 2>&1)" "every weight in the pool is 0" "weighted: all zero errors"
 
 cfg <<'EOF2'
 strategy = random
@@ -89,7 +89,7 @@ claude:|" "random: equal weights, ignoring weight="
 cfg <<'EOF2'
 strategy = first
 claude:opus
-[scout]
+[researcher]
 strategy = round-robin
 claude:haiku
 codex:gpt-5-mini
@@ -97,65 +97,88 @@ codex:gpt-5-mini
 codex:gpt-5
 EOF2
 rm -f "$STATE"/agent-cursor-*
-assert_eq "$(pick scout; pick scout)" "claude:haiku|
-codex:gpt-5-mini|" "sections: a scout pool with its own strategy"
-assert_eq "$(pick ship)" "codex:gpt-5|" "sections: a ship pool inherits the global strategy"
+assert_eq "$(pick researcher; pick researcher)" "claude:haiku|
+codex:gpt-5-mini|" "sections: a researcher pool with its own strategy"
+assert_eq "$(pick builder)" "codex:gpt-5|" "sections: a builder pool inherits the global strategy"
 cfg <<'EOF2'
 strategy = round-robin
 claude:opus
-[scout]
+[researcher]
 codex
 EOF2
 rm -f "$STATE"/agent-cursor-*
-assert_eq "$(pick ship; pick ship)" "claude:opus|
+assert_eq "$(pick builder; pick builder)" "claude:opus|
 claude:opus|" "sections: a mode without a section uses the global pool (one entry here)"
-assert_eq "$(pick scout)" "codex:|" "sections: the scout pool wins over the global one"
+assert_eq "$(pick researcher)" "codex:|" "sections: the researcher pool wins over the global one"
 
 cfg <<'EOF2'
 claude:opus args="--verbose --add-dir /x" weight=2 command="wrap"
 codex args="--search"
 EOF2
-assert_eq "$(chief_agent_select ship; echo "$SEL_AGENT|$SEL_ARGS|$SEL_COMMAND")" "claude|--verbose --add-dir /x|wrap" "args: parsed next to weight and command, in any order"
+assert_eq "$(chief_agent_select builder; echo "$SEL_AGENT|$SEL_ARGS|$SEL_COMMAND")" "claude|--verbose --add-dir /x|wrap" "args: parsed next to weight and command, in any order"
 cfg <<'EOF2'
 strategy = round-robin
 claude:opus
 codex:gpt-5 args="--search"
 EOF2
 rm -f "$STATE"/agent-cursor-*
-assert_eq "$(chief_agent_select ship; chief_agent_select ship; echo "$SEL_AGENT|$SEL_ARGS")" "codex|--search" "args: an entry without args does not leak into the next pick"
+assert_eq "$(chief_agent_select builder; chief_agent_select builder; echo "$SEL_AGENT|$SEL_ARGS")" "codex|--search" "args: an entry without args does not leak into the next pick"
 cfg <<'EOF2'
 claude:opus command="/opt/bin/claude --dangerously-skip-permissions --foo" weight=2
 EOF2
-assert_eq "$(pick ship)" "claude:opus|/opt/bin/claude --dangerously-skip-permissions --foo" "command: kept verbatim, in either option order"
+assert_eq "$(pick builder)" "claude:opus|/opt/bin/claude --dangerously-skip-permissions --foo" "command: kept verbatim, in either option order"
 
-# builder (mode ship) and scout pools: builder-only, scout-only, both, neither
+# builder and researcher pools: builder-only, researcher-only, both, neither
 cfg <<'EOF2'
 claude:opus
 [builder]
 codex:gpt-5
 EOF2
-assert_eq "$(pick ship; pick scout)" "codex:gpt-5|
-claude:opus|" "builder-only: ship uses [builder], scout falls back to the global pool"
+assert_eq "$(pick builder; pick researcher)" "codex:gpt-5|
+claude:opus|" "builder-only: builder uses [builder], researcher falls back to the global pool"
 cfg <<'EOF2'
 claude:opus
-[scout]
+[researcher]
 copilot
 EOF2
-assert_eq "$(pick ship; pick scout)" "claude:opus|
-copilot:|" "scout-only: scout uses [scout], ship falls back to the global pool"
+assert_eq "$(pick builder; pick researcher)" "claude:opus|
+copilot:|" "researcher-only: researcher uses [researcher], builder falls back to the global pool"
 cfg <<'EOF2'
 [builder]
 codex:gpt-5
-[scout]
+[researcher]
 copilot
 EOF2
-assert_eq "$(pick ship; pick scout)" "codex:gpt-5|
+assert_eq "$(pick builder; pick researcher)" "codex:gpt-5|
 copilot:|" "both: each mode uses its own pool, no global pool needed"
 cfg <<'EOF2'
 claude:opus
 EOF2
-assert_eq "$(pick ship; pick scout)" "claude:opus|
+assert_eq "$(pick builder; pick researcher)" "claude:opus|
 claude:opus|" "neither: both modes use the global pool"
+
+# peek: no cursor advance, no pick for weighted/random, pool source
+cfg <<'EOF2'
+strategy = round-robin
+claude:opus
+codex:gpt-5
+EOF2
+rm -f "$STATE"/agent-cursor-*
+chief_agent_select builder peek; assert_eq "$SEL_AGENT $POOL_SRC" "claude global" "peek: shows the next pick; a role without a section reports the global pool"
+chief_agent_select builder peek; assert_eq "$SEL_AGENT" "claude" "peek: does not advance the cursor"
+assert_file_missing "$STATE/agent-cursor-builder" "peek: writes no cursor file"
+chief_agent_select builder; chief_agent_select builder peek; assert_eq "$SEL_AGENT" "codex" "peek: follows a real pick"
+cfg <<'EOF2'
+strategy = weighted
+claude:opus weight=3
+codex
+[reviewer]
+copilot
+EOF2
+chief_agent_select builder peek; assert_eq "$(chief_agent_describe)" "weighted pool: claude:opus (3), codex (1) (global fallback)" "peek: a weighted pool is listed with its weights, not picked"
+chief_agent_select reviewer peek; assert_eq "$(chief_agent_describe)" "weighted pool: copilot (1)" "describe: a role's own pool has no marker (strategy inherited)"
+cfg <<< "# no pool"
+chief_agent_select builder peek; assert_eq "$(chief_agent_describe)" "claude (no pool configured)" "describe: no pool marks the claude default"
 
 # weights are decimal and bounded
 cfg <<'EOF2'
@@ -177,14 +200,17 @@ assert_eq "$(w 999; w 1000)" "claude:|
 codex:|" "weight: 1000 is accepted"
 
 # CRLF config
-printf 'strategy = round-robin\r\nclaude:opus\r\n[scout]\r\ncodex args="--search"\r\n' > "$CFG"
+printf 'strategy = round-robin\r\nclaude:opus\r\n[researcher]\r\ncodex args="--search"\r\n' > "$CFG"
 rm -f "$STATE"/agent-cursor-*
-assert_eq "$(pick builder; pick scout)" "claude:opus|
+assert_eq "$(pick builder; pick researcher)" "claude:opus|
 codex:|" "CRLF: line endings are ignored"
 
-bad() { cfg; chief_agent_select "${1:-ship}" 2>&1; }
+bad() { cfg; chief_agent_select "${1:-builder}" 2>&1; }
 assert_contains "$(bad <<< 'strategy = sometimes')" "unknown strategy 'sometimes'" "error: unknown strategy"
-assert_contains "$(bad <<< '[ship]')" "unknown section [ship]" "error: [ship] is not a section (builder or scout)"
+assert_contains "$(bad <<< '[ship]')" "unknown section [ship]" "error: [ship] is not a section"
+assert_contains "$(bad <<< '[scout]')" "unknown section [scout]" "error: [scout] is not a section"
+assert_eq "$(bad <<< '[reviewer]')" "" "sections: reviewer is valid"
+assert_eq "$(bad <<< '[brainstormer]')" "" "sections: brainstormer is valid"
 assert_contains "$(bad <<< '[prod]')" "unknown section [prod]" "error: unknown section"
 assert_contains "$(bad <<< 'Claude')" "bad profile 'Claude'" "error: bad agent name"
 assert_contains "$(bad <<< 'claude:opus weight=x')" "unexpected ' weight=x'" "error: malformed weight"

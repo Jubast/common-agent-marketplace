@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Test: dispatch skill content and trigger conditions.
 # Description-recall style, matching test-conventional-commits.sh - checks
-# what SKILL.md claims, not a real spawned builder/scout.
+# what SKILL.md claims, not a real spawned builder/researcher.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -12,18 +12,18 @@ CLAUDE_PROMPT_TIMEOUT="${CLAUDE_PROMPT_TIMEOUT:-90}"
 echo "=== Test: dispatch skill ==="
 echo ""
 
-echo "Test 1: ship is the default mode..."
-output=$(run_claude "According to the dispatch skill's 'Deciding ship vs scout' section, is 'ship' the default mode for dispatching work? Answer using exactly this structure:
-Ship is the default mode: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
+echo "Test 1: builder is the default mode..."
+output=$(run_claude "According to the dispatch skill's 'Deciding builder vs researcher' section, is 'builder' the default mode for dispatching work? Answer using exactly this structure:
+Builder is the default mode: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
 
-assert_contains "$output" "Ship is the default mode:.*yes" "Ship is the default dispatch mode"
+assert_contains "$output" "Builder is the default mode:.*yes" "Builder is the default dispatch mode"
 echo ""
 
-echo "Test 2: Scouts are not for ordinary ambiguity..."
-output=$(run_claude "According to the dispatch skill, should you launch a scout to resolve ordinary ambiguity, or should you ask one concise question instead? Answer using exactly this structure:
-Launches a scout for ordinary ambiguity: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
+echo "Test 2: Researchers are not for ordinary ambiguity..."
+output=$(run_claude "According to the dispatch skill, should you launch a researcher to resolve ordinary ambiguity, or should you ask one concise question instead? Answer using exactly this structure:
+Launches a researcher for ordinary ambiguity: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
 
-assert_contains "$output" "Launches a scout for ordinary ambiguity:.*no" "Asks instead of scouting for ordinary ambiguity"
+assert_contains "$output" "Launches a researcher for ordinary ambiguity:.*no" "Asks instead of researching for ordinary ambiguity"
 echo ""
 
 echo "Test 3: Merging is always the operator's call..."

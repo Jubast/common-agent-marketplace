@@ -23,7 +23,7 @@ SPEC=$'line one with a | pipe\nline two with an & ampersand\nline three with a \
 INTENT=$'multi-line intent\nwith a | pipe too'
 
 assert_success "spawn: survives a --spec/--intent with embedded newlines and sed-delimiter characters" -- \
-  timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode ship --branch feat/t-1 --intent "$INTENT" --spec "$SPEC"
+  timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode builder --branch feat/t-1 --intent "$INTENT" --spec "$SPEC"
 
 BRIEF="$CHIEF_HOME/data/t-1/brief.md"
 assert_file_exists "$BRIEF" "spawn: brief was written"
@@ -36,7 +36,7 @@ LIFECYCLE="$CHIEF_HOME/state/t-1.lifecycle"
 assert_file_exists "$LIFECYCLE" "spawn: lifecycle checklist was written"
 assert_contains "$(cat "$LIFECYCLE")" "t-1" "spawn: the {TASK_ID} placeholder was filled with the task id"
 assert_not_contains "$(cat "$LIFECYCLE")" "{TASK_ID}" "spawn: no unfilled {TASK_ID} placeholder remains"
-assert_contains "$(cat "$LIFECYCLE")" "- [ ] filed" "spawn: the ship lifecycle checklist's first step is present"
+assert_contains "$(cat "$LIFECYCLE")" "- [ ] filed" "spawn: the builder lifecycle checklist's first step is present"
 
 CFG="$CLAUDE_CONFIG_DIR/.claude.json"
 assert_eq "$(jq -r --arg p "$CHIEF_HOME/worktrees/t-1" '.projects[$p].hasTrustDialogAccepted' "$CFG")" "true" "spawn: the task's worktree is pre-trusted"
@@ -45,7 +45,7 @@ assert_eq "$(chief_meta_get t-1 agent)" "claude" "spawn: the default agent is re
 
 rm -f "$CFG"
 assert_success "spawn: CHIEF_NO_PRETRUST=1 still spawns" -- \
-  env CHIEF_NO_PRETRUST=1 timeout 10 "$BIN/chief-spawn.sh" t-2 "$WORK/project" --mode ship --branch feat/t-2 --intent x
+  env CHIEF_NO_PRETRUST=1 timeout 10 "$BIN/chief-spawn.sh" t-2 "$WORK/project" --mode builder --branch feat/t-2 --intent x
 assert_file_missing "$CFG" "spawn: CHIEF_NO_PRETRUST=1 leaves the claude config untouched"
 
 # the brief is agent-neutral: the turn-ended protocol and review checklist are paths, not Claude hooks/skills
@@ -58,7 +58,7 @@ assert_not_contains "$BRIEF_T1" "reviewer\` skill" "brief: does not rely on the 
 # --- agent selection: flags, config, validation --------------------------
 spawn() {  # <id> [flags...]
   local id=$1; shift
-  timeout 10 "$BIN/chief-spawn.sh" "$id" "$WORK/project" --mode ship --branch "feat/$id" --intent x "$@"
+  timeout 10 "$BIN/chief-spawn.sh" "$id" "$WORK/project" --mode builder --branch "feat/$id" --intent x "$@"
 }
 meta() { chief_meta_get "$1" "$2"; }
 leftovers() { ls "$CHIEF_HOME/state" | grep -c "^\.\?$1[.]" || true; }
@@ -87,11 +87,20 @@ assert_success "spawn: explicit agent drops the override" -- spawn a-7 --agent c
 assert_eq "$(meta a-7 command || echo none)" "none" "spawn: --agent does not inherit a configured command"
 rm "$CHIEF_HOME/config/agents"
 
-printf 'claude:opus\n[builder]\ncodex:gpt-5\n[scout]\ncopilot\n' > "$CHIEF_HOME/config/agents"
-assert_success "spawn: ship task with builder/scout pools" -- spawn a-11
-assert_eq "$(meta a-11 agent)" "codex" "spawn: a ship task uses the [builder] pool"
-assert_success "spawn: scout task with builder/scout pools" -- timeout 10 "$BIN/chief-spawn.sh" a-12 "$WORK/project" --mode scout --branch feat/a-12 --intent x
-assert_eq "$(meta a-12 agent)" "copilot" "spawn: a scout task uses the [scout] pool"
+assert_failure "spawn: the old mode ship is rejected" -- timeout 10 "$BIN/chief-spawn.sh" a-x "$WORK/project" --mode ship --branch feat/a-x --intent x
+assert_failure "spawn: the old mode scout is rejected" -- timeout 10 "$BIN/chief-spawn.sh" a-x "$WORK/project" --mode scout --branch feat/a-x --intent x
+assert_contains "$(spawn a-90 --agent claude:haiku)" "agent: claude:haiku" "spawn: prints the agent line"
+assert_contains "$(spawn a-91 --agent claude --model opus)" "agent: claude:opus" "spawn: the agent line reflects --model"
+printf 'claude:opus\n' > "$CHIEF_HOME/config/agents"
+assert_contains "$(spawn a-92 --model haiku --dry-run)" "agent: claude:haiku (global fallback)" "spawn: with a pool, the agent line reflects --model and keeps the fallback marker"
+assert_contains "$(spawn a-92 --model haiku)" "agent: claude:haiku (global fallback)" "spawn: the real spawn prints the same agent line"
+assert_eq "$(meta a-92 model)" "haiku" "spawn: the printed model is the recorded one"
+
+printf 'claude:opus\n[builder]\ncodex:gpt-5\n[researcher]\ncopilot\n' > "$CHIEF_HOME/config/agents"
+assert_success "spawn: builder task with builder/researcher pools" -- spawn a-11
+assert_eq "$(meta a-11 agent)" "codex" "spawn: a builder task uses the [builder] pool"
+assert_success "spawn: researcher task with builder/researcher pools" -- timeout 10 "$BIN/chief-spawn.sh" a-12 "$WORK/project" --mode researcher --branch feat/a-12 --intent x
+assert_eq "$(meta a-12 agent)" "copilot" "spawn: a researcher task uses the [researcher] pool"
 
 printf 'claude:opus args="--verbose"\n' > "$CHIEF_HOME/config/agents"
 assert_success "spawn: config args" -- spawn a-8
@@ -139,7 +148,7 @@ printf 'claude command="/bin/sh --x"\n' > "$CHIEF_HOME/config/agents"
 assert_success "spawn: any executable is fine on the mock backend" -- spawn b-13
 rm "$CHIEF_HOME/config/agents"
 rm "$CHIEF_HOME/config/agents"
-out=$(PATH=/usr/bin:/bin timeout 10 "$BIN/chief-spawn.sh" b-5 "$WORK/project" --mode ship --branch feat/b-5 --intent x 2>&1); rc=$?
+out=$(PATH=/usr/bin:/bin timeout 10 "$BIN/chief-spawn.sh" b-5 "$WORK/project" --mode builder --branch feat/b-5 --intent x 2>&1); rc=$?
 assert_eq "$rc" "1" "spawn: a missing agent CLI fails"
 assert_contains "$out" "the 'claude' CLI is not installed" "spawn: and says which CLI"
 assert_eq "$(leftovers b-5)" "0" "spawn: and leaves no state behind"

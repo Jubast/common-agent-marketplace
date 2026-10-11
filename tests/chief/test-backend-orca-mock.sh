@@ -380,7 +380,7 @@ assert_contains "$(cat "$ORCA_MOCK_LOG")" "worktree rm --worktree path:$ORCA_MOC
 export CHIEF_BACKEND=orca
 FLOW=t-orca-flow
 : > "$ORCA_MOCK_LOG"
-"$CHIEF_BIN/chief-spawn.sh" "$FLOW" "$WORK/project" --mode ship --branch feat/flow --intent "flow" >"$WORK/flow.out" 2>&1
+"$CHIEF_BIN/chief-spawn.sh" "$FLOW" "$WORK/project" --mode builder --branch feat/flow --intent "flow" >"$WORK/flow.out" 2>&1
 assert_eq "$?" "0" "chief-spawn.sh succeeds on the orca backend"
 FLOW_WT=$(chief_meta_get "$FLOW" worktree)
 assert_eq "$FLOW_WT" "$ORCA_MOCK_WORKTREES/$FLOW" "chief-spawn.sh records the worktree path Orca chose"
@@ -414,7 +414,7 @@ assert_eq "$(git -C "$WORK/project" branch --list 'feat/flow' | wc -l | tr -d ' 
 
 # A spawn whose brief can't be delivered rolls back through chief-spawn.sh.
 FAIL=t-orca-flowfail
-ORCA_MOCK_PROMPT_LANDS=0 ORCA_MOCK_SEND_FAIL=1 "$CHIEF_BIN/chief-spawn.sh" "$FAIL" "$WORK/project" --mode ship --branch feat/flowfail --intent "x" >/dev/null 2>&1
+ORCA_MOCK_PROMPT_LANDS=0 ORCA_MOCK_SEND_FAIL=1 "$CHIEF_BIN/chief-spawn.sh" "$FAIL" "$WORK/project" --mode builder --branch feat/flowfail --intent "x" >/dev/null 2>&1
 assert_eq "$?" "1" "chief-spawn.sh fails when the orca backend can't deliver the brief"
 assert_file_missing "$ORCA_MOCK_WORKTREES/$FAIL" "chief-spawn.sh's rollback leaves no Orca worktree behind"
 assert_eq "$(git -C "$WORK/project" branch --list 'feat/flowfail' | wc -l | tr -d ' ')" "0" "chief-spawn.sh's rollback leaves no branch behind"

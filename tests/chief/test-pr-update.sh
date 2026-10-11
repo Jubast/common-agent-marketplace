@@ -34,7 +34,7 @@ export CHIEF_HOME="$WORK/.chief"
 chief_meta_set t1 project "$WORK/project"
 chief_meta_set t1 branch chief/t1
 chief_meta_set t1 worktree "$WORK/worktrees/t1"
-chief_meta_set t1 mode ship
+chief_meta_set t1 mode builder
 chief_meta_set t1 status pr-opened
 chief_meta_set t1 pr_url "https://example.invalid/mock/pr/7"
 chief_meta_set t1 pr_provider mock
@@ -53,7 +53,7 @@ git -C "$WORK/project" worktree add -q -b chief/t2 "$WORK/worktrees/t2"
 chief_meta_set t2 project "$WORK/project"
 chief_meta_set t2 branch chief/t2
 chief_meta_set t2 worktree "$WORK/worktrees/t2"
-chief_meta_set t2 mode ship
+chief_meta_set t2 mode builder
 chief_meta_set t2 status working
 
 "$CHIEF_BIN/pr/chief-pr-update.sh" t2 --confirm --title "T2 title" >/dev/null 2>"$WORK/err-nopr"

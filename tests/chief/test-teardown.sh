@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# test-teardown.sh - chief-teardown.sh's non-happy-path branches: a scout's
-# unconditional discard (a scout's deliverable is its report at
+# test-teardown.sh - chief-teardown.sh's non-happy-path branches: a researcher's
+# unconditional discard (a researcher's deliverable is its report at
 # $DATA/<id>/report.md, outside the worktree - the worktree itself was
 # always scratch, so there is nothing to prove "landed" before discarding
-# it), and a ship's explicit --abandon override. The ordinary
-# ship-refuses-then-succeeds-after-merge path is already covered end to end
+# it), and a builder's explicit --abandon override. The ordinary
+# builder-refuses-then-succeeds-after-merge path is already covered end to end
 # by test-lifecycle.sh; this file only covers what that one doesn't.
 set -uo pipefail
 
@@ -22,15 +22,15 @@ export CHIEF_BACKEND=mock
 
 echo "test-teardown:"
 
-# --- a scout, never landed, with a throwaway commit ---------------------
-assert_success "backlog: file the scout" -- "$BIN/chief-backlog.sh" add s-1 "Investigate caching options"
-assert_success "spawn: scout task" -- \
-  timeout 10 "$BIN/chief-spawn.sh" s-1 "$WORK/project" --mode scout --branch feat/s-1 --intent "Investigate caching options"
-assert_contains "$(cat "$CHIEF_HOME/state/s-1.lifecycle")" "promoted to ship" \
-  "spawn: a scout task gets the scout lifecycle checklist, not the ship one"
+# --- a researcher, never landed, with a throwaway commit ---------------------
+assert_success "backlog: file the researcher" -- "$BIN/chief-backlog.sh" add s-1 "Investigate caching options"
+assert_success "spawn: researcher task" -- \
+  timeout 10 "$BIN/chief-spawn.sh" s-1 "$WORK/project" --mode researcher --branch feat/s-1 --intent "Investigate caching options"
+assert_contains "$(cat "$CHIEF_HOME/state/s-1.lifecycle")" "handed off to a successor" \
+  "spawn: a researcher task gets the researcher lifecycle checklist, not the builder one"
 echo "findings: use an LRU cache" > "$CHIEF_HOME/data/s-1/report.md"
 
-# Simulate the scout doing exactly what its brief invites: a throwaway
+# Simulate the researcher doing exactly what its brief invites: a throwaway
 # commit in its own scratch worktree, never meant to land.
 (
   cd "$CHIEF_HOME/worktrees/s-1" || exit 1
@@ -40,17 +40,17 @@ echo "findings: use an LRU cache" > "$CHIEF_HOME/data/s-1/report.md"
 )
 echo "done: wrote report.md" >> "$CHIEF_HOME/state/s-1.status"
 
-assert_success "teardown: a scout tears down unconditionally, even with an unlanded commit" -- \
+assert_success "teardown: a researcher tears down unconditionally, even with an unlanded commit" -- \
   "$BIN/chief-teardown.sh" s-1
-assert_file_missing "$CHIEF_HOME/worktrees/s-1" "teardown: scout worktree removed"
-assert_file_exists "$CHIEF_HOME/data/s-1/report.md" "teardown: the scout's report survives - it lives outside the worktree"
+assert_file_missing "$CHIEF_HOME/worktrees/s-1" "teardown: researcher worktree removed"
+assert_file_exists "$CHIEF_HOME/data/s-1/report.md" "teardown: the researcher's report survives - it lives outside the worktree"
 assert_eq "$(cat "$CHIEF_HOME/data/s-1/report.md")" "findings: use an LRU cache" "teardown: the report content is untouched"
 assert_contains "$("$BIN/chief-backlog.sh" show s-1)" "[done]" "teardown: backlog item marked done"
 
-# --- a ship, never landed, explicitly abandoned --------------------------
-assert_success "backlog: file the ship" -- "$BIN/chief-backlog.sh" add b-1 "Add hello.txt"
-assert_success "spawn: ship task" -- \
-  timeout 10 "$BIN/chief-spawn.sh" b-1 "$WORK/project" --mode ship --branch feat/b-1 --intent "Add hello.txt" --spec "content: hello"
+# --- a builder, never landed, explicitly abandoned --------------------------
+assert_success "backlog: file the builder" -- "$BIN/chief-backlog.sh" add b-1 "Add hello.txt"
+assert_success "spawn: builder task" -- \
+  timeout 10 "$BIN/chief-spawn.sh" b-1 "$WORK/project" --mode builder --branch feat/b-1 --intent "Add hello.txt" --spec "content: hello"
 (
   cd "$CHIEF_HOME/worktrees/b-1" || exit 1
   echo hello > hello.txt
@@ -59,18 +59,18 @@ assert_success "spawn: ship task" -- \
 )
 echo "done: added hello.txt" >> "$CHIEF_HOME/state/b-1.status"
 
-assert_failure "teardown: still refuses a ship with no --abandon, even after done" -- "$BIN/chief-teardown.sh" b-1
-assert_file_exists "$CHIEF_HOME/worktrees/b-1" "teardown refusal: ship worktree is untouched"
+assert_failure "teardown: still refuses a builder with no --abandon, even after done" -- "$BIN/chief-teardown.sh" b-1
+assert_file_exists "$CHIEF_HOME/worktrees/b-1" "teardown refusal: builder worktree is untouched"
 
-assert_success "teardown: --abandon force-discards an unlanded ship" -- "$BIN/chief-teardown.sh" b-1 --abandon
+assert_success "teardown: --abandon force-discards an unlanded builder" -- "$BIN/chief-teardown.sh" b-1 --abandon
 assert_file_missing "$CHIEF_HOME/worktrees/b-1" "teardown --abandon: worktree removed"
 assert_not_contains "$(git -C "$WORK/project" worktree list)" "worktrees/b-1" "teardown --abandon: git no longer tracks the worktree"
 assert_contains "$("$BIN/chief-backlog.sh" show b-1)" "[done]" "teardown --abandon: backlog item marked done"
 
-# --- an already-landed ship still doesn't need --abandon -----------------
-assert_success "backlog: file a second ship" -- "$BIN/chief-backlog.sh" add b-2 "Add world.txt"
-assert_success "spawn: second ship task" -- \
-  timeout 10 "$BIN/chief-spawn.sh" b-2 "$WORK/project" --mode ship --branch feat/b-2 --intent "Add world.txt" --spec "content: world"
+# --- an already-landed builder still doesn't need --abandon -----------------
+assert_success "backlog: file a second builder" -- "$BIN/chief-backlog.sh" add b-2 "Add world.txt"
+assert_success "spawn: second builder task" -- \
+  timeout 10 "$BIN/chief-spawn.sh" b-2 "$WORK/project" --mode builder --branch feat/b-2 --intent "Add world.txt" --spec "content: world"
 (
   cd "$CHIEF_HOME/worktrees/b-2" || exit 1
   echo world > world.txt
@@ -78,16 +78,16 @@ assert_success "spawn: second ship task" -- \
   git -c user.email=t@t -c user.name=t commit -q -m "add world.txt"
 )
 git -C "$WORK/project" merge --ff-only feat/b-2 >/dev/null
-assert_success "teardown: a landed ship tears down without --abandon, as before" -- "$BIN/chief-teardown.sh" b-2
+assert_success "teardown: a landed builder tears down without --abandon, as before" -- "$BIN/chief-teardown.sh" b-2
 
 # --- a squash/rebase-merged PR: the branch is never a local ancestor of --
 # --- the default branch, but the provider confirms it's merged ---------
 . "$BIN/lib/paths.sh"
 . "$BIN/lib/meta.sh"
 
-assert_success "backlog: file a third ship" -- "$BIN/chief-backlog.sh" add b-3 "Add moon.txt"
-assert_success "spawn: third ship task" -- \
-  timeout 10 "$BIN/chief-spawn.sh" b-3 "$WORK/project" --mode ship --branch feat/b-3 --intent "Add moon.txt" --spec "content: moon"
+assert_success "backlog: file a third builder" -- "$BIN/chief-backlog.sh" add b-3 "Add moon.txt"
+assert_success "spawn: third builder task" -- \
+  timeout 10 "$BIN/chief-spawn.sh" b-3 "$WORK/project" --mode builder --branch feat/b-3 --intent "Add moon.txt" --spec "content: moon"
 (
   cd "$CHIEF_HOME/worktrees/b-3" || exit 1
   echo moon > moon.txt
@@ -119,9 +119,9 @@ git init -q --bare "$BARE"
 git -C "$WORK/project" remote add origin "$BARE"
 git -C "$WORK/project" push -q origin master
 
-assert_success "backlog: file a fourth ship" -- "$BIN/chief-backlog.sh" add b-4 "Add sun.txt"
-assert_success "spawn: fourth ship task" -- \
-  timeout 10 "$BIN/chief-spawn.sh" b-4 "$WORK/project" --mode ship --branch feat/b-4 --intent "Add sun.txt" --spec "content: sun"
+assert_success "backlog: file a fourth builder" -- "$BIN/chief-backlog.sh" add b-4 "Add sun.txt"
+assert_success "spawn: fourth builder task" -- \
+  timeout 10 "$BIN/chief-spawn.sh" b-4 "$WORK/project" --mode builder --branch feat/b-4 --intent "Add sun.txt" --spec "content: sun"
 (
   cd "$CHIEF_HOME/worktrees/b-4" || exit 1
   echo sun > sun.txt
@@ -132,15 +132,26 @@ assert_success "spawn: fourth ship task" -- \
 assert_contains "$(git -C "$BARE" branch --list feat/b-4)" "feat/b-4" "setup: feat/b-4 pushed to origin before teardown"
 
 git -C "$WORK/project" merge --ff-only feat/b-4 >/dev/null
-assert_success "teardown: a landed ship deletes its now-merged remote branch" -- "$BIN/chief-teardown.sh" b-4
+assert_success "teardown: a landed builder deletes its now-merged remote branch" -- "$BIN/chief-teardown.sh" b-4
 assert_eq "$(git -C "$BARE" branch --list feat/b-4)" "" "teardown: remote branch feat/b-4 deleted from origin"
+
+# --- a brainstormer discards like a researcher; an unknown mode refuses ---
+assert_success "spawn: brainstormer task" -- \
+  timeout 10 "$BIN/chief-spawn.sh" bs-1 "$WORK/project" --mode brainstormer --branch feat/bs-1 --intent x
+assert_success "teardown: a brainstormer discards unconditionally" -- "$BIN/chief-teardown.sh" bs-1
+assert_success "spawn: a task to give a legacy mode" -- \
+  timeout 10 "$BIN/chief-spawn.sh" lg-1 "$WORK/project" --mode builder --branch feat/lg-1 --intent x
+sed -i 's/^mode=.*/mode=ship/' "$CHIEF_HOME/state/lg-1.meta"
+assert_failure "teardown: a legacy mode=ship task is refused, not silently discarded" -- "$BIN/chief-teardown.sh" lg-1
+assert_file_exists "$CHIEF_HOME/worktrees/lg-1" "teardown refusal: legacy worktree is untouched"
+assert_success "teardown: --abandon still clears a legacy task" -- "$BIN/chief-teardown.sh" lg-1 --abandon
 
 # --- teardown releases the task's pre-trusted worktree -------------------
 export CHIEF_HOME="$WORK/.chief-trust"
 CFG="$CLAUDE_CONFIG_DIR/.claude.json"
 trusted() { jq -r --arg p "$CHIEF_HOME/worktrees/p-1" '.projects[$p].hasTrustDialogAccepted // "unset"' "$CFG"; }
 . "$BIN/lib/agents/claude.sh"
-timeout 10 "$BIN/chief-spawn.sh" p-1 "$WORK/project" --mode scout --branch feat/p-1 --intent x >/dev/null
+timeout 10 "$BIN/chief-spawn.sh" p-1 "$WORK/project" --mode researcher --branch feat/p-1 --intent x >/dev/null
 STATE="$CHIEF_HOME/state" agent_prepare "$CHIEF_HOME/worktrees/p-1"
 assert_eq "$(trusted)" "true" "setup: worktree trusted"
 "$BIN/chief-teardown.sh" p-1 >/dev/null

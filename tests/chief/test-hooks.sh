@@ -50,14 +50,14 @@ assert_not_contains "$ctx2" "NOT CONFIGURED YET" "session-start: no longer flags
 assert_contains "$ctx2" "(empty)" "session-start: reports an empty backlog plainly"
 
 "$BIN/chief-backlog.sh" add t-1 "test task" >/dev/null
-timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/configured/project" --mode ship --branch feat/t-1 --intent "test" --spec "test" >/dev/null
+timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/configured/project" --mode builder --branch feat/t-1 --intent "test" --spec "test" >/dev/null
 echo "done: finished" >> "$CHIEF_HOME/state/t-1.status"
 out3=$("$SS")
 ctx3=$(json_field "d['hookSpecificOutput']['additionalContext']" "$out3")
 assert_contains "$ctx3" "t-1: done: finished" "session-start: shows the in-flight task's latest status"
 assert_contains "$ctx3" "[agent: claude]" "session-start: shows the in-flight task's agent"
-assert_contains "$ctx3" "t-1: done: finished [mode: ship]" \
-  "session-start: also shows the task's current mode, so a fresh session can tell a promoted scout from a plain ship task without reading meta by hand"
+assert_contains "$ctx3" "t-1: done: finished [mode: builder]" \
+  "session-start: also shows the task's current mode, so a fresh session can tell a researcher from a builder task without reading meta by hand"
 
 arm_out2=$("$ARM" 2>&1); arm_rc2=$?
 assert_eq "$arm_rc2" "2" "stop-watch-arm: exits 2 (rewake) once a task hits a terminal state"

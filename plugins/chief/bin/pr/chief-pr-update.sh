@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # chief-pr-update.sh - push a task's branch's new commits and, when given,
 # refresh its already-open PR/MR's title/body. Requires --confirm the same
-# way chief-pr-open.sh does. Ship agents never do this themselves (see
-# templates/brief-ship.md rule 1).
+# way chief-pr-open.sh does. Builder agents never do this themselves (see
+# templates/brief-builder.md rule 1).
 #
 # --title/--body are OPTIONAL here (unlike chief-pr-open.sh, where they're
 # required): a plain push-only update with no description change is a
