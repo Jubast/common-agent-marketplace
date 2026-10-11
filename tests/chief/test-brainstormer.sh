@@ -46,7 +46,7 @@ assert_contains "$BRIEF" "never saw this conversation" "brief: the spec must sta
 assert_not_contains "$BRIEF" "superpowers" "brief: no dependency on superpowers"
 assert_not_contains "$BRIEF" "writing-plans" "brief: no downstream plan-writing hand-off"
 assert_not_contains "$BRIEF" "/brainstorming" "brief: does not load a brainstorming skill"
-assert_not_contains "$BRIEF" "Claude" "brief: agent-neutral wording"
+assert_not_contains "$(sed 's/CLAUDE\.md//g' <<< "$BRIEF" | tr A-Z a-z)" "claude" "brief: agent-neutral wording"
 for ph in TASK SPEC BRANCH REPORT_FILE STATUS_FILE TURN_FILE INBOX_DIR; do
   assert_not_contains "$BRIEF" "{$ph}" "brief: no unfilled {$ph}"
 done
@@ -61,8 +61,8 @@ assert_contains "$LIFECYCLE" "chief-spawn.sh --from" "lifecycle: ends in a hando
 assert_not_contains "$LIFECYCLE" "{TASK_ID}" "lifecycle: no unfilled placeholder"
 
 # attach hint: printed and recorded for a brainstormer only
-assert_contains "$out" "attach: tail -f $STATE/bs-1.term.log" "spawn: prints the attach hint for a brainstormer"
-assert_eq "$(chief_meta_get bs-1 attach)" "tail -f $STATE/bs-1.term.log" "spawn: records attach= in meta"
+assert_contains "$out" "attach: tail -f '$STATE/bs-1.term.log'" "spawn: prints the attach hint for a brainstormer"
+assert_eq "$(chief_meta_get bs-1 attach)" "tail -f '$STATE/bs-1.term.log'" "spawn: records attach= in meta"
 assert_not_contains "$(spawn b-1 builder)" "attach:" "spawn: no attach line for a builder"
 assert_eq "$(chief_meta_get b-1 attach 2>/dev/null)" "" "spawn: no attach= for a builder"
 assert_not_contains "$(spawn bs-d brainstormer --dry-run)" "attach:" "dry-run: prints no attach line"

@@ -216,12 +216,4 @@ chief_meta_set "$ID" status working
 "$CHIEF_ROOT/bin/chief-backlog.sh" status "$ID" in-flight 2>/dev/null || true
 
 echo "spawned: $ID ($MODE) in $WORKTREE"
-
-# A brainstormer is the one worker the operator talks to, so record how to reach its pane.
-if [ "$MODE" = brainstormer ] && declare -F backend_attach_hint >/dev/null; then
-  ATTACH=$(backend_attach_hint "$ID" 2>/dev/null || true)
-  if [ -n "$ATTACH" ]; then
-    chief_meta_set "$ID" attach "$ATTACH"
-    echo "attach: $ATTACH"
-  fi
-fi
+chief_record_attach "$ID"

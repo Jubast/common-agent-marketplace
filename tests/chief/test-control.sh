@@ -54,4 +54,13 @@ assert_eq "$(jq -r --arg p "$CHIEF_HOME/worktrees/t-1" '.projects[$p].hasTrustDi
 TASK_STATUS2=$(. "$META_LIB"; STATE="$CHIEF_HOME/state"; chief_meta_get t-1 status)
 assert_eq "$TASK_STATUS2" "working" "relaunch records status=working again"
 
+# a relaunched brainstormer gets its attach hint recomputed
+timeout 10 "$BIN/chief-spawn.sh" bs-1 "$WORK/project" --mode brainstormer --branch feat/bs-1 --intent "idea" >/dev/null
+sed -i '/^attach=/d' "$CHIEF_HOME/state/bs-1.meta"
+out=$("$CTL" bs-1 relaunch --note "mid-way")
+assert_contains "$out" "attach: tail -f" "relaunch of a brainstormer prints the attach hint again"
+assert_contains "$(cat "$CHIEF_HOME/state/bs-1.meta")" "attach=tail -f" "relaunch of a brainstormer re-records attach="
+"$CTL" t-1 relaunch --note "again" >/dev/null
+assert_not_contains "$(cat "$CHIEF_HOME/state/t-1.meta")" "attach=" "relaunch of a builder records no attach="
+
 harness_summary

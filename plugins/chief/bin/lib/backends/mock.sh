@@ -86,7 +86,7 @@ backend_busy() {
 }
 
 backend_attach_hint() {
-  printf 'tail -f %s\n' "$STATE/$1.term.log"
+  printf "tail -f '%s'\n" "$STATE/$1.term.log"
 }
 
 backend_relaunch() {
