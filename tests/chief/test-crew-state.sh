@@ -66,4 +66,38 @@ printf 'project=%s\nmode=researcher\nbranch=chief/t-2\nworktree=%s\nendpoint=moc
 echo "done: wrote report.md" >> "$CHIEF_HOME/state/t-2.status"
 assert_contains "$("$CS" t-2)" "[mode: researcher]" "a researcher task reports its own mode, distinct from a builder task"
 
+# --- brainstormer: waiting on the operator in its pane is not stale ---------
+printf 'project=%s\nmode=brainstormer\nbranch=feat/bs-1\nworktree=%s\nendpoint=mock:bs-1\nstatus=working\nattach=tail -f x.log\n' \
+  "$WORK/project" "$WORK/.chief/worktrees/bs-1" > "$CHIEF_HOME/state/bs-1.meta"
+echo "working: brainstorming with operator" >> "$CHIEF_HOME/state/bs-1.status"
+turn_ago() { touch -d "@$(($(date +%s) - $1))" "$CHIEF_HOME/state/bs-1.turn-ended"; }
+
+assert_contains "$("$CS" bs-1)" "state: stale" "a brainstormer with no turn activity at all reads as stale"
+turn_ago 500
+out=$("$CS" bs-1)
+assert_contains "$out" "state: working · awaiting operator in pane" "an idle brainstormer past the builder threshold still reads as awaiting the operator"
+assert_contains "$out" "[mode: brainstormer]" "the awaiting line keeps the mode tag"
+assert_contains "$out" "[attach: tail -f x.log]" "the awaiting line repeats the attach hint"
+turn_ago 14000
+assert_contains "$("$CS" bs-1)" "awaiting operator in pane" "a brainstormer idle just under 4h is still awaiting the operator"
+turn_ago 14500
+out=$("$CS" bs-1)
+assert_contains "$out" "state: stale" "a brainstormer idle past the default 4h reads as stale"
+assert_contains "$out" "[attach: tail -f x.log]" "the stale line repeats the attach hint"
+turn_ago 500
+assert_contains "$(CHIEF_INTERACTIVE_STALE_AFTER_SECS=300 "$CS" bs-1)" "state: stale" "CHIEF_INTERACTIVE_STALE_AFTER_SECS sets the brainstormer threshold"
+assert_not_contains "$(CHIEF_STALE_AFTER_SECS=60 "$CS" bs-1)" "stale" "CHIEF_STALE_AFTER_SECS does not apply to a brainstormer"
+printf 'project=%s\nmode=researcher\nbranch=chief/t-3\nworktree=x\nendpoint=mock:t-3\nstatus=working\n' "$WORK/project" > "$CHIEF_HOME/state/t-3.meta"
+touch -d "@$(($(date +%s) - 500))" "$CHIEF_HOME/state/t-3.turn-ended"
+assert_contains "$("$CS" t-3)" "state: stale" "a researcher idle that long is still stale: the interactive threshold is brainstormer-only"
+
+echo "blocked: cannot read the repo" >> "$CHIEF_HOME/state/bs-1.status"
+assert_contains "$("$CS" bs-1)" "state: blocked" "a brainstormer's blocked surfaces immediately"
+echo "done: spec ready" >> "$CHIEF_HOME/state/bs-1.status"
+out=$("$CS" bs-1)
+assert_contains "$out" "state: done · spec ready" "a brainstormer's done surfaces immediately"
+assert_not_contains "$out" "attach:" "a terminal brainstormer line carries no attach hint"
+echo "failed: gave up" >> "$CHIEF_HOME/state/bs-1.status"
+assert_contains "$("$CS" bs-1)" "state: failed" "a brainstormer's failed surfaces immediately"
+
 harness_summary
