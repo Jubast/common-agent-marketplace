@@ -1,6 +1,6 @@
 # Chief
 
-A lightweight supervisor for Claude Code: dispatches work to isolated builder/researcher agents over the herdr or Orca backend, tracks a plain-markdown backlog, and supervises them with a near-zero-token watch loop. (Verbatim from `.claude-plugin/plugin.json`'s `description` - see "Maintaining these docs" below.)
+A lightweight supervisor for Claude Code: dispatches work to isolated builder/researcher/brainstormer agents over the herdr or Orca backend, tracks a plain-markdown backlog, and supervises them with a near-zero-token watch loop. (Verbatim from `.claude-plugin/plugin.json`'s `description` - see "Maintaining these docs" below.)
 
 Scoped down hard from bigger multi-agent supervisors on purpose: **Claude Code only**, **herdr or Orca backend only** (configurable via `.chief/config/backend`, default `herdr`), one delivery mode (branch + you approve every merge - no auto-merge). Every script is meant to be short enough to read start to finish.
 
@@ -22,7 +22,7 @@ Spawn syncs the project's default branch from origin (best-effort), then creates
 
 ## Agents
 
-Workers run on `claude` (default), `codex` or `copilot`, unattended, on herdr and Orca alike. **`codex` and `copilot` have no folder-trust handling:** if their CLI asks to trust a new worktree, the spawn stalls and fails as "not ready" (only `claude` is pre-trusted, see below). Which agent a task gets:
+Workers run on `claude` (default), `codex` or `copilot`, on herdr and Orca alike; all but the brainstormer run unattended. **`codex` and `copilot` have no folder-trust handling:** if their CLI asks to trust a new worktree, the spawn stalls and fails as "not ready" (only `claude` is pre-trusted, see below). Which agent a task gets:
 
 1. `chief-spawn.sh ... --agent <agent[:model]>` and/or `--model <model>` win. `--model` alone overrides only the model of the profile the config selects.
 2. Else `.chief/config/agents`, if present:
@@ -41,7 +41,7 @@ Workers run on `claude` (default), `codex` or `copilot`, unattended, on herdr an
    claude:haiku
    codex:gpt-5-mini
 
-   [brainstormer]               # and for brainstormers, typically a strong agent
+   [brainstormer]               # and for brainstormers
    claude:opus
    ```
 
@@ -54,7 +54,7 @@ A profile's `args="..."` (or `--args "..."` on spawn, which replaces the configu
 
 `command="..."` instead replaces the whole launch line (a wrapper, another binary path), so it cannot be combined with a model or `args=` (put them in the command). Orca runs it as given. herdr starts the agent's own executable (`--kind`), so the command must start with it (`claude`, `/usr/local/bin/claude`) and only its arguments are used; for another executable use `args=` or the Orca backend. An explicit `--agent` drops the configured `args` and `command`.
 
-A role with no section of its own runs the global pool, which may be an expensive agent: give `[builder]` its own section. `chief-agents.sh` prints the agent each role would get now (read-only; a weighted or random pool is listed, not picked) and marks a role that falls back with `(global fallback)`. Spawn prints the chosen `agent:` too.
+A role with no section of its own runs the global pool. `chief-agents.sh` prints the agent each role would get now (read-only; a weighted or random pool is listed, not picked) and marks a role that falls back with `(global fallback)`. Spawn prints the chosen `agent:` too.
 
 `CHIEF_AGENT` and `.chief/config/agent` (the old single-agent selection) are gone; `.chief/config/agents` replaces them.
 
@@ -73,10 +73,10 @@ The launch line each worker runs is the adapter's `agent_command` in `bin/lib/ag
 
 ## Brainstormer
 
-An explicit-only worker (`--mode brainstormer`): Chief spawns one only when the operator asks to brainstorm. It is the one worker that talks to the operator, directly in its own pane; Chief never relays the conversation. It narrows an idea into a one-page, self-contained spec in `data/<id>/report.md` (goal, scope, acceptance criteria, decisions with rationale and rejected options, open questions) and reports `done` only after the operator confirms it in the pane. Its brief is agent-neutral and depends on no skill. A done spec hands off like a researcher's report (builder or researcher), and a researcher can hand off to a brainstormer.
+An explicit-only worker (`--mode brainstormer`), spawned only when the operator asks to brainstorm. It talks to the operator directly in its own pane; Chief never relays the conversation. It writes a one-page, self-contained spec to `data/<id>/report.md` (goal, scope, acceptance criteria, decisions with rationale and rejected options, open questions) and reports `done` only after the operator confirms it there. Its brief is agent-neutral and depends on no skill. A done spec hands off like a researcher's report, and a researcher can hand off to a brainstormer.
 
-- **Attach hint.** A backend may define the optional `backend_attach_hint <id>` (see `backend.sh`). Spawn prints the result as `attach: ...` and stores it as `attach=`; `chief-crew-state.sh` and the session digest repeat it while the brainstormer runs. herdr: `herdr workspace focus <workspace>`, verified against a live herdr. Orca: the worktree and terminal to open, tested against the fake `orca` only (unverified live). mock: `tail -f` of its log.
-- **Idle policy.** An idle brainstormer with a non-terminal last status reads `working · awaiting operator in pane` instead of `stale`, until `CHIEF_INTERACTIVE_STALE_AFTER_SECS` (default 14400 = 4h) passes without a turn; then it reads `stale`. `done`, `failed` and `blocked` surface immediately.
+- **Attach hint.** A backend may define the optional `backend_attach_hint <id>` (see `backend.sh`). Spawn and `chief-control.sh relaunch` print it as `attach: ...` and store `attach=`; `chief-crew-state.sh` and the session digest repeat it while the brainstormer runs. herdr: `herdr workspace focus <workspace>` (verified live). Orca: the worktree and terminal to open (tested against the fake `orca` only, unverified live). mock: `tail -f` of its log.
+- **Idle.** An idle brainstormer with a non-terminal last status reads `working · awaiting operator in pane`, never `stale`. `done`, `failed`, `blocked` and `needs-decision` surface immediately.
 
 ## Folder trust
 

@@ -19,7 +19,7 @@ You are in a disposable git worktree on branch `{BRANCH}`. This is a BRAINSTORME
 5. Ask the operator to confirm the spec explicitly. Only an explicit confirmation counts; "sounds good so far" does not.
 
 # The spec
-One page, self-contained: a different agent, possibly a cheaper one, that never saw this conversation must be able to build from it alone. Sections:
+One page, self-contained: another agent that never saw this conversation must be able to build from it alone. Sections:
 - **Goal**
 - **In scope**
 - **Out of scope**
@@ -28,14 +28,14 @@ One page, self-contained: a different agent, possibly a cheaper one, that never 
 - **Open questions**: none, or explicitly deferred
 
 # Out of scope for you
-TDD, implementation plans, writing project code, committing, pushing, opening a PR. Edit nothing except `{REPORT_FILE}`.
+TDD, implementation plans, writing project code, committing, pushing, opening a PR. Edit no project files; write only `{REPORT_FILE}`.
 
 # Rules
 1. Report status by appending exactly one line at a time:
    `echo "{state}: {one short line}" >> {STATUS_FILE}`
    States: `working`, `needs-decision`, `blocked`, `done`, `failed`.
    Start with `working: brainstorming with operator`. Use `blocked` or `failed` only if you cannot continue.
-2. Never report `done` before the operator has explicitly confirmed the spec in this pane. Then report `done: spec ready`. If the operator asks for changes afterwards, update the spec, get it confirmed again, and report a new `done:` line that names the change.
+2. Never report `done` before the operator has explicitly confirmed the spec in this pane. Then report `done: spec ready`. If the operator asks for changes afterwards, report `working: revising spec` first, then update the spec, get it confirmed again, and report a new `done:` line that names the change.
 3. Whenever you end a turn and are about to wait for the operator, run `touch {TURN_FILE}` first: it is how Chief tells an operator-wait from a stall.
 
 # Instruction inbox

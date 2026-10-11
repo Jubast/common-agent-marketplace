@@ -37,7 +37,7 @@ JSON output (skipped gracefully if absent).
 | `test-backlog.sh` | `chief-backlog.sh`: add/status/note/hold/done/list/next/show, error cases, and that `status <id> in-flight` restores a held/spawned task's meta status back to `working` |
 | `test-git-sync.sh` | `git-sync.sh`'s `chief_sync_default_branch`: fast-forwards the default branch from origin only when checked out on it with a clean tree, otherwise skips - and never fails its caller, including with no origin remote or a diverged history |
 | `test-worktree-guard.sh` | `chief_is_linked_worktree` - main checkout vs. a linked worktree vs. a non-git dir |
-| `test-crew-state.sh` | `chief-crew-state.sh`'s state classification across all six states, plus a brainstormer's awaiting-operator idle rule (stale after `CHIEF_INTERACTIVE_STALE_AFTER_SECS`) and attach hint |
+| `test-crew-state.sh` | `chief-crew-state.sh`'s state classification across all six states, plus a brainstormer's awaiting-operator idle rule (never stale) and attach hint |
 | `test-send.sh` | `chief-send.sh`: durable inbox numbering, handled-file awareness, key sends |
 | `test-control.sh` | `chief-control.sh`: interrupt (agent keeps running), exit, relaunch with checkpoint note |
 | `test-setup.sh` | `chief-setup.sh`: backend config, idempotent gitignore, no-git-repo case |
