@@ -15,6 +15,9 @@
 # also asks the provider directly whether the recorded PR is merged before
 # refusing.
 #
+# Tearing down a builder also discards its linked reviewer, once the builder's
+# own teardown has succeeded; a refused builder leaves the reviewer alone.
+#
 # Usage: chief-teardown.sh <id> [--abandon]
 set -euo pipefail
 
@@ -52,6 +55,11 @@ _chief_discard() {  # <reason-for-the-echo-line>
   chief_meta_set "$ID" status torn-down
   "$CHIEF_ROOT/bin/chief-backlog.sh" done "$ID" 2>/dev/null || true
   echo "torn down: $ID ($1)"
+  local rid
+  rid=$(chief_meta_get "$ID" reviewer 2>/dev/null || true)
+  if [ -n "$rid" ] && [ -d "$(chief_meta_get "$rid" worktree 2>/dev/null)" ]; then
+    "$CHIEF_ROOT/bin/chief-teardown.sh" "$rid" || echo "chief-teardown: could not tear down reviewer $rid" >&2
+  fi
 }
 
 case "$MODE" in
