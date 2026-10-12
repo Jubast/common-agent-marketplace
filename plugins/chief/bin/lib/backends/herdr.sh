@@ -168,6 +168,15 @@ backend_capture() {
   herdr agent read "$id" --source recent-unwrapped --lines 200 2>/dev/null
 }
 
+# The workspace is labelled chief-<id>; the pane id in the endpoint names it.
+backend_attach_hint() {
+  local pane_id
+  pane_id=$(chief_meta_get "$1" endpoint 2>/dev/null) || return 1
+  pane_id=${pane_id#herdr:}
+  [ -n "$pane_id" ] || return 1
+  printf 'herdr workspace focus %s (workspace chief-%s)\n' "$(_chief_herdr_workspace_id "$pane_id")" "$1"
+}
+
 backend_busy() {
   local id=$1
   herdr agent get "$id" 2>/dev/null | jq -e '.result.agent.agent_status == "working"' >/dev/null

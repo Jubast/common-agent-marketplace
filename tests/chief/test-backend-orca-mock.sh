@@ -412,6 +412,14 @@ assert_contains "$(cat "$ORCA_MOCK_LOG")" "worktree rm --worktree path:$FLOW_WT 
 assert_file_missing "$FLOW_WT" "teardown removes the worktree"
 assert_eq "$(git -C "$WORK/project" branch --list 'feat/flow' | wc -l | tr -d ' ')" "0" "teardown deletes the task's branch"
 
+# A brainstormer records the attach hint (unverified live: fake orca only); a builder does not.
+assert_not_contains "$(cat "$WORK/flow.out")" "attach:" "chief-spawn.sh prints no attach line for a builder"
+BS=t-orca-bs
+"$CHIEF_BIN/chief-spawn.sh" "$BS" "$WORK/project" --mode brainstormer --branch feat/bs --intent "bs" >"$WORK/bs.out" 2>&1
+assert_contains "$(cat "$WORK/bs.out")" "attach: in Orca, open worktree $BS (terminal term_mock-1)" "chief-spawn.sh prints the orca attach hint for a brainstormer"
+assert_eq "$(chief_meta_get "$BS" attach)" "in Orca, open worktree $BS (terminal term_mock-1)" "chief-spawn.sh records the orca attach hint in meta"
+"$CHIEF_BIN/chief-teardown.sh" "$BS" >/dev/null 2>&1
+
 # A spawn whose brief can't be delivered rolls back through chief-spawn.sh.
 FAIL=t-orca-flowfail
 ORCA_MOCK_PROMPT_LANDS=0 ORCA_MOCK_SEND_FAIL=1 "$CHIEF_BIN/chief-spawn.sh" "$FAIL" "$WORK/project" --mode builder --branch feat/flowfail --intent "x" >/dev/null 2>&1

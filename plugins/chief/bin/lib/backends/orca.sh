@@ -222,6 +222,14 @@ backend_busy() {
   return 0
 }
 
+# Unverified live: names the worktree and terminal to open in Orca.
+backend_attach_hint() {
+  local handle
+  handle=$(_chief_orca_handle "$1" 2>/dev/null) || return 1
+  [ -n "$handle" ] || return 1
+  printf 'in Orca, open worktree %s (terminal %s)\n' "$1" "$handle"
+}
+
 backend_kill() {
   local id=$1
   local endpoint worktree

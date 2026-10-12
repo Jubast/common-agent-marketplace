@@ -12,7 +12,10 @@
 # Prints one line: "state: <working|done|blocked|needs-decision|failed|stale> · <detail> [mode: <builder|researcher|reviewer|brainstormer>] [agent: <agent[:model]>]"
 #
 # mode and agent are appended, not prefixed, so it doesn't break prefix matches on
-# state/detail elsewhere.
+# state/detail elsewhere. A non-terminal brainstormer also carries [attach: ...].
+#
+# A brainstormer waits on the operator in its own pane, so while idle it always
+# reads "working · awaiting operator in pane", never stale.
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
@@ -52,10 +55,18 @@ case "$LAST" in
   needs-decision:*)  echo "state: needs-decision · ${LAST#needs-decision: }$MODE_SUFFIX"; exit 0 ;;
 esac
 
+ATTACH=$(chief_meta_get "$ID" attach 2>/dev/null || true)
+[ "$MODE" != brainstormer ] || [ -z "$ATTACH" ] || MODE_SUFFIX+=" [attach: $ATTACH]"
+
 # Anything else (a "working:" line, or no status yet) is only provisional -
 # reconcile it against liveness before reporting.
 if backend_busy "$ID" 2>/dev/null; then
   echo "state: working · ${LAST:-no status yet, backend reports busy}$MODE_SUFFIX"
+  exit 0
+fi
+
+if [ "$MODE" = brainstormer ]; then
+  echo "state: working · awaiting operator in pane$MODE_SUFFIX"
   exit 0
 fi
 

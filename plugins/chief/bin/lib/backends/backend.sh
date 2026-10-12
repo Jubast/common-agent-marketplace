@@ -40,6 +40,10 @@
 #                        that hasn't implemented this yet simply leaves the
 #                        call a no-op (command-not-found, swallowed by the
 #                        caller's `|| true`) rather than erroring.
+#   backend_attach_hint <id>   (optional)
+#                     -> prints one line telling the operator how to reach the
+#                        task's pane. chief-spawn.sh records it as attach= for a
+#                        brainstormer. Fails or is absent when there is none.
 #
 #   backend_teardown <id> <project-dir> <worktree>
 #                     -> Called by chief-teardown.sh after backend_kill and
@@ -79,3 +83,14 @@ for _fn in backend_spawn backend_send backend_capture backend_busy backend_kill 
   declare -F "$_fn" >/dev/null || { echo "chief-backend: '$CHIEF_BACKEND' does not define $_fn" >&2; exit 1; }
 done
 unset _fn
+
+# chief_record_attach <id> - stores and prints a brainstormer's attach hint, if
+# the backend has one.
+chief_record_attach() {
+  local hint
+  [ "$(chief_meta_get "$1" mode 2>/dev/null)" = brainstormer ] && declare -F backend_attach_hint >/dev/null || return 0
+  hint=$(backend_attach_hint "$1" 2>/dev/null) || return 0
+  [ -n "$hint" ] || return 0
+  chief_meta_set "$1" attach "$hint"
+  echo "attach: $hint"
+}

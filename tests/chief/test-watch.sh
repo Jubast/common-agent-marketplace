@@ -100,4 +100,25 @@ OUT8=$(timeout 10 "$BIN/chief-watch.sh")
 assert_contains "$OUT8" "t-2: state: done · switched to the new approach" \
   "and keeps re-surfacing that new state on every subsequent Stop hook, same as the general case"
 
+# --- brainstormer: an operator-wait never wakes Chief; done does ---
+"$BIN/chief-backlog.sh" hold t-2 "reported" >/dev/null
+assert_success "spawn: brainstormer" -- \
+  timeout 10 "$BIN/chief-spawn.sh" bs-1 "$WORK/project" --mode brainstormer --branch feat/bs-1 --intent "shape an idea"
+kill "$(cat "$CHIEF_HOME/state/bs-1.term.pid")"; sleep 1
+echo "working: brainstorming with operator" >> "$CHIEF_HOME/state/bs-1.status"
+turn_ago() { touch -d "@$(($(date +%s) - $1))" "$CHIEF_HOME/state/bs-1.turn-ended"; }
+watch_bs() { CHIEF_POLL=1 timeout 3 "$BIN/chief-watch.sh"; }
+silent() {  # <name> - the watcher keeps waiting: no output, killed by timeout (124)
+  local out rc; out=$(watch_bs); rc=$?
+  assert_eq "$rc:$out" "124:" "$1"
+}
+
+silent "brainstormer with no turn-ended file: watch does not wake Chief"
+turn_ago 3600
+silent "brainstormer idle for 1h: watch does not wake Chief"
+turn_ago 1000000
+silent "brainstormer idle for days: watch still does not wake Chief"
+echo "done: spec ready" >> "$CHIEF_HOME/state/bs-1.status"
+assert_contains "$(watch_bs)" "bs-1: state: done · spec ready" "brainstormer done: watch wakes Chief immediately"
+
 harness_summary

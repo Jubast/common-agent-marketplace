@@ -59,6 +59,12 @@ assert_contains "$ctx3" "[agent: claude]" "session-start: shows the in-flight ta
 assert_contains "$ctx3" "t-1: done: finished [mode: builder]" \
   "session-start: also shows the task's current mode, so a fresh session can tell a researcher from a builder task without reading meta by hand"
 
+timeout 10 "$BIN/chief-spawn.sh" bs-1 "$WORK/configured/project" --mode brainstormer --branch feat/bs-1 --intent "idea" >/dev/null
+ctx5=$(json_field "d['hookSpecificOutput']['additionalContext']" "$("$SS")")
+assert_contains "$ctx5" "[mode: brainstormer] [agent: claude] [attach: tail -f '$CHIEF_HOME/state/bs-1.term.log']" \
+  "session-start: repeats the attach hint for an in-flight brainstormer"
+assert_not_contains "$ctx5" "[mode: builder] [agent: claude] [attach:" "session-start: no attach hint for a builder"
+
 arm_out2=$("$ARM" 2>&1); arm_rc2=$?
 assert_eq "$arm_rc2" "2" "stop-watch-arm: exits 2 (rewake) once a task hits a terminal state"
 assert_contains "$arm_out2" "t-1" "stop-watch-arm: the rewake reason names the task"

@@ -1,6 +1,6 @@
 # Chief
 
-A lightweight supervisor for Claude Code: dispatches work to isolated builder/researcher agents over the herdr or Orca backend, tracks a plain-markdown backlog, and supervises them with a near-zero-token watch loop. (Verbatim from `.claude-plugin/plugin.json`'s `description` - see "Maintaining these docs" below.)
+A lightweight supervisor for Claude Code: dispatches work to isolated builder/researcher/brainstormer agents over the herdr or Orca backend, tracks a plain-markdown backlog, and supervises them with a near-zero-token watch loop. (Verbatim from `.claude-plugin/plugin.json`'s `description` - see "Maintaining these docs" below.)
 
 Scoped down hard from bigger multi-agent supervisors on purpose: **Claude Code only**, **herdr or Orca backend only** (configurable via `.chief/config/backend`, default `herdr`), one delivery mode (branch + you approve every merge - no auto-merge). Every script is meant to be short enough to read start to finish.
 
@@ -9,7 +9,7 @@ Inspired by [Firstmate](https://github.com/kunchenguid/firstmate), which does th
 ## Layout
 
 - `bin/` - the lifecycle scripts, split into `bin/` (`chief-spawn`, `chief-watch`, `chief-teardown`, `chief-backlog`, `chief-setup`, `chief-agents`), `bin/task/` (`chief-control`, `chief-crew-state`, `chief-send`, `chief-promote`), and `bin/pr/` (`chief-pr-open`, `chief-pr-update`, `chief-pr-state`, `chief-pr-review`, `chief-pr-approve`, `chief-pr-merge`); and `bin/lib/` (`paths.sh`/`home.sh`/`meta.sh`/`lock.sh`/`brief.sh` helpers, `bin/lib/agents/` with the loader and selector `agent.sh` (a task's adapter from its meta; profile selection from `.chief/config/agents`) and the adapters `{claude,codex,copilot}.sh` - the agent's launch command, screen texts and folder pre-trust - `git-sync.sh` - best-effort freshening of a project's default-branch checkout against origin, used by spawn/pr-merge/teardown - `worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one - `bin/lib/backends/` with the loader `backend.sh` and its adapters `{herdr,orca,mock}.sh`, and `bin/lib/pr-providers/` with the loader `pr-provider.sh` and its adapters `{github,gitlab,azuredevops,mock}.sh`).
-- `templates/` - a brief template (`brief-<role>.md`) and a per-task lifecycle checklist (`lifecycle-<role>.md`) per worker role (`builder`, `researcher`; `brainstormer` is a placeholder) rendered into `state/<id>.lifecycle` at spawn time, mirroring `skills/dispatch/SKILL.md`'s own steps so Chief can recover in-flight progress after a context compaction.
+- `templates/` - a brief template (`brief-<role>.md`) and a per-task lifecycle checklist (`lifecycle-<role>.md`) per worker role (`builder`, `researcher`, `brainstormer`) rendered into `state/<id>.lifecycle` at spawn time, mirroring `skills/dispatch/SKILL.md`'s own steps so Chief can recover in-flight progress after a context compaction.
 - `skills/using-chief` - the identity/job-description skill, force-injected every session via the `SessionStart` hook so Chief always knows its role without being asked.
 - `skills/setup` - one-time CHIEF_HOME config (backend choice + gitignoring `.chief/`); only relevant before `.chief/config/backend` exists, which the `SessionStart` digest flags explicitly.
 - `skills/dispatch` - the operator-facing entry point; load this to hand off work.
@@ -22,7 +22,7 @@ Spawn syncs the project's default branch from origin (best-effort), then creates
 
 ## Agents
 
-Workers run on `claude` (default), `codex` or `copilot`, unattended, on herdr and Orca alike. **`codex` and `copilot` have no folder-trust handling:** if their CLI asks to trust a new worktree, the spawn stalls and fails as "not ready" (only `claude` is pre-trusted, see below). Which agent a task gets:
+Workers run on `claude` (default), `codex` or `copilot`, on herdr and Orca alike; all but the brainstormer run unattended. **`codex` and `copilot` have no folder-trust handling:** if their CLI asks to trust a new worktree, the spawn stalls and fails as "not ready" (only `claude` is pre-trusted, see below). Which agent a task gets:
 
 1. `chief-spawn.sh ... --agent <agent[:model]>` and/or `--model <model>` win. `--model` alone overrides only the model of the profile the config selects.
 2. Else `.chief/config/agents`, if present:
@@ -40,9 +40,12 @@ Workers run on `claude` (default), `codex` or `copilot`, unattended, on herdr an
    strategy = round-robin
    claude:haiku
    codex:gpt-5-mini
+
+   [brainstormer]               # and for brainstormers
+   claude:opus
    ```
 
-   Sections are the worker roles: `[builder]`, `[researcher]`, plus `[reviewer]` and `[brainstormer]` (valid, but those workers are not spawnable yet); any other name is an error. `#` starts a comment. Per entry, `weight=`, `args=` and `command=` may come in any order. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<role>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights.
+   Sections are the worker roles: `[builder]`, `[researcher]`, `[brainstormer]`, plus `[reviewer]` (valid, but that worker is not spawnable yet); any other name is an error. `#` starts a comment. Per entry, `weight=`, `args=` and `command=` may come in any order. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<role>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights.
 3. Else `claude` with its default model.
 
 The choice is recorded in the task's meta (`agent`, `model`, `args`, `command`) and reused by relaunch; `chief-crew-state.sh`, `chief-backlog.sh list|show` (in-flight) and the session digest show `[agent: <agent>[:<model>]]`. Spawn fails before creating anything for an unknown agent, a malformed profile or weight, a missing CLI, or a bad `command=` / `args=` / model combination below. Models are passed to the agent unvalidated.
@@ -51,7 +54,7 @@ A profile's `args="..."` (or `--args "..."` on spawn, which replaces the configu
 
 `command="..."` instead replaces the whole launch line (a wrapper, another binary path), so it cannot be combined with a model or `args=` (put them in the command). Orca runs it as given. herdr starts the agent's own executable (`--kind`), so the command must start with it (`claude`, `/usr/local/bin/claude`) and only its arguments are used; for another executable use `args=` or the Orca backend. An explicit `--agent` drops the configured `args` and `command`.
 
-A role with no section of its own runs the global pool, which may be an expensive agent: give `[builder]` its own section. `chief-agents.sh` prints the agent each role would get now (read-only; a weighted or random pool is listed, not picked) and marks a role that falls back with `(global fallback)`. Spawn prints the chosen `agent:` too.
+A role with no section of its own runs the global pool. `chief-agents.sh` prints the agent each role would get now (read-only; a weighted or random pool is listed, not picked) and marks a role that falls back with `(global fallback)`. Spawn prints the chosen `agent:` too.
 
 `CHIEF_AGENT` and `.chief/config/agent` (the old single-agent selection) are gone; `.chief/config/agents` replaces them.
 
@@ -67,6 +70,13 @@ The launch line each worker runs is the adapter's `agent_command` in `bin/lib/ag
 `chief-spawn.sh <id> <project> --mode <role> --from <src> ...` starts a **successor** of a done researcher (or brainstormer) with a non-empty `data/<src>/report.md`: a fresh worktree on a synced default branch, a brief with the `from=` lineage (oldest first) and the source's report appended under `# Prior work`, `from=<src>` in meta. Targets are `builder`, `researcher` or `brainstormer`, never the source's own role; builders and reviewers are never sources. The successor gets the **target role's** configured agent, never the source's; `--agent` carries one over explicitly. The source is left untouched.
 
 `--dry-run` validates everything and prints `agent:` and `launch:` (or the pool for a weighted/random strategy) without creating anything or advancing a cursor, so a go-ahead can name the exact agent. `chief-promote.sh <src> --to <role> --branch <name> --intent "..." [--as <new-id>] [--keep-source] [--dry-run] [spawn flags]` is a thin wrapper: the successor is `<src>-<role>` unless `--as` (file it in the backlog first), then the source is torn down unless `--keep-source`; its report survives under `data/`.
+
+## Brainstormer
+
+An explicit-only worker (`--mode brainstormer`), spawned only when the operator asks to brainstorm. It talks to the operator directly in its own pane; Chief never relays the conversation. It writes a one-page, self-contained spec to `data/<id>/report.md` (goal, scope, acceptance criteria, decisions with rationale and rejected options, open questions) and reports `done` only after the operator confirms it there. Its brief is agent-neutral and depends on no skill. A done spec hands off like a researcher's report, and a researcher can hand off to a brainstormer.
+
+- **Attach hint.** A backend may define the optional `backend_attach_hint <id>` (see `backend.sh`). Spawn and `chief-control.sh relaunch` print it as `attach: ...` and store `attach=`; `chief-crew-state.sh` and the session digest repeat it while the brainstormer runs. herdr: `herdr workspace focus <workspace>` (verified live). Orca: the worktree and terminal to open (tested against the fake `orca` only, unverified live). mock: `tail -f` of its log.
+- **Idle.** An idle brainstormer with a non-terminal last status reads `working · awaiting operator in pane`, never `stale`. `done`, `failed`, `blocked` and `needs-decision` surface immediately.
 
 ## Folder trust
 

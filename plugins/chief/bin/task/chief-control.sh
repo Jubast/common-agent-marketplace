@@ -66,6 +66,7 @@ case "$VERB" in
     }
     chief_meta_set "$ID" status working
     echo "relaunched: $ID (same worktree, brief carries the checkpoint note)"
+    chief_record_attach "$ID"
     ;;
 
   *)

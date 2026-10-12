@@ -13,6 +13,8 @@
 # --from <id> makes the worker the successor of a done researcher or
 # brainstormer: its report is appended to the brief. --dry-run validates and
 # prints the agent and launch line (or the pool) without creating anything.
+# A brainstormer also prints "attach: ..." (and records attach= in meta), how
+# the operator reaches its pane.
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
@@ -214,3 +216,4 @@ chief_meta_set "$ID" status working
 "$CHIEF_ROOT/bin/chief-backlog.sh" status "$ID" in-flight 2>/dev/null || true
 
 echo "spawned: $ID ($MODE) in $WORKTREE"
+chief_record_attach "$ID"
