@@ -65,4 +65,22 @@ assert_contains "$output" "Researcher to brainstormer:.*yes" "A researcher can h
 assert_contains "$output" "Brainstormer to builder:.*yes" "A brainstormer can hand off to a builder"
 echo ""
 
+echo "Test 8: A review is always asked, never automatic..."
+output=$(run_claude "According to the dispatch skill's review loop, when a builder reports done, does Chief start a reviewer automatically, or does it ask the operator whether to review? And is there a hard cap on review rounds? Answer using exactly this structure:
+Starts a reviewer automatically: <yes or no>
+Asks the operator first: <yes or no>
+Hard round cap: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
+
+assert_contains "$output" "Starts a reviewer automatically:.*no" "A reviewer is never started automatically"
+assert_contains "$output" "Asks the operator first:.*yes" "Chief asks the operator whether to review"
+assert_contains "$output" "Hard round cap:.*no" "The review loop has no round cap"
+echo ""
+
+echo "Test 9: Findings go to the PR only on request..."
+output=$(run_claude "According to the dispatch skill's review loop, may Chief post a reviewer's findings to a pull request without the operator asking? Answer using exactly this structure:
+Posts findings to the PR unasked: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
+
+assert_contains "$output" "Posts findings to the PR unasked:.*no" "Findings are posted to a PR only when the operator asks"
+echo ""
+
 echo "=== All dispatch skill tests passed ==="

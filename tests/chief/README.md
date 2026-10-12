@@ -89,4 +89,4 @@ worktrees.
 
 ## What's deliberately NOT here (needs the devcontainer instead)
 
-- **Skill-behavior tests** (does Claude actually follow `using-chief`/`dispatch`/`reviewer`/`setup` correctly when loaded) - that's `tests/claude-code/test-using-chief.sh`, `test-dispatch.sh`, `test-reviewer.sh`, and `test-chief-setup.sh`, which invoke the real `claude` CLI and cost real tokens.
+- **Skill-behavior tests** (does Claude actually follow `using-chief`/`dispatch`/`setup` correctly when loaded) - that's `tests/claude-code/test-using-chief.sh`, `test-dispatch.sh`, and `test-chief-setup.sh`, which invoke the real `claude` CLI and cost real tokens.

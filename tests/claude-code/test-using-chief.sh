@@ -60,4 +60,13 @@ Allowed to explain how to attach: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
 assert_contains "$output" "Allowed to explain how to attach:.*yes" "Rule 5 carves out telling the operator how to attach"
 echo ""
 
+echo "Test 7: The reviewer is a listed worker..."
+output=$(run_claude "According to the using-chief skill's list of worker agents, is there a reviewer, and is it started only when the operator says yes? Answer using exactly this structure:
+Reviewer is a worker: <yes or no>
+Started only when the operator says yes: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
+
+assert_contains "$output" "Reviewer is a worker:.*yes" "The reviewer is listed as a worker"
+assert_contains "$output" "Started only when the operator says yes:.*yes" "A reviewer starts only on the operator's yes"
+echo ""
+
 echo "=== All using-chief skill tests passed ==="
