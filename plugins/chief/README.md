@@ -1,6 +1,6 @@
 # Chief
 
-A lightweight supervisor for Claude Code: dispatches work to isolated builder/researcher/brainstormer agents over the herdr or Orca backend, tracks a plain-markdown backlog, and supervises them with a near-zero-token watch loop. (Verbatim from `.claude-plugin/plugin.json`'s `description` - see "Maintaining these docs" below.)
+A lightweight supervisor for Claude Code: dispatches work to isolated builder/researcher/reviewer/brainstormer agents over the herdr or Orca backend, tracks a plain-markdown backlog, and supervises them with a near-zero-token watch loop. (Verbatim from `.claude-plugin/plugin.json`'s `description` - see "Maintaining these docs" below.)
 
 Scoped down hard from bigger multi-agent supervisors on purpose: **Claude Code only**, **herdr or Orca backend only** (configurable via `.chief/config/backend`, default `herdr`), one delivery mode (branch + you approve every merge - no auto-merge). Every script is meant to be short enough to read start to finish.
 
@@ -8,12 +8,11 @@ Inspired by [Firstmate](https://github.com/kunchenguid/firstmate), which does th
 
 ## Layout
 
-- `bin/` - the lifecycle scripts, split into `bin/` (`chief-spawn`, `chief-watch`, `chief-teardown`, `chief-backlog`, `chief-setup`, `chief-agents`), `bin/task/` (`chief-control`, `chief-crew-state`, `chief-send`, `chief-promote`), and `bin/pr/` (`chief-pr-open`, `chief-pr-update`, `chief-pr-state`, `chief-pr-review`, `chief-pr-approve`, `chief-pr-merge`); and `bin/lib/` (`paths.sh`/`home.sh`/`meta.sh`/`lock.sh`/`brief.sh` helpers, `bin/lib/agents/` with the loader and selector `agent.sh` (a task's adapter from its meta; profile selection from `.chief/config/agents`) and the adapters `{claude,codex,copilot}.sh` - the agent's launch command, screen texts and folder pre-trust - `git-sync.sh` - best-effort freshening of a project's default-branch checkout against origin, used by spawn/pr-merge/teardown - `worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one - `bin/lib/backends/` with the loader `backend.sh` and its adapters `{herdr,orca,mock}.sh`, and `bin/lib/pr-providers/` with the loader `pr-provider.sh` and its adapters `{github,gitlab,azuredevops,mock}.sh`).
-- `templates/` - a brief template (`brief-<role>.md`) and a per-task lifecycle checklist (`lifecycle-<role>.md`) per worker role (`builder`, `researcher`, `brainstormer`) rendered into `state/<id>.lifecycle` at spawn time, mirroring `skills/dispatch/SKILL.md`'s own steps so Chief can recover in-flight progress after a context compaction.
+- `bin/` - the lifecycle scripts, split into `bin/` (`chief-spawn`, `chief-watch`, `chief-teardown`, `chief-backlog`, `chief-setup`, `chief-agents`), `bin/task/` (`chief-control`, `chief-crew-state`, `chief-send`, `chief-promote`, `chief-review`), and `bin/pr/` (`chief-pr-open`, `chief-pr-update`, `chief-pr-state`, `chief-pr-review`, `chief-pr-approve`, `chief-pr-merge`); and `bin/lib/` (`paths.sh`/`home.sh`/`meta.sh`/`lock.sh`/`brief.sh` helpers, `bin/lib/agents/` with the loader and selector `agent.sh` (a task's adapter from its meta; profile selection from `.chief/config/agents`) and the adapters `{claude,codex,copilot}.sh` - the agent's launch command, screen texts and folder pre-trust - `git-sync.sh` - best-effort freshening of a project's default-branch checkout against origin, used by spawn/pr-merge/teardown - `worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one - `bin/lib/backends/` with the loader `backend.sh` and its adapters `{herdr,orca,mock}.sh`, and `bin/lib/pr-providers/` with the loader `pr-provider.sh` and its adapters `{github,gitlab,azuredevops,mock}.sh`).
+- `templates/` - a brief template (`brief-<role>.md`) and a per-task lifecycle checklist (`lifecycle-<role>.md`) per worker role (`builder`, `researcher`, `reviewer`, `brainstormer`) rendered into `state/<id>.lifecycle` at spawn time, mirroring `skills/dispatch/SKILL.md`'s own steps so Chief can recover in-flight progress after a context compaction.
 - `skills/using-chief` - the identity/job-description skill, force-injected every session via the `SessionStart` hook so Chief always knows its role without being asked.
 - `skills/setup` - one-time CHIEF_HOME config (backend choice + gitignoring `.chief/`); only relevant before `.chief/config/backend` exists, which the `SessionStart` digest flags explicitly.
 - `skills/dispatch` - the operator-facing entry point; load this to hand off work.
-- `skills/reviewer` - a short fixed review checklist, run before merging.
 - `hooks/` - `SessionStart` (injects `using-chief`, a configuration status line, and a backlog/in-flight digest) and `Stop` (the token-saving watch arm). Both stand down entirely inside a spawned builder's own worktree - see `worktree.sh`.
 
 Runtime state lives at `.chief/` under `CHIEF_HOME` - by default the outermost git root enclosing wherever the Chief session runs, so the operator's top-level workspace even when run from inside a project or one of its worktrees; never inside a project (`state/`, `data/`, `config/`, `worktrees/`) - created on first use, not part of the plugin package. `chief-setup.sh` gitignores it for you.
@@ -41,11 +40,14 @@ Workers run on `claude` (default), `codex` or `copilot`, on herdr and Orca alike
    claude:haiku
    codex:gpt-5-mini
 
+   [reviewer]                   # and for reviewers
+   claude:sonnet
+
    [brainstormer]               # and for brainstormers
    claude:opus
    ```
 
-   Sections are the worker roles: `[builder]`, `[researcher]`, `[brainstormer]`, plus `[reviewer]` (valid, but that worker is not spawnable yet); any other name is an error. `#` starts a comment. Per entry, `weight=`, `args=` and `command=` may come in any order. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<role>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights.
+   Sections are the worker roles: `[builder]`, `[researcher]`, `[reviewer]`, `[brainstormer]`; any other name is an error. `#` starts a comment. Per entry, `weight=`, `args=` and `command=` may come in any order. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<role>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights.
 3. Else `claude` with its default model.
 
 The choice is recorded in the task's meta (`agent`, `model`, `args`, `command`) and reused by relaunch; `chief-crew-state.sh`, `chief-backlog.sh list|show` (in-flight) and the session digest show `[agent: <agent>[:<model>]]`. Spawn fails before creating anything for an unknown agent, a malformed profile or weight, a missing CLI, or a bad `command=` / `args=` / model combination below. Models are passed to the agent unvalidated.
@@ -61,7 +63,7 @@ A role with no section of its own runs the global pool. `chief-agents.sh` prints
 The launch line each worker runs is the adapter's `agent_command` in `bin/lib/agents/<name>.sh` (executable, unattended flag, `--model`, then `args=`), unless the task has a `command=`; spawn prints it as `launch: ...`. Adding an agent is one `bin/lib/agents/<name>.sh` implementing the contract in `agents/agent.sh`. Differences to know:
 
 - Folder trust is pre-accepted for `claude` only (see below); for `codex` and `copilot` a trust prompt, if shown, stalls the spawn as "not ready".
-- The worker brief is agent-neutral (status file, turn-ended file, review checklist by path), but `claude` workers also get this repo's plugins and skills from their own config; `codex` and `copilot` do not, so project conventions come from `AGENTS.md` and the brief alone.
+- The worker brief is agent-neutral (status file and turn-ended file by path), but `claude` workers also get this repo's plugins and skills from their own config; `codex` and `copilot` do not, so project conventions come from `AGENTS.md` and the brief alone.
 - Approval/sandbox: `claude --dangerously-skip-permissions`, `codex --dangerously-bypass-approvals-and-sandbox`, `copilot --allow-all`.
 - Claude workers inherit the `CLAUDE_CONFIG_DIR` note below.
 
@@ -70,6 +72,18 @@ The launch line each worker runs is the adapter's `agent_command` in `bin/lib/ag
 `chief-spawn.sh <id> <project> --mode <role> --from <src> ...` starts a **successor** of a done researcher (or brainstormer) with a non-empty `data/<src>/report.md`: a fresh worktree on a synced default branch, a brief with the `from=` lineage (oldest first) and the source's report appended under `# Prior work`, `from=<src>` in meta. Targets are `builder`, `researcher` or `brainstormer`, never the source's own role; builders and reviewers are never sources. The successor gets the **target role's** configured agent, never the source's; `--agent` carries one over explicitly. The source is left untouched.
 
 `--dry-run` validates everything and prints `agent:` and `launch:` (or the pool for a weighted/random strategy) without creating anything or advancing a cursor, so a go-ahead can name the exact agent. `chief-promote.sh <src> --to <role> --branch <name> --intent "..." [--as <new-id>] [--keep-source] [--dry-run] [spawn flags]` is a thin wrapper: the successor is `<src>-<role>` unless `--as` (file it in the backlog first), then the source is torn down unless `--keep-source`; its report survives under `data/`.
+
+## Review
+
+The operator decides, per builder, whether it is reviewed; Chief asks after every builder `done` and never starts a review itself (unless told "review everything this session"). `chief-review.sh <builder>` needs the builder's last status `done`, a clean worktree and a commit ahead of the default branch.
+
+- **Round 1** files backlog item `<builder>-review` and spawns a reviewer (`--mode reviewer`, branch `chore/review-<builder>`, the `[reviewer]` pool). Its spec pins the builder's HEAD SHA, names the branch and base, points at the builder's brief and `done` line. Meta links: `for=<builder>` on the reviewer, `reviewer=` and `review_round=` on the builder.
+- **Later rounds** re-arm the same reviewer: its `report.md` is archived as `report.round-<N-1>.md`, the round message goes to its inbox, the backlog item returns to in-flight, and `working: round N requested` is appended to its status. The same commit is refused while the reviewer is working.
+- **The reviewer** resets its scratch worktree, detaches at the pinned SHA and reviews the full `base...sha` diff every round against the 8-item checklist in its brief (item 3 runs the project's checks), then verifies earlier findings. It writes `report.md` (`Verdict`, `Target`, `Blocking`, `Suggestions`, `Checklist`, `Prior findings`) and ends with `done: round N PASS @<sha7>` or `done: round N FAIL (<n> blocking) @<sha7>`; `failed` means the review could not be completed. It never posts, pushes or merges. A builder's `done` line starts with its short commit SHA, so every re-report is a new line to the watcher.
+- **Chief** presents the verdict, holds the reviewer, and on the operator's yes sends the findings to the builder; the builder fixes them with new commits and reports `done` again. Findings go to a PR only when the operator asks (`chief-pr-review.sh`).
+- **Teardown** of a builder also discards its reviewer once the builder's own teardown succeeds; a refused builder leaves it alone. A reviewer can be torn down alone; that ends review of that builder, and a manual `--mode reviewer` spawn is the way to review it again. `chief-crew-state.sh` and the session digest show `[for: <builder>]` / `[reviewer: <id>]`.
+
+A reviewer on any branch, with no builder: `chief-spawn.sh <id> <project> --mode reviewer --branch chore/<name> --intent "..." --spec "<branch, pinned SHA, base, intent>"`.
 
 ## Brainstormer
 
@@ -100,7 +114,7 @@ One owner per fact - don't restate one doc's content in another:
 - Agent operating contract and hard rules -> `skills/using-chief/SKILL.md`
   only; never restated here.
 - Step-by-step process for one workflow -> that step's own `SKILL.md`
-  (`skills/dispatch`, `skills/reviewer`, `skills/setup`).
+  (`skills/dispatch`, `skills/setup`).
 - Stable architecture and extension points (backend adapters, PR-provider
   adapters) -> a future `plugins/chief/ARCHITECTURE.md`, created once the
   "Layout" section above actually needs to split out, not pre-emptively.

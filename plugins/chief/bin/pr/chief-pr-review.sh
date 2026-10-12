@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # chief-pr-review.sh - post an already-written review to a task's PR/MR.
-# This script does no reviewing itself: chief runs the `reviewer` skill
-# in-conversation, forms its verdict, then calls this to post the text.
+# This script does no reviewing itself: it posts text already written, such as
+# a reviewer's findings, when the operator asks for them on the PR.
 #
 # --file/--line attach the comment to a specific line in the diff instead of
 # posting it top-level - only valid with --comment, since a review verdict

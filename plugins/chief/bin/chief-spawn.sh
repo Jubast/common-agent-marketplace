@@ -173,7 +173,6 @@ BRIEF_CONTENT=${BRIEF_CONTENT//\{STATUS_FILE\}/$(brief_escape "$STATUS_FILE")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{INBOX_DIR\}/$(brief_escape "$INBOX_DIR")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{REPORT_FILE\}/$(brief_escape "$REPORT_FILE")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{TURN_FILE\}/$(brief_escape "$STATE/$ID.turn-ended")}
-BRIEF_CONTENT=${BRIEF_CONTENT//\{REVIEW_CHECKLIST\}/$(brief_escape "$CHIEF_ROOT/skills/reviewer/SKILL.md")}
 printf '%s\n' "$BRIEF_CONTENT" > "$BRIEF"
 [ -z "$FROM" ] || chief_prior_work "$FROM" >> "$BRIEF"
 

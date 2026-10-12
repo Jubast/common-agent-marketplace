@@ -48,12 +48,16 @@ assert_success "spawn: CHIEF_NO_PRETRUST=1 still spawns" -- \
   env CHIEF_NO_PRETRUST=1 timeout 10 "$BIN/chief-spawn.sh" t-2 "$WORK/project" --mode builder --branch feat/t-2 --intent x
 assert_file_missing "$CFG" "spawn: CHIEF_NO_PRETRUST=1 leaves the claude config untouched"
 
-# the brief is agent-neutral: the turn-ended protocol and review checklist are paths, not Claude hooks/skills
+# the brief is agent-neutral: the turn-ended protocol is a path, not a Claude hook
 BRIEF_T1=$(cat "$CHIEF_HOME/data/t-1/brief.md")
 assert_contains "$BRIEF_T1" "touch $CHIEF_HOME/state/t-1.turn-ended" "brief: tells any agent to touch the turn-ended file"
-assert_contains "$BRIEF_T1" "$REPO_ROOT/plugins/chief/skills/reviewer/SKILL.md" "brief: points at the review checklist file"
 assert_not_contains "$BRIEF_T1" "{TURN_FILE}" "brief: no unfilled turn placeholder"
-assert_not_contains "$BRIEF_T1" "reviewer\` skill" "brief: does not rely on the Claude skill mechanism"
+assert_not_contains "$BRIEF_T1" "{REVIEW_CHECKLIST}" "brief: no review-checklist placeholder"
+assert_not_contains "$BRIEF_T1" "Self-review" "brief: no builder self-review step"
+assert_contains "$BRIEF_T1" "the project's checks pass, the work is committed, and the tree is clean" "brief: checks, commit and a clean tree before done"
+assert_contains "$BRIEF_T1" "done: <short commit sha> <one-line summary>" "brief: the done line starts with the short commit sha"
+assert_contains "$BRIEF_T1" "fix them with new commits (amend only for commit-message findings)" "brief: findings are fixed with new commits"
+assert_contains "$BRIEF_T1" "report \`done\` again" "brief: done is reported again after fixes"
 
 # --- agent selection: flags, config, validation --------------------------
 spawn() {  # <id> [flags...]

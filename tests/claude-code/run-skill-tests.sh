@@ -61,7 +61,6 @@ while [[ $# -gt 0 ]]; do
             echo "  test-conventional-commits.sh   Skill content and trigger conditions"
             echo "  test-using-chief.sh            Skill content and trigger conditions"
             echo "  test-dispatch.sh               Skill content and trigger conditions"
-            echo "  test-reviewer.sh               Skill content and trigger conditions"
             echo "  test-chief-setup.sh            Skill content and trigger conditions"
             echo ""
             echo "Integration Tests (use --integration):"
@@ -84,7 +83,6 @@ tests=(
     "test-conventional-commits.sh"
     "test-using-chief.sh"
     "test-dispatch.sh"
-    "test-reviewer.sh"
     "test-chief-setup.sh"
 )
 

@@ -1,11 +1,11 @@
 ---
 name: dispatch
-description: Use when the user wants to hand off a piece of work to an isolated agent instead of doing it inline - dispatching a task, spawning a builder/researcher/brainstormer, checking on in-flight work, steering, or merging/tearing down finished work, once CHIEF_HOME (the operator's one shared home, not one per project) is configured (or where the user asks to set it up).
+description: Use when the user wants to hand off a piece of work to an isolated agent instead of doing it inline - dispatching a task, spawning a builder/researcher/brainstormer, reviewing a finished builder, checking on in-flight work, steering, or merging/tearing down finished work, once CHIEF_HOME (the operator's one shared home, not one per project) is configured (or where the user asks to set it up).
 ---
 
 # Chief: dispatch
 
-Chief runs isolated worker agents in their own git worktree: builders (code changes), researchers (investigation-only reports) and brainstormers (specs shaped with the operator). It tracks them in a plain-markdown backlog and supervises them at near-zero token cost between your turns. You are the operator's single point of contact; you do not do dispatched work yourself.
+Chief runs isolated worker agents in their own git worktree: builders (code changes), researchers (investigation-only reports), reviewers (verdicts on a builder's commit) and brainstormers (specs shaped with the operator). It tracks them in a plain-markdown backlog and supervises them at near-zero token cost between your turns. You are the operator's single point of contact; you do not do dispatched work yourself.
 
 All commands live in ${CLAUDE_PLUGIN_ROOT}/bin/. Runtime state lives in `.chief/` at `CHIEF_HOME`: the git root of wherever the Chief session runs, typically the operator's top-level workspace, not inside a `<project-dir>` (created on first use). One `CHIEF_HOME` dispatches into many projects; don't run `chief:setup` per project.
 
@@ -13,6 +13,7 @@ All commands live in ${CLAUDE_PLUGIN_ROOT}/bin/. Runtime state lives in `.chief/
 
 - **builder** (default): the deliverable is a code change on a branch. Use for anything with clear enough intent to implement.
 - **researcher**: the deliverable is a written report only, no commit or push. Use only when the operator explicitly wants a separate investigation or design artifact, or uncertainty about *what* to build would make implementing now wasteful.
+- **reviewer**: started by the review loop below, never on your own. For an arbitrary branch with no builder, spawn one with `--mode reviewer` and a `--spec` naming the branch, pinned SHA, base and intent.
 - **brainstormer**: the deliverable is a spec shaped in live conversation with the operator. Explicit-only: spawn one only when the operator explicitly asks to brainstorm. Never choose it, default to it, or offer it instead of a clarifying question.
 
 Don't launch a researcher for ordinary ambiguity; ask one concise question instead.
@@ -32,7 +33,7 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
 
 3. **It runs on its own.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-watch.sh` (armed by a Stop hook, zero model cost) interrupts you only when the task finishes, fails, is blocked or needs a decision. On `blocked` or `needs-decision`, run `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "<why, one line>"`.
 
-4. **Check on it anytime:** `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-crew-state.sh <id>` prints the current state (working/done/blocked/needs-decision/failed/stale) and a `[mode: builder|researcher|brainstormer]` tag.
+4. **Check on it anytime:** `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-crew-state.sh <id>` prints the current state (working/done/blocked/needs-decision/failed/stale) and a `[mode: builder|researcher|reviewer|brainstormer]` tag.
 
 5. **Steer it:** `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <id> "<instruction>"` delivers through a durable inbox the worker acknowledges; safe mid-task. If the item is `held`, move it back with `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh status <id> in-flight` once you've sent the unblocking instruction.
 
@@ -40,7 +41,23 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
    - `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> interrupt` (nudge; it keeps running) plus a corrective `chief-send.sh`.
    - `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> relaunch --note "<progress so far>"` only if wedged. The replacement gets the same worktree and commits but none of the conversation, so the note is all it has. Run it in the background.
 
-7. **Review and report.** `state/<id>.lifecycle` has the exact next actions (review, report, hold).
+7. **Report.** `state/<id>.lifecycle` has the exact next actions. For a builder, follow "The review loop".
+
+## The review loop
+
+Never automatic. Propose each step; the operator decides.
+
+1. Builder `done`: report the result with the diffstat and a one-line recommendation (e.g. "2 files, docs only: review probably unnecessary"), hold it (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "reported: awaiting review decision"`), and ask whether to review it. Batch the question when several builders finish together.
+2. No: go to landing. Yes: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-review.sh <builder-id>`. Round 1 spawns the reviewer `<builder-id>-review`; later rounds re-arm it. Run it in the background. The watcher wakes you when the reviewer reports.
+   If the operator says "review everything this session", skip the question for this conversation until they revoke it. Still present every verdict.
+3. Reviewer `done`: present the verdict (PASS, or the blocking findings, then the suggestions) from `.chief/data/<reviewer-id>/report.md`. Hold the reviewer (`chief-backlog.sh hold <reviewer-id> "round N <verdict>, idle"`) and propose the next step:
+   - FAIL: offer to send the findings to the builder. The operator may add comments or drop findings first.
+   - PASS: offer to land it or keep going.
+   - Reviewer `failed`: the review did not complete; report why.
+4. Operator approves sending: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <builder-id> "<blocking findings, the operator's additions, the report path>"`, then `chief-backlog.sh status <builder-id> in-flight`.
+5. Builder `done` again: say it was fixed in `<sha7>` and ask again (step 1). There is no round cap.
+6. Suggest posting findings to the PR only when the operator asks. Then run `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-review.sh <builder-id> --comment "<finding>" --file <path> --line <N>` per finding, then a closing `--comment` or `--request-changes`.
+7. `chief-teardown.sh <builder-id>` also discards its reviewer: name both in the go-ahead. A reviewer alone: `chief-teardown.sh <reviewer-id>`, on the go-ahead.
 
 ## After the operator responds
 
@@ -76,11 +93,11 @@ A done researcher or brainstormer with a report can be followed by a successor: 
 
 - **A follow-up commit lands** - push it and refresh the description if it no longer matches: `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-update.sh <id> --confirm [--title "<title>"] [--body "<body>"]`. It always pushes new commits; omit `--title` and `--body` for a push-only update.
 - **Check it** - `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-state.sh <id>` prints its state (open/draft/mergeable/checks).
-- **Review it** - `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-review.sh <id> --comment "<text>"` or `--request-changes "<text>"`. Add `--file <path> --line <N>` to a `--comment` to attach it to a line (not valid with `--request-changes`).
+- **Post a review** (only when the operator asks) - `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-review.sh <id> --comment "<text>"` or `--request-changes "<text>"`. Add `--file <path> --line <N>` to a `--comment` to attach it to a line (not valid with `--request-changes`).
 - **Approve it** - `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-approve.sh <id>`.
 - **Merge it** - `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-merge.sh <id> --confirm`. Squashes by default; pass `--merge` or `--rebase` only if the operator asks.
 - **Abandon** - `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> exit` stops the worker and keeps its worktree and commits. `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id> --abandon` also discards the unlanded work; only on the operator's explicit instruction.
-- **Landed** - `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>` (if not already), then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>`. Teardown refuses unless the branch is reachable from the default branch (or `--abandon`).
+- **Landed** - `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>` (if not already), then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>`. Teardown refuses unless the branch is reachable from the default branch (or `--abandon`); it also discards the builder's reviewer.
 
 ## Backlog reference
 

@@ -28,18 +28,18 @@ Early on, check this project's own commit/PR conventions - its root `AGENTS.md`/
    Whenever you end a turn and are about to wait for input, run `touch {TURN_FILE}` first: it is how Chief tells a quietly idle worker from a stalled one.
 6. Use `needs-decision: {summary of options}` for any choice that belongs to a human (product tradeoffs, destructive actions, ambiguous scope) and then stop until answered.
 7. Use `blocked: {why}` if you hit the same obstacle twice in a row, and stop.
-8. When finished, run the review checklist (see below) on your own diff before reporting `done`.
-
-# Self-review
-Before reporting `done`, follow the checklist in `{REVIEW_CHECKLIST}` (its numbered items) against your own diff. Fix anything it flags - including amending your own commit if the AI-attribution check flags one - or report it honestly in your `done` line if you can't.
+8. Before reporting `done`: the project's checks pass, the work is committed, and the tree is clean.
 
 # Project docs
 Check this project's root (and `docs/adr/`) for `README.md`, `AGENTS.md` (or `CLAUDE.md`), `ARCHITECTURE.md`, `docs/adr/*.md`, `CONSUMER_GUIDE.md`. For each that exists and this task's change is relevant to, update it proportionately - skip trivial tasks with no durable project-facing change, and prefer a pointer over duplicating detail. Do not create any that are missing unless the intent/spec above explicitly asked for that file; instead, name which of the well-known ones don't exist in your `done` line so Chief and the operator see the gap instead of it passing silently.
+
+# Review
+The operator may have your commit reviewed. If findings arrive in your inbox, fix them with new commits (amend only for commit-message findings), re-run the project's checks, and report `done` again.
 
 # Instruction inbox
 Chief may steer you mid-task through `{INBOX_DIR}`. When a message tells you an instruction is waiting there - or at any natural checkpoint when you're unsure what to do next - list `{INBOX_DIR}/*.msg`, read and act on each in order, then acknowledge by moving it: `mv {INBOX_DIR}/NNN.msg {INBOX_DIR}/handled/`. An empty or absent inbox needs no action.
 
 # Definition of done
 - The intent above is satisfied, nothing more, nothing less.
-- The self-review checklist passed, or its failures are named in your `done` line.
-- Your last status line is `done: {one-line summary}` or `failed: {why}`.
+- The project's checks pass, the work is committed, and the tree is clean.
+- Your last status line is `done: <short commit sha> <one-line summary>` (e.g. `done: a1b2c3d added the limiter`) or `failed: {why}`.

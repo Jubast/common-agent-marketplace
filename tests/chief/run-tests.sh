@@ -8,7 +8,7 @@
 # test-backend-orca.sh are the exceptions: each opts into a real
 # herdr/orca install and a real claude turn, skipped by default - see this
 # directory's README.md. Skill-BEHAVIOR tests (does Claude actually follow
-# using-chief/dispatch/reviewer/setup correctly) live in tests/claude-code/
+# using-chief/dispatch/setup correctly) live in tests/claude-code/
 # instead.
 set -uo pipefail
 
