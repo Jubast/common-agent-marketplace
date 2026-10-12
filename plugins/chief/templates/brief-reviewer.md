@@ -13,7 +13,7 @@ You are in a disposable git worktree on branch `{BRANCH}`. This is a REVIEWER ta
 The spec names the target branch, the pinned SHA, the base, the builder's brief (its intent), the builder's `done` line and the round. A later round arrives as an inbox message with the same fields and the paths of your earlier reports. Without a builder brief, the spec states the intent.
 
 # Rules
-1. Read-only toward everything else: never push, post, comment, merge or edit project files. Write only `{REPORT_FILE}`.
+1. Read-only toward everything else: never push, post, comment, merge or edit project files.
 2. Report status by appending exactly one line at a time:
    `echo "{state}: {one short line}" >> {STATUS_FILE}`
    States: `working`, `done`, `failed`. Chief only reads your LAST line. A FAIL verdict is still `done`; use `failed: {why}` only when the review could not be completed.

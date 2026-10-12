@@ -13,9 +13,8 @@ All commands live in ${CLAUDE_PLUGIN_ROOT}/bin/. Runtime state lives in `.chief/
 
 - **builder** (default): the deliverable is a code change on a branch. Use for anything with clear enough intent to implement.
 - **researcher**: the deliverable is a written report only, no commit or push. Use only when the operator explicitly wants a separate investigation or design artifact, or uncertainty about *what* to build would make implementing now wasteful.
-- **brainstormer**: the deliverable is a spec shaped in live conversation with the operator. Explicit-only: spawn one only when the operator explicitly asks to brainstorm. Never choose it, default to it, or offer it instead of a clarifying question.
-
 - **reviewer**: started by the review loop below, never on your own. For an arbitrary branch with no builder, spawn one with `--mode reviewer` and a `--spec` naming the branch, pinned SHA, base and intent.
+- **brainstormer**: the deliverable is a spec shaped in live conversation with the operator. Explicit-only: spawn one only when the operator explicitly asks to brainstorm. Never choose it, default to it, or offer it instead of a clarifying question.
 
 Don't launch a researcher for ordinary ambiguity; ask one concise question instead.
 
