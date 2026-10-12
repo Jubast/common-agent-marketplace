@@ -37,10 +37,14 @@ assert_contains "$("$RV" b-1 2>&1)" "is not done" "gate: the builder must be don
 echo "done: x" >> "$STATE/b-1.status"
 assert_contains "$("$RV" b-1 2>&1)" "no commit ahead of main" "gate: needs a commit ahead of base"
 SHA1=$(commit b-1 hello.txt)
+assert_contains "$("$RV" b-1 2>&1)" "does not start with HEAD's SHA" "gate: a done line with no SHA is refused"
+echo "done: ${SHA1:0:7} added hello.txt" >> "$STATE/b-1.status"
+SHAX=$(commit b-1 late.txt)
+assert_contains "$("$RV" b-1 2>&1)" "does not start with HEAD's SHA ${SHAX:0:7}" "gate: a commit after the done line is refused"
+git -C "$CHIEF_HOME/worktrees/b-1" reset -q --hard "$SHA1"
 echo dirt > "$CHIEF_HOME/worktrees/b-1/dirt.txt"
 assert_contains "$("$RV" b-1 2>&1)" "not clean" "gate: the worktree must be clean"
 rm "$CHIEF_HOME/worktrees/b-1/dirt.txt"
-echo "done: ${SHA1:0:7} added hello.txt" >> "$STATE/b-1.status"
 assert_file_missing "$STATE/b-1-review.meta" "gates: nothing was spawned"
 
 # --- round 1 ---
@@ -127,7 +131,7 @@ assert_failure "review after teardown: refused" -- "$RV" b-1
 "$BIN/chief-backlog.sh" add b-2 "Add two" >/dev/null
 timeout 10 "$BIN/chief-spawn.sh" b-2 "$WORK/project" --mode builder --branch feat/b-2 --intent "Add two" >/dev/null
 commit b-2 two.txt >/dev/null
-echo "done: ok" >> "$STATE/b-2.status"
+echo "done: $(git -C "$CHIEF_HOME/worktrees/b-2" rev-parse --short HEAD) ok" >> "$STATE/b-2.status"
 timeout 15 "$RV" b-2 >/dev/null 2>&1
 out=$("$BIN/chief-teardown.sh" b-2-review 2>&1)
 assert_contains "$out" "torn down: b-2-review " "teardown: a reviewer tears down alone"
@@ -135,6 +139,19 @@ assert_eq "$(git -C "$WORK/project" worktree list | grep -c 'worktrees/b-2 ')" "
 assert_contains "$("$RV" b-2 2>&1)" "reviewer b-2-review was torn down" "review: a torn-down reviewer is reported"
 out=$("$BIN/chief-teardown.sh" b-2 --abandon 2>&1)
 assert_eq "$(grep -c '^torn down' <<< "$out")" "1" "abandon: an already-discarded reviewer is not torn down twice"
+
+# --- a reviewer whose worktree was removed by hand is still discarded with its builder ---
+"$BIN/chief-backlog.sh" add b-3 "Add three" >/dev/null
+timeout 10 "$BIN/chief-spawn.sh" b-3 "$WORK/project" --mode builder --branch feat/b-3 --intent "Add three" >/dev/null
+commit b-3 three.txt >/dev/null
+echo "done: $(git -C "$CHIEF_HOME/worktrees/b-3" rev-parse --short HEAD) ok" >> "$STATE/b-3.status"
+timeout 15 "$RV" b-3 >/dev/null 2>&1
+git -C "$WORK/project" worktree remove --force "$CHIEF_HOME/worktrees/b-3-review"
+out=$("$BIN/chief-teardown.sh" b-3 --abandon 2>&1)
+assert_contains "$out" "torn down: b-3-review " "teardown: a hand-removed reviewer worktree is still cleaned up"
+assert_eq "$(chief_meta_get b-3-review status)" "torn-down" "teardown: the reviewer is marked torn down"
+assert_contains "$("$BIN/chief-backlog.sh" show b-3-review)" "[done]" "teardown: its backlog item is done"
+assert_eq "$(git -C "$WORK/project" branch --list chore/review-b-3)" "" "teardown: its branch is deleted"
 
 # --- manual use on an arbitrary branch ---
 git -C "$WORK/project" branch feat/other main

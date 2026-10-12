@@ -26,12 +26,15 @@ BASE=$(git -C "$PROJECT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2
 [ -n "$BASE" ] || BASE=$(git -C "$PROJECT" symbolic-ref --quiet --short HEAD 2>/dev/null || echo main)
 SHA=$(git -C "$WORKTREE" rev-parse HEAD)
 [ "$(git -C "$WORKTREE" rev-list --count "$BASE..$SHA")" -gt 0 ] || fail "$BID has no commit ahead of $BASE"
+DONE_SHA=${LAST#done: }; DONE_SHA=${DONE_SHA%% *}
+{ [ "${#DONE_SHA}" -ge 7 ] && [[ $SHA == "$DONE_SHA"* ]]; } \
+  || fail "$BID's done line does not start with HEAD's SHA ${SHA:0:7} (it committed after reporting done, or the line has no SHA)"
 
 RID=$BID-review
 ROUND=1
 LINKED=$(chief_meta_get "$BID" reviewer 2>/dev/null || true)
 if [ -n "$LINKED" ]; then
-  [ -d "$(chief_meta_get "$RID" worktree 2>/dev/null)" ] || fail "reviewer $RID was torn down"
+  [ "$(chief_meta_get "$RID" status 2>/dev/null)" != torn-down ] || fail "reviewer $RID was torn down"
   if [ "$SHA" = "$(chief_meta_get "$BID" review_sha 2>/dev/null)" ] \
     && [[ $("$CHIEF_ROOT/bin/task/chief-crew-state.sh" "$RID") == "state: working"* ]]; then
     fail "$RID is already reviewing ${SHA:0:7}"

@@ -2,7 +2,7 @@
 
 - [ ] filed (chief-backlog.sh add)
 - [ ] spawned (chief-spawn.sh)
-- [ ] watching until a terminal state (done/failed/blocked/needs-decision)
+- [ ] watching until a terminal state (done/failed/blocked/needs-decision); a builder's done line starts with its short commit SHA
 - [ ] reported to operator with the diffstat and a one-line review recommendation, and held (chief-backlog.sh hold <id> "reported: awaiting review decision")
 - [ ] operator asked whether to review, every time (never automatic). Yes -> chief-review.sh <id>; no -> landing. A standing "review everything this session" skips the question until revoked
 - [ ] reviewer's verdict presented and the reviewer held; next step proposed: FAIL -> send the findings to the builder (operator may edit them), PASS -> land or keep going. After the builder's next done, ask again
