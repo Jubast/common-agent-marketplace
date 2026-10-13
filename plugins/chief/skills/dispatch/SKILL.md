@@ -22,7 +22,7 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
 
 `state/<id>.lifecycle` (rendered by `chief-spawn.sh`) is the checklist for each task, filing through teardown. Check off each line as you complete it. Read it before acting on an in-flight task, not just after a compaction.
 
-1. **File it.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh add <id> "<short title>"` with a short id (e.g. `t-001` or `rate-limit`).
+1. **File it.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh add <id> "<short title>"` with an id named `<role>-<topic>` (e.g. `build-rate-limit`, `research-auth-flow`; a reviewer is `<builder-id>-review`). The id names the worktree, the data and state files and the herdr workspace, so make it say what the task is.
 
 2. **Spawn.**
    `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <id> <project-dir> --mode builder|researcher|brainstormer --branch "<type>/<short-kebab-description>" --intent "<the operator's own ask, close to verbatim>" --spec "<your build instructions, only what the intent requires>"`
@@ -33,7 +33,7 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
 
 3. **It runs on its own.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-watch.sh` (armed by a Stop hook, zero model cost) interrupts you only when the task finishes, fails, is blocked or needs a decision. On `blocked` or `needs-decision`, run `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "<why, one line>"`.
 
-4. **Check on it anytime:** `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-crew-state.sh <id>` prints the current state (working/done/blocked/needs-decision/failed/stale) and a `[mode: builder|researcher|reviewer|brainstormer]` tag.
+4. **Check on it anytime:** `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-crew-state.sh <id>` prints the current state (working/done/blocked/needs-decision/failed/stale) and a `[mode: builder|researcher|reviewer|brainstormer]` tag. `chief-backlog.sh show <id>` adds its workspace, branch, worktree, brief and report paths. Use it to tell the operator where a task lives.
 
 5. **Steer it:** `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <id> "<instruction>"` delivers through a durable inbox the worker acknowledges; safe mid-task. If the item is `held`, move it back with `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh status <id> in-flight` once you've sent the unblocking instruction.
 
@@ -72,7 +72,7 @@ Do exactly what they decide, nothing more:
 
 ## The brainstormer
 
-Spawn it as in step 2 with `--intent` set to the operator's idea. Spawn prints `attach: ...`; tell the operator that line so they can attach and talk to it directly. With no `attach:` line, tell them to open workspace/worktree `chief-<id>` in the backend. After a relaunch, spawn's `attach:` line is printed again.
+Spawn it as in step 2 with `--intent` set to the operator's idea. Spawn prints `attach: ...`; tell the operator that line so they can attach and talk to it directly. With no `attach:` line, tell them to open the workspace named by `chief-backlog.sh show <id>` in the backend. After a relaunch, spawn's `attach:` line is printed again.
 
 Never relay the conversation or answer for the operator. The brainstormer asks its questions in its pane, not through `needs-decision`, and reports `done` only after the operator confirms the spec there. While idle it reads `working · awaiting operator in pane`; `crew-state` and the session digest show its `[attach: ...]`. The spec is `report.md`.
 
