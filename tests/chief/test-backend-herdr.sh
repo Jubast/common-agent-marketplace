@@ -178,12 +178,17 @@ assert_contains "$CAPTURE" "bypass permissions" "backend_spawn starts the worker
 backend_busy "$ID"
 assert_eq "$?" "1" "backend_busy reports idle (not busy) once the reply is done"
 
-# _chief_herdr_prompt_box_has_text against REAL herdr rendering: Claude Code
-# fills a never-yet-prompted box with a dim placeholder hint until the first
-# real turn, which a bare-emptiness check would misread as pending text -
-# confirm the needle-match check doesn't, and does catch our own text
-# genuinely in flight.
-assert_failure "_chief_herdr_prompt_box_has_text misses text that was never sent" -- \
+# The live-input-line check _chief_herdr_recover relies on, against REAL herdr
+# rendering: Claude Code fills a never-yet-prompted box with a dim placeholder
+# hint until the first real turn, which a bare-emptiness check would misread
+# as pending text - confirm the needle-match check doesn't, and does catch our
+# own text genuinely in flight.
+chief_agent_use "$ID"
+_chief_herdr_prompt_box_has_text() {  # <id> <text>
+  herdr agent read "$1" --source detection --lines 40 2>/dev/null | chief_agent_input_line \
+    | chief_agent_has_text "$(printf '%s' "$2" | tr -s '[:space:]' ' ' | cut -c1-24)"
+}
+assert_failure "the input-line check misses text that was never sent" -- \
   _chief_herdr_prompt_box_has_text "$ID" "never sent to this pane xyz123"
 
 BRIEF3="$WORK/brief3.md"
@@ -197,7 +202,7 @@ for _ in $(seq 1 60); do
   sleep 0.05
 done
 wait "$PROMPT_PID"
-assert_eq "$CAUGHT" "1" "_chief_herdr_prompt_box_has_text catches our own text while genuinely in flight"
+assert_eq "$CAUGHT" "1" "the input-line check catches our own text while genuinely in flight"
 
 wait_for_idle "$ID"
 CAPTURE2=$(backend_capture "$ID")

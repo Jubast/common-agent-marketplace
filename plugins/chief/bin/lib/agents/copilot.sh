@@ -13,4 +13,7 @@ agent_ready_text() { echo 'for commands|for shortcuts'; }
 # assumed
 agent_paste_text() { echo '\[Pasted'; }
 # assumed
+agent_trust_text() { echo 'trust the files in this folder'; }
+agent_trust_keys() { :; }
+# assumed
 agent_input_marker() { echo '❯'; }

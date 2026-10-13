@@ -10,7 +10,9 @@
 #                     -> creates the worktree + terminal, launches the agent in
 #                        it pointed at the brief, prints the worktree path on
 #                        its own stdout line first, then the backend's own
-#                        endpoint identifier on a second line.
+#                        endpoint identifier on a second line. Returns 0 only
+#                        once the agent's first turn is observed started;
+#                        otherwise non-zero (chief-spawn.sh then rolls back).
 #   backend_send    <id> <text-or-special-key>
 #                     -> best-effort delivers text (or "Enter"/"Escape"/"C-c")
 #                        to that task's terminal.
@@ -26,6 +28,7 @@
 #                        (recorded in state/<id>.meta) pointed at the given
 #                        brief, after backend_kill already stopped the old
 #                        one. Does not create a new worktree or branch.
+#                        Returns 0 only once the first turn is observed started.
 #   backend_spawn_cleanup <id> <project-dir> <branch>
 #                     -> best-effort rollback of whatever backend_spawn may
 #                        have created before failing, or before
