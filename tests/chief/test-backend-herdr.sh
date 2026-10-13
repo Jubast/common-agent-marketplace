@@ -96,12 +96,12 @@ cleanup() {
   # Safety net independent of how far the test got: close every workspace
   # this run could have produced, even if backend_spawn/relaunch failed
   # partway through and left one open without ever reporting it. Covers
-  # both our own "chief-<id>"-labeled linked-worktree workspaces AND the
+  # both our own task-labeled linked-worktree workspaces AND the
   # separate auto-created "primary" workspace `herdr worktree create` opens
   # for the scratch project checkout itself (repo_root match).
   herdr workspace list 2>/dev/null \
-    | jq -r --arg label "chief-$ID" --arg work "$WORK" \
-        '.result.workspaces[]? | select((.label | startswith($label)) or (.worktree.repo_root // "" | startswith($work))) | .workspace_id' 2>/dev/null \
+    | jq -r --arg label "$ID" --arg work "$WORK" \
+        '.result.workspaces[]? | select((.label | startswith($label)) or (.label | startswith("chief-" + $label)) or (.worktree.repo_root // "" | startswith($work))) | .workspace_id' 2>/dev/null \
     | while read -r ws; do herdr workspace close "$ws" --group >/dev/null 2>&1 || true; done
   [ "$STARTED_SERVER" = 1 ] && herdr server stop >/dev/null 2>&1 || true
   rm -rf "$WORK"
@@ -121,6 +121,8 @@ export CHIEF_HOME="$WORK/.chief"
 BRIEF="$WORK/brief.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF"
 
+chief_meta_set "$ID" mode builder
+chief_meta_set "$ID" project "$WORK/project"
 SPAWN_OUTPUT=$(backend_spawn "$ID" "$WORK/project" "$BRIEF" "chief/$ID" 2>"$WORK/spawn.err")
 SPAWN_RC=$?
 assert_eq "$SPAWN_RC" "0" "backend_spawn succeeds (pre-trusts the worktree, then delivers the brief)"
@@ -139,7 +141,8 @@ PRIMARY=$(_primary_ws "$WORK/project")
 [ -n "$PRIMARY" ]
 assert_eq "$?" "0" "the project's primary workspace is open"
 WS1=$(_chief_herdr_workspace_id "${ENDPOINT#herdr:}")
-assert_eq "$(_ws_label "$WS1")" "chief-$ID" "the task is its own workspace labeled chief-<id>"
+assert_eq "$(_ws_label "$WS1")" "$ID · builder · project" "the task is its own workspace labeled <id> · <role> · <project>"
+assert_eq "$(chief_meta_get "$ID" label)" "$ID · builder · project" "backend_spawn records the label in meta"
 assert_eq "$(_ws_count_for_root "$WORK/project")" "2" "the primary plus one task workspace exist for the project"
 assert_eq "$(_linked_ws_count "$WORK/project")" "1" "the task workspace is a linked worktree"
 
@@ -152,6 +155,8 @@ chief_meta_set "$ID" project "$WORK/project"
 ID2="$ID-2"
 BRIEF4="$WORK/brief4.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF4"
+chief_meta_set "$ID2" mode builder
+chief_meta_set "$ID2" project "$WORK/project"
 SPAWN_OUTPUT2=$(backend_spawn "$ID2" "$WORK/project" "$BRIEF4" "chief/$ID2" 2>"$WORK/spawn2.err")
 SPAWN_RC2=$?
 assert_eq "$SPAWN_RC2" "0" "backend_spawn succeeds for a second task against the same project"
@@ -228,7 +233,7 @@ assert_contains "$NEW_ENDPOINT" "herdr:" "backend_relaunch records a fresh herdr
 [ "$NEW_ENDPOINT" != "$ENDPOINT" ]
 assert_eq "$?" "0" "backend_relaunch's endpoint differs from the original pane"
 assert_eq "$(_linked_ws_count "$WORK/project")" "1" "backend_relaunch opens the task as a linked workspace again"
-assert_eq "$(_ws_label "$(_chief_herdr_workspace_id "${NEW_ENDPOINT#herdr:}")")" "chief-$ID" "backend_relaunch keeps the chief-<id> label"
+assert_eq "$(_ws_label "$(_chief_herdr_workspace_id "${NEW_ENDPOINT#herdr:}")")" "$ID · builder · project" "backend_relaunch keeps the <id> · <role> · <project> label"
 
 wait_for_idle "$ID"
 RELAUNCH_CAPTURE=$(backend_capture "$ID")
@@ -237,13 +242,18 @@ assert_contains "$RELAUNCH_CAPTURE" "ok" "backend_capture shows the relaunched c
 backend_kill "$ID"
 assert_eq "$(_linked_ws_count "$WORK/project")" "0" "no task workspace remains after all tasks are killed"
 
-# _chief_herdr_close_task_workspace closes the task workspace by its label.
-CLEANUP_ID=t-herdr-cleanup
-herdr worktree create --cwd "$WORK/project" --branch "chief/$CLEANUP_ID" \
-  --path "$WORK/.chief/worktrees/$CLEANUP_ID" --label "chief-$CLEANUP_ID" \
-  --trust-repository --no-focus >/dev/null 2>&1
-_chief_herdr_close_task_workspace "$CLEANUP_ID"
-assert_eq "$(_linked_ws_count "$WORK/project")" "0" "cleanup closes the task's workspace by label"
-assert_eq "$(_primary_ws "$WORK/project")" "$PRIMARY" "cleanup leaves the primary workspace alone"
+# _chief_herdr_close_task_workspace closes the task workspace by its label, new or older form.
+for LABEL_FORM in "t-herdr-cleanup · builder · project" "chief-t-herdr-cleanup"; do
+  CLEANUP_ID=t-herdr-cleanup
+  herdr worktree create --cwd "$WORK/project" --branch "chief/$CLEANUP_ID" \
+    --path "$WORK/.chief/worktrees/$CLEANUP_ID" --label "$LABEL_FORM" \
+    --trust-repository --no-focus >/dev/null 2>&1
+  assert_eq "$(_linked_ws_count "$WORK/project")" "1" "cleanup setup: workspace labeled '$LABEL_FORM' is open"
+  _chief_herdr_close_task_workspace "$CLEANUP_ID"
+  assert_eq "$(_linked_ws_count "$WORK/project")" "0" "cleanup closes the task's workspace labeled '$LABEL_FORM'"
+  assert_eq "$(_primary_ws "$WORK/project")" "$PRIMARY" "cleanup leaves the primary workspace alone"
+  git -C "$WORK/project" worktree remove --force "$WORK/.chief/worktrees/$CLEANUP_ID" >/dev/null 2>&1 || true
+  git -C "$WORK/project" branch -D "chief/$CLEANUP_ID" >/dev/null 2>&1 || true
+done
 
 harness_summary

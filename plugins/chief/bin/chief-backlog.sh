@@ -15,12 +15,14 @@
 #   chief-backlog.sh done <id>                           -> status=done
 #   chief-backlog.sh list [status]                        -> print matching records
 #   chief-backlog.sh next                                  -> first queued id, or nothing
-#   chief-backlog.sh show <id>                               -> print one record
+#   chief-backlog.sh show <id>                               -> print one record, plus where
+#                                                               its task lives once spawned
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
 . "$CHIEF_ROOT/bin/lib/lock.sh"
 . "$CHIEF_ROOT/bin/lib/meta.sh"
+. "$CHIEF_ROOT/bin/lib/meta-extensions.sh"
 
 BACKLOG="$DATA/backlog.md"
 LOCK="$STATE/.backlog.lock"
@@ -152,12 +154,15 @@ cmd_next() {
 }
 
 cmd_show() {
-  local id=$1
-  awk -v id="$id" '
+  local id=$1 record
+  record=$(awk -v id="$id" '
     $0 ~ "^## " id " \\[" { print; in_record=1; next }
     in_record && /^## / { exit }
     in_record { print }
-  ' "$BACKLOG" | _annotate
+  ' "$BACKLOG" | _annotate)
+  [ -n "$record" ] || return 0
+  printf '%s\n' "$record"
+  if chief_meta_exists "$id"; then chief_task_where "$id"; fi
 }
 
 case "${1:-}" in

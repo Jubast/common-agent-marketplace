@@ -13,7 +13,7 @@
 # unmodified as this adapter's endpoint ("herdr:<pane_id>").
 #
 # Each project has one primary workspace; herdr natively groups each task's
-# linked-worktree workspace ("chief-<id>") under it.
+# linked-worktree workspace ("<id> · <role> · <project>") under it.
 #
 # The brief lives under $CHIEF_HOME (inside the project's main checkout),
 # never inside the per-task worktree, so telling the agent to go Read it would
@@ -48,12 +48,19 @@ _chief_herdr_workspace_id() {  # <pane-id> -> workspace id ("w2:p1" -> "w2")
   printf '%s' "$1" | cut -d: -f1
 }
 
+# _chief_herdr_label <id> -> the task's workspace label, "<id> · <role> · <project>".
+_chief_herdr_label() {
+  printf '%s · %s · %s' "$1" "$(chief_meta_get "$1" mode 2>/dev/null || echo task)" \
+    "$(basename "$(chief_meta_get "$1" project 2>/dev/null || echo project)")"
+}
+
 # _chief_herdr_close_task_workspace <id> - best-effort: closes the workspace
-# carrying the fixed "chief-<id>" label - the only id-derived handle
+# labelled "<id> · ..." (or the older "chief-<id>") - the only id-derived handle
 # guaranteed to survive a failure with no parsed pane id.
 _chief_herdr_close_task_workspace() {
   herdr workspace list 2>/dev/null \
-    | jq -r --arg label "chief-$1" '.result.workspaces[]? | select(.label == $label) | .workspace_id' \
+    | jq -r --arg old "chief-$1" --arg new "$1 · " \
+        '.result.workspaces[]? | select(.label == $old or (.label | startswith($new))) | .workspace_id' \
     | while read -r w; do herdr workspace close "$w" >/dev/null 2>&1; done || true
 }
 
@@ -185,11 +192,12 @@ _chief_herdr_prompt() {
 backend_spawn() {
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
   local worktree="$WORKTREES/$id"
-  local json pane_id
+  local json pane_id label
   chief_agent_use "$id" || return 1
   agent_prepare "$worktree"
+  label=$(_chief_herdr_label "$id")
   json=$(herdr worktree create --cwd "$project_dir" --branch "$branch" --path "$worktree" \
-           --label "chief-$id" --trust-repository --no-focus 2>&1) \
+           --label "$label" --trust-repository --no-focus 2>&1) \
     || { echo "chief-backend-herdr: 'herdr worktree create' failed: $json" >&2; return 1; }
   pane_id=$(printf '%s' "$json" | jq -r '.result.root_pane.pane_id // empty')
   [ -n "$pane_id" ] || { echo "chief-backend-herdr: could not read pane id from: $json" >&2; return 1; }
@@ -198,6 +206,7 @@ backend_spawn() {
 
   _chief_herdr_prompt "$id" "$(cat "$brief_path")" || return 1
 
+  chief_meta_set "$id" label "$label"
   printf '%s\n' "$worktree"
   printf 'herdr:%s\n' "$pane_id"
 }
@@ -229,13 +238,13 @@ backend_capture() {
   herdr agent read "$id" --source recent-unwrapped --lines 200 2>/dev/null
 }
 
-# The workspace is labelled chief-<id>; the pane id in the endpoint names it.
+# The pane id in the endpoint names the workspace; its label is recorded as label=.
 backend_attach_hint() {
   local pane_id
   pane_id=$(chief_meta_get "$1" endpoint 2>/dev/null) || return 1
   pane_id=${pane_id#herdr:}
   [ -n "$pane_id" ] || return 1
-  printf 'herdr workspace focus %s (workspace chief-%s)\n' "$(_chief_herdr_workspace_id "$pane_id")" "$1"
+  printf 'herdr workspace focus %s (workspace "%s")\n' "$(_chief_herdr_workspace_id "$pane_id")" "$(chief_meta_get "$1" label 2>/dev/null || echo "chief-$1")"
 }
 
 backend_busy() {
@@ -275,7 +284,7 @@ backend_relaunch() {
   # --cwd is required here: without it, `herdr worktree open` resolves the
   # repo against ambient server state instead of this specific project -
   # confirmed live to pick up a stale, unrelated repo when omitted.
-  json=$(herdr worktree open --cwd "$project" --path "$worktree" --label "chief-$id" --trust-repository --no-focus 2>&1) \
+  json=$(herdr worktree open --cwd "$project" --path "$worktree" --label "$(_chief_herdr_label "$id")" --trust-repository --no-focus 2>&1) \
     || { echo "chief-backend-herdr: 'herdr worktree open' failed: $json" >&2; return 1; }
   pane_id=$(printf '%s' "$json" | jq -r '.result.root_pane.pane_id // empty')
   [ -n "$pane_id" ] || { echo "chief-backend-herdr: could not read pane id from: $json" >&2; return 1; }
@@ -286,4 +295,5 @@ backend_relaunch() {
 
   ok=1
   chief_meta_set "$id" endpoint "herdr:$pane_id"
+  chief_meta_set "$id" label "$(_chief_herdr_label "$id")"
 }
