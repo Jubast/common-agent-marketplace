@@ -13,9 +13,10 @@ file.
 
 - `.claude-plugin/plugin.json` — the plugin manifest, read directly by
   both Claude Code and Copilot CLI.
-- `skills/conventional-issues/` — writes the issue/task/ticket title with a
-  conventional type prefix and a structured description, then files or
-  updates it with the project's own tooling.
+- `skills/conventional-work-items/` — picks the work-item type the tracker
+  offers (PBI, task, bug, epic, ...; plain issue when it has none), writes
+  the title and a description from the project's or its bundled
+  `templates/`, then files or updates it with the project's own tooling.
 - `skills/conventional-commits/` — analyzes the diff, groups related
   files, and commits each group with a conventional commit message, then
   offers to push and continue into `conventional-pull-requests`.
