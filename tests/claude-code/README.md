@@ -74,13 +74,14 @@ nine reference-file slugs), and review mode's `ReportFindings` tool plus its
 empty-findings behavior. No integration counterpart — the skill is pure
 guidance with no executable code.
 
-### `test-conventional-issues.sh` (fast)
+### `test-conventional-work-items.sh` (fast)
 
-Four checks against SKILL.md's documented claims: the issue/task/ticket
-open-create-update trigger wording, the type-prefix title grammar it defines
-(rather than leaving the title convention unspecified), the default
-description template's section set (Repro and Environment present, Out of
-Scope absent), and the absence of any Definition of Ready/Done gating step.
+Seven checks against SKILL.md's documented claims: the issue/task/ticket
+trigger wording, the type-prefix title grammar, the plain-issue template's
+sections, native work-item types (no title prefix duplication, flat
+fallback), native tracker links (no auto-created children), the named
+template locations with single-template reading, and the absence of any
+Definition of Ready/Done gate.
 No integration counterpart - the skill is pure guidance with no executable
 code, and it deliberately specifies content only, not which tracker/tool
 files the issue.
