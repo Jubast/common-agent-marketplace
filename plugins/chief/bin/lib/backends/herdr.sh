@@ -26,19 +26,23 @@
 # herdr's own docs) waits up to 5s for observed working/blocked activity
 # before reporting `agent_prompt_stalled` - that 5s race is herdr's own
 # inherent behavior, not something this adapter controls. A stall can mean
-# either of two different things, confirmed live: the text landed but the
-# Enter didn't register (safe to recover with a bare Enter), or the text
-# never reached the input line at all (a bare Enter here submits nothing;
-# only resending recovers it). See _chief_herdr_prompt.
+# the text landed but the Enter didn't register (a bare Enter recovers it),
+# the text never reached the input line (only resending recovers it), or the
+# TUI hadn't rendered yet (the text is queued in the pty; wait). See
+# _chief_herdr_recover.
 #
-# CHIEF_HERDR_SUBMIT_TIMEOUT_MS governs how long backend_spawn/
-# backend_relaunch wait for a fresh agent process's very first turn to
-# START (reach `working` or `blocked`), handled by _chief_herdr_prompt. It
-# does NOT wait for that turn to finish - a first turn on a large task can
-# legitimately run long, so this only needs to cover submission and the
-# agent visibly starting. backend_send's ordinary mid-task turns don't wait
-# at all.
+# `agent start` returning, ready or not, says nothing about the TUI: readiness
+# is read off the screen (_chief_herdr_start_agent). backend_spawn and
+# backend_relaunch return 0 only once the first turn was observed started.
+#
+# CHIEF_HERDR_START_WAIT (s) bounds the wait for the agent's ready screen,
+# CHIEF_HERDR_SUBMIT_TIMEOUT_MS how long the first prompt waits for its turn to
+# START (reach `working`), CHIEF_HERDR_PROMPT_WAIT (s) the stall recovery. None
+# waits for that turn to finish - a first turn on a large task can
+# legitimately run long. backend_send's ordinary mid-task turns don't wait.
+CHIEF_HERDR_START_WAIT="${CHIEF_HERDR_START_WAIT:-60}"
 CHIEF_HERDR_SUBMIT_TIMEOUT_MS="${CHIEF_HERDR_SUBMIT_TIMEOUT_MS:-30000}"
+CHIEF_HERDR_PROMPT_WAIT="${CHIEF_HERDR_PROMPT_WAIT:-20}"
 
 _chief_herdr_workspace_id() {  # <pane-id> -> workspace id ("w2:p1" -> "w2")
   printf '%s' "$1" | cut -d: -f1
@@ -53,67 +57,121 @@ _chief_herdr_close_task_workspace() {
     | while read -r w; do herdr workspace close "$w" >/dev/null 2>&1; done || true
 }
 
-# _chief_herdr_start_agent <id> <pane-id> - start the agent in <pane-id> under
-# live name <id>, with the agent's own args, never inherited from the operator's
-# session.
+_chief_herdr_screen() {  # <id> [source] -> the agent's screen
+  herdr agent read "$1" --source "${2:-recent-unwrapped}" --lines 40 2>/dev/null
+}
+
+# _chief_herdr_trust_dialog_ours <screen> <worktree> - the screen shows the
+# agent's folder-trust dialog for <worktree> (its path wraps across lines)
+_chief_herdr_trust_dialog_ours() {
+  local screen=$1 worktree=$2 flat d
+  printf '%s' "$screen" | tr -s '[:space:]' ' ' | grep -Eq -- "$(agent_trust_text)" || return 1
+  flat=$(printf '%s' "$screen" | tr -d '[:space:]')
+  for d in "$worktree" "$(realpath -m "$worktree")"; do
+    [[ $flat == *"$(printf '%s' "$d" | tr -d '[:space:]')"* ]] && return 0
+  done
+  return 1
+}
+
+# _chief_herdr_start_agent <id> <pane-id> <worktree> - start the agent in
+# <pane-id> under live name <id>, with the agent's own args, never inherited
+# from the operator's session. `agent start` is no evidence of readiness (it
+# returns "idle" before the TUI renders): poll the screen for agent_ready_text.
+# A folder-trust dialog for <worktree> (pre-trust is the fast path, but a
+# concurrent claude can drop its entry) is accepted once with agent_trust_keys.
 _chief_herdr_start_agent() {
-  local id=$1 pane_id=$2 cmd args=""
+  local id=$1 pane_id=$2 worktree=$3 cmd args="" out screen keys reason waited=0 pressed=0
+  local limit=$(( CHIEF_HERDR_START_WAIT * 2 ))
   cmd=$(chief_agent_command)
   [[ $cmd != *' '* ]] || args=${cmd#* }  # herdr runs the agent's own executable: pass the words after the first
-  herdr agent start "$id" --kind "$(agent_name)" --pane "$pane_id" --timeout 30000 \
-    -- $args >/dev/null 2>&1
-}
-
-# _chief_herdr_prompt_box_has_text <id> <text> - true only when herdr's own
-# detection snapshot shows a recognizable prefix of <text> already sitting
-# in the live input line. Confirmed live: an untouched box isn't always
-# bare - Claude Code fills it with a dim placeholder hint ("Try \"how do I
-# ...\"") until the first real prompt, which a bare-emptiness check would
-# misread as pending text. Matching against our own submitted text sidesteps
-# that: the placeholder can never contain it.
-_chief_herdr_prompt_box_has_text() {
-  local id=$1 needle
-  needle=$(printf '%s' "$2" | tr -s '[:space:]' ' ' | cut -c1-24)
-  [ -n "$needle" ] || return 1
-  herdr agent read "$id" --source detection --lines 15 2>/dev/null \
-    | tr -s '[:space:]' ' ' | grep -qF "$needle"
-}
-
-# _chief_herdr_prompt <id> <text> - submit <text> and wait only for the
-# turn to START (working or blocked), not for it to finish.
-#
-# agent_prompt_stalled means herdr's own 5s post-submission race (see file
-# header) didn't observe activity - it does not say whether <text> reached
-# the input line. Resending is only safe if it didn't (nothing pending to
-# double-submit); if it did, only the Enter needs resending.
-# _chief_herdr_prompt_box_has_text makes that call from herdr's own state,
-# not a guess, and one recovery attempt is taken - a second stall is
-# reported, not retried further.
-_chief_herdr_prompt() {
-  local id=$1 text=$2
-  local err
-  err=$(herdr agent prompt "$id" "$text" --wait --until working --until blocked \
-          --timeout "$CHIEF_HERDR_SUBMIT_TIMEOUT_MS" 2>&1) && return 0
-  [[ $err == *agent_prompt_stalled* ]] || {
-    echo "chief-backend-herdr: 'herdr agent prompt' failed for $id: $err" >&2
+  out=$(herdr agent start "$id" --kind "$(agent_name)" --pane "$pane_id" --timeout 30000 \
+          -- $args 2>&1) || [[ $out == *agent_not_ready* ]] || {
+    echo "chief-backend-herdr: 'herdr agent start' failed for $id: $out" >&2
     return 1
   }
+  while :; do
+    screen=$(_chief_herdr_screen "$id")
+    printf '%s' "$screen" | grep -Eq -- "$(agent_ready_text)" && return 0
+    keys=$(agent_trust_keys)
+    if [ "$pressed" = 0 ] && [ -n "$keys" ] && _chief_herdr_trust_dialog_ours "$screen" "$worktree"; then
+      herdr agent send-keys "$id" $keys >/dev/null 2>&1
+      pressed=1
+    fi
+    [ "$waited" -lt "$limit" ] || break
+    sleep 0.5
+    waited=$((waited + 1))
+  done
+  reason="no ready screen after ${CHIEF_HERDR_START_WAIT}s"
+  printf '%s' "$screen" | tr -s '[:space:]' ' ' | grep -Eq -- "$(agent_trust_text)" \
+    && reason="stopped at the folder-trust dialog"
+  echo "chief-backend-herdr: agent $id not ready ($reason); screen:" >&2
+  printf '%s\n' "$screen" | grep -v '^[[:space:]]*$' | tail -5 | sed 's/^/  /' >&2
+  return 1
+}
 
-  if _chief_herdr_prompt_box_has_text "$id" "$text"; then
-    herdr agent send-keys "$id" enter >/dev/null 2>&1
-    herdr agent wait "$id" --until working --timeout 15000 >/dev/null 2>&1 && return 0
-  else
-    herdr agent prompt "$id" "$text" --wait --until working --until blocked \
-      --timeout "$CHIEF_HERDR_SUBMIT_TIMEOUT_MS" >/dev/null 2>&1 && return 0
+# _chief_herdr_turn_started <reply> - herdr's reply shows the turn running or
+# finished; `blocked` (a dialog nobody answers) is not a started turn
+_chief_herdr_turn_started() {
+  printf '%s' "$1" | jq -e '.result.agent.agent_status | . == "working" or . == "done"' >/dev/null 2>&1
+}
+
+# _chief_herdr_submit <id> <text> - submit <text> (herdr's reply in
+# $SUBMIT_REPLY): 0 the turn started, 1 herdr failed, 2 it replied without one
+_chief_herdr_submit() {
+  SUBMIT_REPLY=$(herdr agent prompt "$1" "$2" --wait --until working --until done \
+                   --timeout "$CHIEF_HERDR_SUBMIT_TIMEOUT_MS" 2>&1) || return 1
+  _chief_herdr_turn_started "$SUBMIT_REPLY" || return 2
+}
+
+# _chief_herdr_recover <id> <text> - after agent_prompt_stalled, decide from
+# the screen what became of <text>, polling up to CHIEF_HERDR_PROMPT_WAIT s:
+#   text or the paste placeholder shown -> it landed: a bare Enter if it still
+#     sits in the live input line; never a resend over it
+#   agent ready, none of it shown       -> it never arrived: resend once
+#   anything else (shell only, dialog)  -> not rendered yet, any text is queued
+#     in the pty: keep waiting, never resend
+# 0 only once the turn is observed started.
+_chief_herdr_recover() {
+  local id=$1 text=$2 needle screen waited=0 limit=$(( CHIEF_HERDR_PROMPT_WAIT * 2 ))
+  needle=$(printf '%s' "$text" | tr -s '[:space:]' ' ' | cut -c1-24)
+  while :; do
+    screen=$(_chief_herdr_screen "$id" detection)
+    if printf '%s' "$screen" | chief_agent_has_text "$needle"; then
+      if printf '%s\n' "$screen" | chief_agent_input_line | chief_agent_has_text "$needle"; then
+        herdr agent send-keys "$id" enter >/dev/null 2>&1
+      fi
+      herdr agent wait "$id" --until working --until done --timeout 15000 >/dev/null 2>&1
+      return
+    fi
+    if printf '%s' "$screen" | grep -Eq -- "$(agent_ready_text)"; then
+      _chief_herdr_submit "$id" "$text"
+      return
+    fi
+    [ "$waited" -lt "$limit" ] || return 1
+    sleep 0.5
+    waited=$((waited + 1))
+  done
+}
+
+# _chief_herdr_prompt <id> <text> - submit <text> and wait only for the turn to
+# START, not to finish; one recovery attempt after a stall, no further retry.
+_chief_herdr_prompt() {
+  local id=$1 text=$2 rc=0
+  _chief_herdr_submit "$id" "$text" || rc=$?
+  [ "$rc" != 0 ] || return 0
+  if [ "$rc" = 1 ]; then
+    [[ $SUBMIT_REPLY == *agent_prompt_stalled* ]] || {
+      echo "chief-backend-herdr: 'herdr agent prompt' failed for $id: $SUBMIT_REPLY" >&2
+      return 1
+    }
+    _chief_herdr_recover "$id" "$text" && return 0
   fi
-  # Distinguish a stall that's actually just an unanswered
-  # permission/approval prompt (nobody's present to answer it) from a
-  # genuinely wedged terminal - `agent get`'s state is `blocked` only for
-  # the former.
+  # A permission/approval prompt nobody is present to answer is not a wedged
+  # terminal - `agent get`'s state is `blocked` only for the former.
   if herdr agent get "$id" 2>/dev/null | jq -e '.result.agent.agent_status == "blocked"' >/dev/null; then
     echo "chief-backend-herdr: prompt for $id stalled at an unanswered permission/approval prompt - no one is present to answer it" >&2
   else
-    echo "chief-backend-herdr: prompt for $id stalled twice, giving up" >&2
+    echo "chief-backend-herdr: no turn started for $id after the prompt" >&2
   fi
   return 1
 }
@@ -130,10 +188,7 @@ backend_spawn() {
   pane_id=$(printf '%s' "$json" | jq -r '.result.root_pane.pane_id // empty')
   [ -n "$pane_id" ] || { echo "chief-backend-herdr: could not read pane id from: $json" >&2; return 1; }
 
-  _chief_herdr_start_agent "$id" "$pane_id" || {
-    echo "chief-backend-herdr: 'herdr agent start' did not become ready for $id (folder-trust dialog? Chief and the herdr server must share CLAUDE_CONFIG_DIR)" >&2
-    return 1
-  }
+  _chief_herdr_start_agent "$id" "$pane_id" "$worktree" || return 1
 
   _chief_herdr_prompt "$id" "$(cat "$brief_path")" || return 1
 
@@ -219,10 +274,7 @@ backend_relaunch() {
   pane_id=$(printf '%s' "$json" | jq -r '.result.root_pane.pane_id // empty')
   [ -n "$pane_id" ] || { echo "chief-backend-herdr: could not read pane id from: $json" >&2; return 1; }
 
-  _chief_herdr_start_agent "$id" "$pane_id" || {
-    echo "chief-backend-herdr: 'herdr agent start' did not become ready for $id (folder-trust dialog? Chief and the herdr server must share CLAUDE_CONFIG_DIR)" >&2
-    return 1
-  }
+  _chief_herdr_start_agent "$id" "$pane_id" "$worktree" || return 1
 
   _chief_herdr_prompt "$id" "$(cat "$brief_path")" || return 1
 

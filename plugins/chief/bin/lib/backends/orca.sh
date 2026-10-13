@@ -89,17 +89,10 @@ _chief_orca_start_ready() {
   return 1
 }
 
-# _chief_orca_has_text <needle> - stdin shows the needle or the agent's
-# placeholder for a long paste
-_chief_orca_has_text() {
-  local screen; screen=$(tr -s '[:space:]' ' ')
-  printf '%s' "$screen" | grep -qF -e "$1" || printf '%s' "$screen" | grep -qE "$(agent_paste_text)"
-}
-
 # _chief_orca_prompt <handle> <text> - submit <text> to <handle> and check the
 # screen: the text (or the agent's pasted-text placeholder) showing up means
-# it landed, and if it still sits in the live input line (the last line
-# starting with the agent's input marker) a bare Enter submits it; not landed
+# it landed. If it still sits in the live input line a bare Enter submits it,
+# and the prompt counts as sent only once it has left that line; not landed
 # within CHIEF_ORCA_PROMPT_WAIT seconds is resent once. Does NOT wait for the
 # turn to finish - a first turn on a large task can legitimately run long.
 _chief_orca_prompt() {
@@ -110,17 +103,30 @@ _chief_orca_prompt() {
     || { echo "chief-backend-orca: 'orca terminal send' failed for $handle" >&2; return 1; }
   while [ "$waited" -lt "$limit" ]; do
     screen=$(_chief_orca_screen "$handle")
-    if printf '%s' "$screen" | _chief_orca_has_text "$needle"; then
-      if printf '%s\n' "$screen" | grep -E "^[[:space:]]*($(agent_input_marker))" | tail -n1 | _chief_orca_has_text "$needle"; then
-        orca terminal send --terminal "$handle" --enter >/dev/null 2>&1
-      fi
-      return 0
+    if printf '%s' "$screen" | chief_agent_has_text "$needle"; then
+      printf '%s\n' "$screen" | chief_agent_input_line | chief_agent_has_text "$needle" || return 0
+      orca terminal send --terminal "$handle" --enter >/dev/null 2>&1
+      _chief_orca_wait_submitted "$handle" "$needle" && return 0
+      echo "chief-backend-orca: prompt for $handle still unsubmitted after Enter" >&2
+      return 1
     fi
     sleep 0.5
     waited=$((waited + 1))
   done
   orca terminal send --terminal "$handle" --text "$text" --enter --wait-submit 5 >/dev/null 2>&1 \
     || { echo "chief-backend-orca: 'orca terminal send' failed for $handle" >&2; return 1; }
+}
+
+# _chief_orca_wait_submitted <handle> <needle> - polls until the prompt has left
+# the live input line
+_chief_orca_wait_submitted() {
+  local handle=$1 needle=$2 waited=0
+  while [ "$waited" -lt $(( ${CHIEF_ORCA_PROMPT_WAIT:-20} * 2 )) ]; do
+    _chief_orca_screen "$handle" | chief_agent_input_line | chief_agent_has_text "$needle" || return 0
+    sleep 0.5
+    waited=$((waited + 1))
+  done
+  return 1
 }
 
 # _chief_orca_launch <worktree> <brief_path> -> creates a terminal in an

@@ -11,6 +11,9 @@
 #   agent_release <dir>    -> undo agent_prepare for <dir> (teardown, spawn rollback)
 #   agent_ready_text       -> screen text (egrep) meaning it is ready for a prompt
 #   agent_paste_text       -> screen text (egrep) it shows for a long pasted prompt
+#   agent_trust_text       -> screen text (egrep) of its folder-trust dialog
+#   agent_trust_keys       -> keys (herdr send-keys words) that accept that dialog
+#                             for a worktree Chief created; empty: never auto-accepted
 #   agent_input_marker     -> the glyph (egrep) its input line starts with
 # Backends run chief_agent_command: the task's command= if set, else agent_command.
 #
@@ -50,6 +53,17 @@ agent_require() {
   local exe; exe=$(chief_agent_command); exe=${exe%% *}
   command -v "$exe" >/dev/null || { echo "chief-agent: the '$exe' CLI is not installed" >&2; return 1; }
 }
+
+# chief_agent_has_text <needle> - stdin (a screen) shows the needle or the
+# agent's placeholder for a long pasted prompt
+chief_agent_has_text() {
+  local screen; screen=$(tr -s '[:space:]' ' ')
+  printf '%s' "$screen" | grep -qF -e "$1" || printf '%s' "$screen" | grep -qE "$(agent_paste_text)"
+}
+
+# chief_agent_input_line - stdin (a screen) -> its live input line: the last
+# one starting with the agent's input marker
+chief_agent_input_line() { grep -E "^[[:space:]]*($(agent_input_marker))" | tail -n1; }
 
 chief_agent_release() {  # <id> <dir> - agent_release with the task's adapter
   chief_agent_use "$1" && agent_release "$2"

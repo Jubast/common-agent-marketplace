@@ -46,7 +46,8 @@ mkdir -p "$WORK/project" "$WORK/bin"
 # $ORCA_MOCK_SCREEN_TEXT, the prompt sent via `terminal send --text` as
 # submitted history - unless $ORCA_MOCK_PROMPT_LANDS=0 (dropped until resent) or
 # $ORCA_MOCK_PROMPT_PENDING=1 (sits in the input line until a bare Enter) - and the
-# "bypass permissions on" status line unless $ORCA_MOCK_NO_BYPASS=1.
+# "bypass permissions on" status line unless $ORCA_MOCK_NO_BYPASS=1. $ORCA_MOCK_ENTER_LOST=1
+# makes a bare Enter register nothing.
 cat > "$WORK/bin/orca" <<'FAKE_ORCA'
 #!/usr/bin/env bash
 echo "$*" >> "$ORCA_MOCK_LOG"
@@ -111,7 +112,7 @@ case "$1 $2" in
     esac
     ;;
   "terminal send")
-    case "$*" in *--text*) ;; *--enter*) : > "$ORCA_MOCK_LOG.enter" ;; esac
+    case "$*" in *--text*) ;; *--enter*) [ "${ORCA_MOCK_ENTER_LOST:-0}" = "1" ] || : > "$ORCA_MOCK_LOG.enter" ;; esac
     case "$*" in *--text*)
       if [ "${ORCA_MOCK_PROMPT_LANDS:-1}" = "0" ] && [ ! -e "$ORCA_MOCK_LOG.sent1" ]; then : > "$ORCA_MOCK_LOG.sent1"; else : > "$ORCA_MOCK_LOG.resent"; fi
       printf '%s' "${*#*--text }" | sed 's/ --enter.*//' > "$ORCA_MOCK_LOG.prompt" ;; esac
@@ -315,6 +316,9 @@ rm -f "$ORCA_MOCK_LOG".{enter,resent,sent1}; : > "$ORCA_MOCK_LOG"
 ORCA_MOCK_PROMPT_PENDING=1 _chief_orca_prompt term_mock-1 "$(cat "$BRIEF")"
 assert_eq "$(grep -c -- '--text Reply with exactly' "$ORCA_MOCK_LOG")" "1" "a prompt sitting in the input line is not resent"
 assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal send --terminal term_mock-1 --enter" "a prompt sitting in the input line gets a bare Enter"
+rm -f "$ORCA_MOCK_LOG".{enter,resent,sent1}; : > "$ORCA_MOCK_LOG"
+ORCA_MOCK_PROMPT_PENDING=1 ORCA_MOCK_ENTER_LOST=1 CHIEF_ORCA_PROMPT_WAIT=1 _chief_orca_prompt term_mock-1 "$(cat "$BRIEF")" 2>/dev/null
+assert_eq "$?" "1" "a recovery Enter that leaves the prompt in the input line is a failed prompt"
 rm -f "$ORCA_MOCK_LOG".{enter,resent,sent1}
 
 # The first prompt waits for the agent's TUI on the rendered screen, not tui-idle.

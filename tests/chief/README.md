@@ -5,13 +5,13 @@ against the `mock` backend (`plugins/chief/bin/lib/backends/mock.sh`, a
 throwaway background process standing in for a real terminal session) - no
 `claude` CLI, zero tokens, safe anywhere. `test-backend-orca-mock.sh` is
 also zero-cost: it unit-tests `backends/orca.sh` against a fake `orca`
-CLI stub. `test-backend-herdr.sh` and `test-backend-orca.sh` are the two
-exceptions: each opts into a real herdr/orca install and a real claude turn
-- see below. (`backends/herdr.sh` has no fake-CLI mock test: its
-`agent_prompt_stalled` recovery depends on herdr's actual pane rendering,
-including quirks - like a dim placeholder hint filling an empty input box -
-a hand-written stub wouldn't reproduce, so it's covered by
-`test-backend-herdr.sh` against the real thing instead.)
+CLI stub, and `test-backend-herdr-mock.sh` does the same for
+`backends/herdr.sh` against a fake `herdr` fed screens captured from a live
+herdr and Claude Code (`fixtures/herdr/`), so herdr's rendering quirks - the
+trust dialog, the `[Pasted text #N +M lines]` placeholder, the bare shell line
+before the TUI renders - are real, not hand-written. `test-backend-herdr.sh`
+and `test-backend-orca.sh` are the two exceptions: each opts into a real
+herdr/orca install and a real claude turn - see below.
 
 ## Cleanup
 
@@ -51,7 +51,8 @@ JSON output (skipped gracefully if absent).
 | `test-handoff.sh` | `chief-spawn.sh --from` / `--dry-run` and `chief-promote.sh`: every role pair and rejection, the target role's agent (not the source's), `--agent` carry-over, lineage brief and framing, `from=`, source untouched, `--dry-run` without side effects |
 | `test-brainstormer.sh` | The brainstormer brief (explicit confirmation before `done`, out-of-scope list, no skill dependency, spec skeleton) and lifecycle, and `chief-spawn.sh` printing and recording `attach=` for it only |
 | `test-review.sh` | `chief-review.sh` (round 1 links and pinned SHA, round 2 archive/send/`working:` line/in-flight, every gate, stale or missing SHA, same-SHA refusal), the teardown cascade (done, refused, hand-removed worktree, reviewer alone), the builder/reviewer link in crew-state and the digest, watch (differing reviewer `done` wakes, identical suppressed), and the reviewer brief and builder lifecycle content |
-| `test-backend-herdr.sh` | `backends/herdr.sh` against a REAL herdr install and a real (trivial) claude turn: spawn, capture, busy, send, kill, relaunch, and `_chief_herdr_prompt_box_has_text` against real pane rendering (a placeholder-hint box and text genuinely in flight). **Not zero-cost** - opt in with `CHIEF_TEST_HERDR=1`; skips cleanly otherwise. See below. |
+| `test-backend-herdr-mock.sh` | `backends/herdr.sh` against a fake `herdr` CLI and live-captured screen fixtures: screen-based start readiness (shell-only, late TUI, `agent start` rc ignored), the folder-trust dialog (accepted once for Chief's own worktree, never for another folder or an agent without trust keys), `blocked` is not a started turn, stall recovery (Enter only over a landed placeholder or raw text, wait for a queued or already-submitted brief, one resend only when the box is empty and the TUI rendered, never over a shell-only screen), and `chief-spawn.sh` / `backend_relaunch` failing non-zero with rollback and no `spawned:` unless a turn started. Zero cost. |
+| `test-backend-herdr.sh` | `backends/herdr.sh` against a REAL herdr install and a real (trivial) claude turn: spawn, capture, busy, send, kill, relaunch, and the live-input-line check against real pane rendering (a placeholder-hint box and text genuinely in flight). **Not zero-cost** - opt in with `CHIEF_TEST_HERDR=1`; skips cleanly otherwise. See below. |
 | `test-backend-orca-mock.sh` | `backends/orca.sh`'s argument-building and JSON-parsing against a fake `orca` CLI stub: spawn via `worktree create` + `terminal create --command` + `terminal send` (repo registration, parent-worktree nesting, pre-trust, ready-screen check, rollback on every failure), `backend_spawn_cleanup` rollback, capture, busy, send, kill, `backend_teardown`, relaunch, and the real `chief-spawn`/`send`/`control`/`teardown` scripts end to end on the orca backend (herdr-parity flow). Zero cost. |
 | `test-backend-orca.sh` | `backends/orca.sh` against a REAL live Orca instance and real (trivial) claude turns, on a scratch repo: spawn (incl. repo registration and parent-worktree nesting), capture, busy, send, kill, relaunch, `backend_teardown`, `backend_spawn_cleanup`, then the real `chief-spawn`/`send`/`control` (interrupt, relaunch)/`crew-state`/`teardown` scripts end to end. **Not zero-cost** - opt in with `CHIEF_TEST_ORCA=1`; skips cleanly otherwise. See below. |
 
@@ -71,10 +72,9 @@ CHIEF_TEST_ORCA=1  bash tests/chief/test-backend-orca.sh
 `backends/herdr.sh` is verified against a live herdr 0.9.1 install -
 see its header for the real CLI shape and two confirmed quirks: Claude
 Code's first-run "trust this folder?" dialog, and `herdr agent prompt
---wait` reporting `agent_prompt_stalled` for either of two distinct
-failures (text delivered but Enter didn't register, or text never
-delivered at all) that `_chief_herdr_prompt` tells apart by checking
-whether the live input line already holds our own submitted text.
+--wait` reporting `agent_prompt_stalled` for distinct situations (text
+delivered but Enter didn't register, text never delivered, TUI not yet
+rendered) that `_chief_herdr_recover` tells apart from the screen.
 
 `backends/orca.sh` runs on a throwaway scratch repo like herdr's: `backend_spawn`
 registers it with Orca (`orca repo add`) and tasks nest under its main

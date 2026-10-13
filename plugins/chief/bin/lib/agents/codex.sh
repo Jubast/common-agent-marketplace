@@ -12,5 +12,8 @@ agent_release() { :; }
 agent_ready_text() { echo 'context left'; }
 # verified: string in the codex binary
 agent_paste_text() { echo '\[Pasted Content'; }
+# assumed: not confirmed against a running codex
+agent_trust_text() { echo 'trust the contents of this directory'; }
+agent_trust_keys() { :; }
 # assumed: the glyph is in the binary, its use as the input prompt is not confirmed
 agent_input_marker() { echo '›'; }
