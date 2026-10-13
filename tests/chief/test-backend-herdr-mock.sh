@@ -38,7 +38,7 @@ case "$1 $2" in
   "worktree open")   echo '{"result":{"root_pane":{"pane_id":"w9:p1"}}}' ;;
   "workspace list")  echo '{"result":{"workspaces":[]}}' ;;
   "workspace close") ;;
-  "agent start")     n=$(bump start); if [ -f "$FAKE/start.json" ]; then reply start $n; exit $?; fi
+  "agent start")     n=$(bump start); if [ -f "$FAKE/start.json" ] || [ -f "$FAKE/start.$n.json" ]; then reply start $n; exit $?; fi
                      echo '{"result":{"agent":{"agent_status":"idle","interactive_ready":true}}}' ;;
   "agent prompt")    n=$(bump prompt); [ -f "$FAKE/prompt.$n.screen" ] && cp "$FAKE/prompt.$n.screen" "$FAKE/screen"; reply prompt $n; exit $? ;;
   "agent read")      n=$(bump read); if [ -f "$FAKE/screen.$n" ]; then cat "$FAKE/screen.$n"; else cat "$FAKE/screen" 2>/dev/null; fi ;;
@@ -84,6 +84,15 @@ assert_eq "$(( $(count 'agent read') >= 3 ))" "1" "...having polled the screen"
 reset; echo "$NOT_READY" > "$FAKE/start.json"; echo 1 > "$FAKE/start.rc"; cp "$FX/screen-ready.txt" "$FAKE/screen"
 _chief_herdr_start_agent t1 w9:p1 "$WT" >/dev/null 2>&1
 assert_eq "$?" "0" "'agent start' reporting agent_not_ready does not decide: the screen does"
+BUSY='{"error":{"code":"agent_pane_busy","message":"agent target pane w9:p1 is not an available shell"}}'
+reset; echo "$BUSY" > "$FAKE/start.1.json"; echo 1 > "$FAKE/start.1.rc"; cp "$FX/screen-ready.txt" "$FAKE/screen"
+_chief_herdr_start_agent t1 w9:p1 "$WT" >/dev/null 2>&1
+assert_eq "$?" "0" "a pane whose shell is not up yet (agent_pane_busy) is retried"
+assert_eq "$(count 'agent start')" "2" "...once it is up, started once more"
+reset; echo "$BUSY" > "$FAKE/start.json"; echo 1 > "$FAKE/start.rc"
+err=$(_chief_herdr_start_agent t1 w9:p1 "$WT" 2>&1 >/dev/null); rc=$?
+assert_eq "$rc" "1" "a pane that stays busy fails after the wait"
+assert_contains "$err" "agent_pane_busy" "...with herdr's error"
 reset; echo '{"error":{"code":"unknown_kind"}}' > "$FAKE/start.json"; echo 1 > "$FAKE/start.rc"
 err=$(_chief_herdr_start_agent t1 w9:p1 "$WT" 2>&1 >/dev/null); rc=$?
 assert_eq "$rc" "1" "any other 'agent start' failure fails at once"

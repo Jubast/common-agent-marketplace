@@ -84,11 +84,17 @@ _chief_herdr_start_agent() {
   local limit=$(( CHIEF_HERDR_START_WAIT * 2 ))
   cmd=$(chief_agent_command)
   [[ $cmd != *' '* ]] || args=${cmd#* }  # herdr runs the agent's own executable: pass the words after the first
-  out=$(herdr agent start "$id" --kind "$(agent_name)" --pane "$pane_id" --timeout 30000 \
-          -- $args 2>&1) || [[ $out == *agent_not_ready* ]] || {
-    echo "chief-backend-herdr: 'herdr agent start' failed for $id: $out" >&2
-    return 1
-  }
+  # agent_pane_busy: the pane's shell isn't up yet (slow host); nothing started, so retry
+  until out=$(herdr agent start "$id" --kind "$(agent_name)" --pane "$pane_id" --timeout 30000 \
+                -- $args 2>&1) || [[ $out == *agent_not_ready* ]]; do
+    [[ $out == *agent_pane_busy* ]] && [ "$waited" -lt "$limit" ] || {
+      echo "chief-backend-herdr: 'herdr agent start' failed for $id: $out" >&2
+      return 1
+    }
+    sleep 0.5
+    waited=$((waited + 1))
+  done
+  waited=0
   while :; do
     screen=$(_chief_herdr_screen "$id")
     printf '%s' "$screen" | grep -Eq -- "$(agent_ready_text)" && return 0
