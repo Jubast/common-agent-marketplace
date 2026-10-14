@@ -9,7 +9,7 @@ CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
 
 CHIEF_HOME=$(mktemp -d)
 trap 'rm -rf "$CHIEF_HOME"' EXIT
-. "$CHIEF_BIN/lib/layout.sh"
+. "$CHIEF_BIN/lib/paths.sh"
 . "$CHIEF_BIN/lib/meta.sh"
 
 echo "test-meta:"

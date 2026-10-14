@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # meta.sh - read/write a task's flat key=value record, tasks/<id>/meta.
-# Sourced by scripts that already sourced paths.sh (or layout.sh).
+# Sourced by scripts that already sourced paths.sh.
 #
 # A meta file is one key=value pair per line, no quoting, no nesting.
 # That's the whole format - deliberately too simple to need a parser.

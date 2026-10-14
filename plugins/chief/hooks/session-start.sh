@@ -8,21 +8,18 @@ set -euo pipefail
 CHIEF_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../bin/lib/worktree.sh
 . "$CHIEF_PLUGIN_ROOT/bin/lib/worktree.sh"
-# shellcheck source=../bin/lib/home.sh
-. "$CHIEF_PLUGIN_ROOT/bin/lib/home.sh"
 
 if chief_is_linked_worktree; then
   echo '{}'
   exit 0
 fi
 
-CHIEF_HOME="${CHIEF_HOME:-$(chief_default_home)}"
+# shellcheck source=../bin/lib/paths.sh
+. "$CHIEF_PLUGIN_ROOT/bin/lib/paths.sh"
 
-SKILL_FILE="$CHIEF_PLUGIN_ROOT/skills/using-chief/SKILL.md"
+SKILL_FILE="$CHIEF_ROOT/skills/using-chief/SKILL.md"
 [ -f "$SKILL_FILE" ] || { echo '{}'; exit 0; }
 
-# shellcheck source=../bin/lib/layout.sh
-. "$CHIEF_PLUGIN_ROOT/bin/lib/layout.sh"
 # shellcheck source=../bin/lib/meta.sh
 . "$CHIEF_PLUGIN_ROOT/bin/lib/meta.sh"
 BACKEND_CONFIG="$CONFIG/backend"

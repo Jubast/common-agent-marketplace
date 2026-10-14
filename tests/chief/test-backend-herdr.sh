@@ -114,6 +114,7 @@ git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
 
 export CHIEF_HOME="$WORK/.chief"
 . "$CHIEF_BIN/lib/paths.sh"
+chief_ensure_dirs
 . "$CHIEF_BIN/lib/meta.sh"
 . "$CHIEF_BIN/lib/agents/agent.sh"
 . "$CHIEF_BIN/lib/backends/herdr.sh"

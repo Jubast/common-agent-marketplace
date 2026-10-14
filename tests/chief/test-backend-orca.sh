@@ -193,6 +193,7 @@ trap 'exit 129' HUP
 
 export CHIEF_HOME="$WORK/.chief"
 . "$CHIEF_BIN/lib/paths.sh"
+chief_ensure_dirs
 . "$CHIEF_BIN/lib/meta.sh"
 . "$CHIEF_BIN/lib/agents/agent.sh"
 . "$CHIEF_BIN/lib/backends/orca.sh"

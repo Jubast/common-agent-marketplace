@@ -155,6 +155,7 @@ mkdir -p "$ORCA_MOCK_WORKTREES"
 export CHIEF_ORCA_PROMPT_WAIT=1 CHIEF_ORCA_START_WAIT=1
 export CHIEF_HOME="$WORK/.chief"
 . "$CHIEF_BIN/lib/paths.sh"
+chief_ensure_dirs
 . "$CHIEF_BIN/lib/meta.sh"
 . "$CHIEF_BIN/lib/agents/agent.sh"
 . "$CHIEF_BIN/lib/backends/orca.sh"

@@ -40,7 +40,7 @@ assert_contains "$(cat "$LIFECYCLE")" "- [ ] filed" "spawn: the builder lifecycl
 
 CFG="$CLAUDE_CONFIG_DIR/.claude.json"
 assert_eq "$(jq -r --arg p "$CHIEF_HOME/worktrees/t-1" '.projects[$p].hasTrustDialogAccepted' "$CFG")" "true" "spawn: the task's worktree is pre-trusted"
-. "$BIN/lib/layout.sh"; . "$BIN/lib/meta.sh"
+. "$BIN/lib/paths.sh"; . "$BIN/lib/meta.sh"
 assert_eq "$(chief_meta_get t-1 agent)" "claude" "spawn: the default agent is recorded in meta"
 
 rm -f "$CFG"

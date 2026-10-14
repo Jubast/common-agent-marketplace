@@ -61,6 +61,7 @@ dialog_for() {
 }
 
 . "$CHIEF_BIN/lib/paths.sh"; . "$CHIEF_BIN/lib/meta.sh"; . "$CHIEF_BIN/lib/agents/agent.sh"
+chief_ensure_dirs
 . "$CHIEF_BIN/lib/backends/herdr.sh"
 chief_agent_use t1 >/dev/null 2>&1
 WT="$WORK/chief/worktrees/t1"
