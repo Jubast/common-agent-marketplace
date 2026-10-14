@@ -3,15 +3,14 @@
 # Sourced by scripts that already sourced paths.sh and meta.sh.
 
 # chief_task_workspace <id> -> the backend's name for the task's workspace.
-# herdr records it as label= at spawn; older herdr tasks were chief-<id>, Orca's
-# worktree is named <id>. Prints nothing when the backend has none (mock).
+# herdr records it as label= at spawn, Orca's worktree is named <id>. Prints
+# nothing when the backend has none (mock).
 chief_task_workspace() {
   local id=$1 label endpoint
   label=$(chief_meta_get "$id" label 2>/dev/null || true)
   if [ -z "$label" ]; then
     endpoint=$(chief_meta_get "$id" endpoint 2>/dev/null || true)
     case "$endpoint" in
-      herdr:*) label="chief-$id" ;;
       orca:*) label=$id ;;
     esac
   fi

@@ -28,12 +28,12 @@ chief_meta_set() {
   mv "$tmp" "$file"
 }
 
-# chief_meta_agent <id> -> agent[:model]; claude for a task that predates agents.
+# chief_meta_agent <id> -> agent[:model]
 chief_meta_agent() {
   local agent model
   agent=$(chief_meta_get "$1" agent 2>/dev/null) || agent=""
   model=$(chief_meta_get "$1" model 2>/dev/null) || model=""
-  printf '%s%s' "${agent:-claude}" "${model:+:$model}"
+  printf '%s%s' "$agent" "${model:+:$model}"
 }
 
 # chief_meta_exists <id>

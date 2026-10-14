@@ -73,11 +73,6 @@ backend_send() {
   echo "[mock] send: $text" >> "$(chief_task_path "$id" term.log)"
 }
 
-backend_capture() {
-  local id=$1
-  cat "$(chief_task_path "$id" term.log)" 2>/dev/null
-}
-
 backend_busy() {
   local id=$1
   local pid

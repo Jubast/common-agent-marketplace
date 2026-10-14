@@ -62,6 +62,7 @@ chief_task_path() {
 
 # chief_task_archive <id> -> moves the task's folder into $ARCHIVE.
 chief_task_archive() {
+  [ -d "$TASKS/$1" ] || return 0
   mkdir -p "$ARCHIVE"
   mv "$TASKS/$1" "$ARCHIVE/$1"
 }

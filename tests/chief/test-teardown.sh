@@ -137,16 +137,12 @@ git -C "$WORK/project" merge --ff-only feat/b-4 >/dev/null
 assert_success "teardown: a landed builder deletes its now-merged remote branch" -- "$BIN/chief-teardown.sh" b-4
 assert_eq "$(git -C "$BARE" branch --list feat/b-4)" "" "teardown: remote branch feat/b-4 deleted from origin"
 
-# --- a brainstormer discards like a researcher; an unknown mode refuses ---
+# --- a brainstormer discards like a researcher ---
 assert_success "spawn: brainstormer task" -- \
   timeout 10 "$BIN/chief-spawn.sh" bs-1 "$WORK/project" --mode brainstormer --branch feat/bs-1 --intent x
 assert_success "teardown: a brainstormer discards unconditionally" -- "$BIN/chief-teardown.sh" bs-1
-assert_success "spawn: a task to give a legacy mode" -- \
-  timeout 10 "$BIN/chief-spawn.sh" lg-1 "$WORK/project" --mode builder --branch feat/lg-1 --intent x
-sed -i 's/^mode=.*/mode=ship/' "$CHIEF_HOME/tasks/lg-1/meta"
-assert_failure "teardown: a legacy mode=ship task is refused, not silently discarded" -- "$BIN/chief-teardown.sh" lg-1
-assert_file_exists "$CHIEF_HOME/worktrees/lg-1" "teardown refusal: legacy worktree is untouched"
-assert_success "teardown: --abandon still clears a legacy task" -- "$BIN/chief-teardown.sh" lg-1 --abandon
+assert_contains "$("$BIN/chief-teardown.sh" bs-1)" "torn down: bs-1" "teardown: re-running on an archived task completes"
+assert_file_exists "$CHIEF_HOME/archive/bs-1/meta" "teardown: the re-run leaves the archive in place"
 
 # --- teardown releases the task's pre-trusted worktree -------------------
 export CHIEF_HOME="$WORK/.chief-trust"

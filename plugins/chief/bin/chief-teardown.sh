@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # chief-teardown.sh - kills the terminal, removes the worktree, marks the
-# backlog item done and archives the task's folder. A BUILDER task refuses unless its branch has landed on the
-# default branch, unless --abandon force-discards it. Any other role discards
-# unconditionally - its deliverable is the report at tasks/<id>/report.md,
+# backlog item done and archives the task's folder. A BUILDER task refuses
+# unless its branch has landed on the default branch, unless --abandon
+# force-discards it. Any other role discards unconditionally - its deliverable is the report at tasks/<id>/report.md,
 # outside the worktree, untouched either way.
 #
 # Discard also best-effort deletes the remote branch: a backstop for when
@@ -68,7 +68,6 @@ case "$MODE" in
   researcher|reviewer|brainstormer)
     _chief_discard "$MODE, discarded - its deliverable is the report, not this worktree"
     exit 0 ;;
-  *) [ "$ABANDON" -eq 1 ] || fail "task $ID has unknown mode '${MODE:-none}' - tear it down with --abandon" ;;
 esac
 
 if [ "$ABANDON" -eq 1 ]; then

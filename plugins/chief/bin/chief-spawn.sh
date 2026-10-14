@@ -18,7 +18,6 @@
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
-chief_ensure_dirs
 . "$CHIEF_ROOT/bin/lib/meta.sh"
 . "$CHIEF_ROOT/bin/lib/backends/backend.sh"
 . "$CHIEF_ROOT/bin/lib/git-sync.sh"
@@ -107,6 +106,7 @@ chief_meta_exists "$ID" && fail "task $ID already has a meta record - use a fres
 # `set -C` (noclobber) makes the create-if-absent atomic; the trap releases
 # it on any exit, success or failure.
 if [ "$DRY_RUN" -eq 0 ]; then
+  chief_ensure_dirs
   LOCK=$(chief_task_path "$ID" spawning)
   mkdir -p "$(dirname "$LOCK")"
   ( set -C; : > "$LOCK" ) 2>/dev/null || fail "task $ID is already being spawned (lock $LOCK exists)"

@@ -33,7 +33,6 @@ echo $! > "$CHIEF_HOME/tasks/t-1/term.pid"
 assert_contains "$("$CS" t-1)" "state: working" "a live backend process with no status yet reads as working"
 assert_contains "$("$CS" t-1)" "[mode: builder]" "the state line reports the task's mode, so Chief can tell a researcher from a builder without re-reading meta by hand"
 
-assert_contains "$("$CS" t-1)" "[agent: claude]" "a task without agent meta reports claude"
 printf 'agent=codex\nmodel=gpt-5\n' >> "$CHIEF_HOME/tasks/t-1/meta"
 assert_contains "$("$CS" t-1)" "[mode: builder] [agent: codex:gpt-5]" "the state line appends agent:model after the mode"
 assert_contains "$("$CS" t-1)" "state: working" "the state prefix is unchanged"

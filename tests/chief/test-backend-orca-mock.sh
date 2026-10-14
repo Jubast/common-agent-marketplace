@@ -159,6 +159,7 @@ chief_ensure_dirs
 . "$CHIEF_BIN/lib/meta.sh"
 . "$CHIEF_BIN/lib/agents/agent.sh"
 . "$CHIEF_BIN/lib/backends/orca.sh"
+capture() { _chief_orca_screen "$(_chief_orca_handle "$1")"; }
 
 ID=t-orca-1
 BRANCH="chief/$ID"
@@ -214,9 +215,9 @@ chief_meta_set "$ID" endpoint "$ENDPOINT"
 chief_meta_set "$ID" worktree "$WORKTREE"
 chief_meta_set "$ID" project "$WORK/project"
 
-CAPTURE=$(backend_capture "$ID")
-assert_contains "$CAPTURE" "bypass permissions on" "backend_capture returns the rendered screen's lines"
-assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal read --terminal term_mock-1 --screen --json" "backend_capture reads the rendered screen, not the raw stream"
+CAPTURE=$(capture "$ID")
+assert_contains "$CAPTURE" "bypass permissions on" "capture returns the rendered screen's lines"
+assert_contains "$(cat "$ORCA_MOCK_LOG")" "terminal read --terminal term_mock-1 --screen --json" "capture reads the rendered screen, not the raw stream"
 
 : > "$ORCA_MOCK_LOG"
 ORCA_MOCK_BUSY=0 backend_busy "$ID"

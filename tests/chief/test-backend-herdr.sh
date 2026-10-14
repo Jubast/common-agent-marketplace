@@ -118,6 +118,7 @@ chief_ensure_dirs
 . "$CHIEF_BIN/lib/meta.sh"
 . "$CHIEF_BIN/lib/agents/agent.sh"
 . "$CHIEF_BIN/lib/backends/herdr.sh"
+capture() { herdr agent read "$1" --source recent-unwrapped --lines 200 2>/dev/null; }
 
 BRIEF="$WORK/brief.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF"
@@ -177,8 +178,8 @@ git -C "$WORK/project" worktree remove --force "$WORKTREE2" >/dev/null 2>&1 || t
 git -C "$WORK/project" branch -D "chief/$ID2" >/dev/null 2>&1 || true
 
 wait_for_idle "$ID"
-CAPTURE=$(backend_capture "$ID")
-assert_contains "$CAPTURE" "ok" "backend_capture shows the claude reply"
+CAPTURE=$(capture "$ID")
+assert_contains "$CAPTURE" "ok" "the pane shows the claude reply"
 assert_contains "$CAPTURE" "bypass permissions" "backend_spawn starts the worker with bypass permissions on"
 
 backend_busy "$ID"
@@ -211,7 +212,7 @@ wait "$PROMPT_PID"
 assert_eq "$CAUGHT" "1" "the input-line check catches our own text while genuinely in flight"
 
 wait_for_idle "$ID"
-CAPTURE2=$(backend_capture "$ID")
+CAPTURE2=$(capture "$ID")
 assert_contains "$CAPTURE2" "done" "the raced-in prompt still completed normally"
 
 assert_success "backend_send delivers a special key without erroring" -- backend_send "$ID" Escape
@@ -237,8 +238,8 @@ assert_eq "$(_linked_ws_count "$WORK/project")" "1" "backend_relaunch opens the 
 assert_eq "$(_ws_label "$(_chief_herdr_workspace_id "${NEW_ENDPOINT#herdr:}")")" "$ID · builder · project" "backend_relaunch keeps the <id> · <role> · <project> label"
 
 wait_for_idle "$ID"
-RELAUNCH_CAPTURE=$(backend_capture "$ID")
-assert_contains "$RELAUNCH_CAPTURE" "ok" "backend_capture shows the relaunched claude's reply"
+RELAUNCH_CAPTURE=$(capture "$ID")
+assert_contains "$RELAUNCH_CAPTURE" "ok" "the pane shows the relaunched claude's reply"
 
 backend_kill "$ID"
 assert_eq "$(_linked_ws_count "$WORK/project")" "0" "no task workspace remains after all tasks are killed"

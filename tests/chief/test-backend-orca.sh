@@ -68,7 +68,7 @@ wait_for_idle() {  # <id> [timeout-s]
 wait_capture() {  # <id> <text> [timeout-s] - the task's screen shows <text> (a transient hint can cover it briefly)
   local id=$1 text=$2 timeout=${3:-20} waited=0
   while [ "$waited" -lt "$timeout" ]; do
-    backend_capture "$id" | grep -qF -- "$text" && return 0
+    capture "$id" | grep -qF -- "$text" && return 0
     sleep 1
     waited=$((waited + 1))
   done
@@ -197,6 +197,7 @@ chief_ensure_dirs
 . "$CHIEF_BIN/lib/meta.sh"
 . "$CHIEF_BIN/lib/agents/agent.sh"
 . "$CHIEF_BIN/lib/backends/orca.sh"
+capture() { _chief_orca_screen "$(_chief_orca_handle "$1")"; }
 
 BRIEF="$WORK/brief.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF"
@@ -231,8 +232,8 @@ CURRENT_BRANCH=$(git -C "$WORKTREE" rev-parse --abbrev-ref HEAD 2>/dev/null)
 assert_eq "$CURRENT_BRANCH" "$BRANCH" "the worktree is on the exact chief/<id> branch, renamed from Orca's own"
 
 wait_for_idle "$ID"
-CAPTURE=$(backend_capture "$ID")
-assert_contains "$CAPTURE" "ok" "backend_capture shows the claude reply"
+CAPTURE=$(capture "$ID")
+assert_contains "$CAPTURE" "ok" "the pane shows the claude reply"
 wait_capture "$ID" "bypass permissions"
 assert_eq "$?" "0" "backend_spawn starts the worker with bypass permissions on"
 
@@ -261,8 +262,8 @@ assert_contains "$NEW_ENDPOINT" "orca:" "backend_relaunch records a fresh orca e
 assert_eq "$?" "0" "backend_relaunch's endpoint differs from the original terminal"
 
 wait_for_idle "$ID"
-RELAUNCH_CAPTURE=$(backend_capture "$ID")
-assert_contains "$RELAUNCH_CAPTURE" "ok" "backend_capture shows the relaunched claude's reply"
+RELAUNCH_CAPTURE=$(capture "$ID")
+assert_contains "$RELAUNCH_CAPTURE" "ok" "the pane shows the relaunched claude's reply"
 
 backend_kill "$ID"
 
@@ -328,7 +329,7 @@ assert_eq "$(_child_count)" "1" "the main worktree has exactly the one task unde
 wait_for_status "done" 180
 assert_eq "$?" "0" "the builder reports done through its status file"
 wait_for_idle "$E2E"
-assert_contains "$(backend_capture "$E2E")" "ok" "backend_capture shows the builder's real reply"
+assert_contains "$(capture "$E2E")" "ok" "the pane shows the builder's real reply"
 wait_capture "$E2E" "bypass permissions"
 assert_eq "$?" "0" "the builder runs in bypass-permissions mode"
 assert_contains "$("$CHIEF_BIN/task/chief-crew-state.sh" "$E2E" 2>&1)" "state: done" "chief-crew-state.sh reports done"

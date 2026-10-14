@@ -233,11 +233,6 @@ backend_send() {
   esac >/dev/null
 }
 
-backend_capture() {
-  local id=$1
-  herdr agent read "$id" --source recent-unwrapped --lines 200 2>/dev/null
-}
-
 # The pane id in the endpoint names the workspace; its label is recorded as label=.
 backend_attach_hint() {
   local pane_id

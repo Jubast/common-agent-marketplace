@@ -134,4 +134,11 @@ assert_file_missing "$CHIEF_HOME/tasks/t-fail/spawning" \
 assert_file_missing "$CHIEF_HOME/tasks/t-locked/spawning" \
   "spawn: lock released via trap after a successful spawn"
 
+# --- --dry-run and usage errors create nothing, not even the empty dirs ---
+FRESH="$WORK/fresh/.chief"
+assert_success "spawn: --dry-run on a fresh home" -- \
+  env CHIEF_HOME="$FRESH" "$BIN/chief-spawn.sh" t-dry "$WORK/project" --mode builder --branch feat/t-dry --intent x --dry-run
+assert_failure "spawn: a usage error on a fresh home" -- env CHIEF_HOME="$FRESH" "$BIN/chief-spawn.sh"
+assert_file_missing "$FRESH" "spawn: a dry run or usage error creates no .chief"
+
 harness_summary

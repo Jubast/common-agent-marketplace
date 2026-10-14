@@ -13,7 +13,6 @@
 set -euo pipefail
 
 CHIEF_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WATCH="$CHIEF_PLUGIN_ROOT/bin/chief-watch.sh"
 # shellcheck source=../bin/lib/worktree.sh
 . "$CHIEF_PLUGIN_ROOT/bin/lib/worktree.sh"
 
@@ -29,6 +28,8 @@ chief_is_linked_worktree && exit 0
 # No CHIEF_HOME at all -> Chief isn't in use here; let the
 # turn end normally rather than creating one just to watch nothing.
 [ -d "$STATE" ] || exit 0
+
+WATCH="$CHIEF_ROOT/bin/chief-watch.sh"
 
 REASON=$("$WATCH" 2>&1) || true
 

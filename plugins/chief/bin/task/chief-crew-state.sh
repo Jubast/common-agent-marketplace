@@ -23,7 +23,7 @@ set -euo pipefail
 . "$CHIEF_ROOT/bin/lib/meta.sh"
 . "$CHIEF_ROOT/bin/lib/backends/backend.sh"
 
-STALE_AFTER_SECS="${CHIEF_STALE_AFTER_SECS:-120}"
+STALE_AFTER_SECS=120
 
 fail() { echo "chief-crew-state: $*" >&2; exit 1; }
 

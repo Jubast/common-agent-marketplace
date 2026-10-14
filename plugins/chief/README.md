@@ -21,7 +21,7 @@ Spawn syncs the project's default branch from origin (best-effort), then creates
 
 ## Naming
 
-Task ids read `<role>-<topic>` (`build-rate-limit`, `research-auth-flow`; a reviewer is `<builder-id>-review`); herdr labels a task's workspace `<id> · <role> · <project>` (recorded as `label=` in meta; earlier tasks keep `chief-<id>`), Orca names the worktree `<id>`. `chief-backlog.sh show <id>` prints a task's workspace, branch, worktree, brief and report paths.
+Task ids read `<role>-<topic>` (`build-rate-limit`, `research-auth-flow`; a reviewer is `<builder-id>-review`); herdr labels a task's workspace `<id> · <role> · <project>` (recorded as `label=` in meta), Orca names the worktree `<id>`. `chief-backlog.sh show <id>` prints a task's workspace, branch, worktree, brief and report paths.
 
 ## Agents
 
@@ -104,7 +104,7 @@ Each backend pre-accepts the agent's folder-trust dialog before a worker starts,
 
 ## Status
 
-Core lifecycle (backlog, spawn, send, control/relaunch, crew-state, watch, teardown, merge, handoff) is implemented and tested end-to-end against a mock backend. The **herdr adapter** (`bin/lib/backends/herdr.sh`) is verified against a live herdr 0.9.0 install - spawn/capture/busy/send/kill/relaunch all exercised end to end with a real `claude` turn in `tests/chief/test-backend-herdr.sh` (opt-in, `CHIEF_TEST_HERDR=1`) and against a fake `herdr` with live-captured screens in `tests/chief/test-backend-herdr-mock.sh`. The **Orca adapter** (`bin/lib/backends/orca.sh`) follows the same flow - bypass-permissions launch, spawn rollback, relaunch, teardown - verified live in `tests/chief/test-backend-orca.sh` (opt-in, `CHIEF_TEST_ORCA=1`; adapter functions plus the real spawn/send/control/crew-state/teardown scripts) and against a fake `orca` CLI in `tests/chief/test-backend-orca-mock.sh`.
+Core lifecycle (backlog, spawn, send, control/relaunch, crew-state, watch, teardown, merge, handoff) is implemented and tested end-to-end against a mock backend. The **herdr adapter** (`bin/lib/backends/herdr.sh`) is verified against a live herdr 0.9.0 install - spawn/busy/send/kill/relaunch all exercised end to end with a real `claude` turn in `tests/chief/test-backend-herdr.sh` (opt-in, `CHIEF_TEST_HERDR=1`) and against a fake `herdr` with live-captured screens in `tests/chief/test-backend-herdr-mock.sh`. The **Orca adapter** (`bin/lib/backends/orca.sh`) follows the same flow - bypass-permissions launch, spawn rollback, relaunch, teardown - verified live in `tests/chief/test-backend-orca.sh` (opt-in, `CHIEF_TEST_ORCA=1`; adapter functions plus the real spawn/send/control/crew-state/teardown scripts) and against a fake `orca` CLI in `tests/chief/test-backend-orca-mock.sh`.
 
 PR provider adapters: **GitHub** is implemented and tested against a fake `gh` CLI, including inline (file:line) review comments. **GitLab and Azure DevOps are fully implemented but their `pr_review_line` (inline comments) is an unverified draft**, same status as the Orca backend - built from each provider's documented API shape, not run against a live `glab`/`az` install; each adapter's header comment lists exactly what needs confirming.
 
