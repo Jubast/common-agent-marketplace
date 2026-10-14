@@ -166,6 +166,7 @@ RB=$(cat "$TEMPLATES/brief-reviewer.md")
 for item in "Matches intent" "Code and comment quality" "Checks run clean" "No debris" "Scope discipline" "Project docs addressed" "Doc quality" "Commit conventions"; do
   assert_contains "$RB" "**$item.**" "reviewer brief: checklist item $item"
 done
+assert_contains "$RB" "if one covers commit messages (e.g. \`conventional-commits\`), load it" "reviewer brief: item 8 loads an installed commit-convention skill"
 assert_contains "$RB" "Run the project's own check command" "reviewer brief: item 3 runs the project's checks"
 assert_contains "$RB" "git reset --hard && git clean -fd" "reviewer brief: resets the scratch worktree"
 assert_contains "$RB" "git switch --detach <sha>" "reviewer brief: detaches at the pinned SHA"
@@ -179,7 +180,7 @@ assert_contains "$RB" "working: round N" "reviewer brief: working status line"
 assert_contains "$RB" "A FAIL verdict is still \`done\`" "reviewer brief: FAIL is done, failed means incomplete"
 assert_contains "$RB" "never push, post, comment, merge or edit project files" "reviewer brief: read-only toward everything else"
 assert_contains "$RB" "AI-attribution trailer is a FAIL" "reviewer brief: attribution is a FAIL"
-assert_not_contains "$(tr A-Z a-z <<< "$RB")" "skill" "reviewer brief: no skill dependency"
+assert_not_contains "$(tr A-Z a-z <<< "$RB")" "superpowers" "reviewer brief: no dependency on a named skill pack"
 assert_not_contains "$(sed 's/CLAUDE\.md//g' <<< "$RB" | tr A-Z a-z)" "claude" "reviewer brief: agent-neutral wording"
 for ph in TASK SPEC BRANCH REPORT_FILE STATUS_FILE TURN_FILE INBOX_DIR; do
   assert_not_contains "$(cat "$TASKS/rv-1/brief.md")" "{$ph}" "reviewer brief: no unfilled {$ph}"
