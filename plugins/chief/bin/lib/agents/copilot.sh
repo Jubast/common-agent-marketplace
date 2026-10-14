@@ -8,8 +8,8 @@ agent_name() { echo copilot; }
 agent_command() { echo "copilot --allow-all${CHIEF_AGENT_MODEL:+ --model $CHIEF_AGENT_MODEL}${CHIEF_AGENT_ARGS:+ $CHIEF_AGENT_ARGS}"; }
 agent_prepare() { :; }
 agent_release() { :; }
-# assumed: not confirmed against a running copilot
-agent_ready_text() { echo 'for commands|for shortcuts'; }
+# verified against copilot 1.0.97 (footer shows 'Interactive · Allow All')
+agent_ready_text() { echo 'Allow All|for commands|for shortcuts'; }
 # assumed
 agent_paste_text() { echo '\[Pasted'; }
 # assumed

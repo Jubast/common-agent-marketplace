@@ -42,6 +42,10 @@ for a in codex copilot; do
   assert_success "$a: agent_require passes when the CLI exists" -- agent_require
 done
 
+chief_agent_use n-copilot
+assert_success "copilot: ready text matches the 1.0.97 footer" -- bash -c "echo 'Interactive · Allow All' | grep -Eq '$(agent_ready_text)'"
+assert_success "copilot: ready text still matches the old texts" -- bash -c "echo 'for commands' | grep -Eq '$(agent_ready_text)' && echo 'for shortcuts' | grep -Eq '$(agent_ready_text)'"
+
 # herdr starts the task's own kind with its args (and a command override's args).
 mkdir "$WORK/bin"
 printf '#!/bin/sh\necho "$*" >> "%s"\n' "$WORK/herdr.log" > "$WORK/bin/herdr"; chmod +x "$WORK/bin/herdr"
