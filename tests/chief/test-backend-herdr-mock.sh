@@ -190,12 +190,12 @@ mkproj; reset; cp "$FX/screen-ready.txt" "$FAKE/screen"; echo "$BLOCKED" > "$FAK
 out=$(spawn s1); rc=$?
 assert_eq "$((rc != 0))" "1" "a dialog and a 'blocked' reply -> non-zero"
 assert_not_contains "$out" "spawned:" "...no 'spawned:' line"
-assert_file_missing "$CHIEF_HOME/state/s1.meta" "...rolled back, no meta left"
+assert_file_missing "$CHIEF_HOME/tasks/s1/meta" "...rolled back, no meta left"
 mkproj; reset; cp "$FX/screen-shell-only.txt" "$FAKE/screen"
 out=$(spawn s3); rc=$?
 assert_eq "$((rc != 0))" "1" "a pane that never renders -> non-zero"
 assert_not_contains "$out" "spawned:" "...no 'spawned:' line"
-assert_file_missing "$CHIEF_HOME/state/s3.meta" "...rolled back, no meta left"
+assert_file_missing "$CHIEF_HOME/tasks/s3/meta" "...rolled back, no meta left"
 mkproj; reset; cp "$FX/screen-ready.txt" "$FAKE/screen"; echo "$WORKING" > "$FAKE/prompt.json"
 out=$(spawn s2); rc=$?
 assert_eq "$rc" "0" "a healthy spawn succeeds"

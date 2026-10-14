@@ -17,9 +17,9 @@ BEACON="$STATE/.last-watcher-beat"
 
 in_flight_ids() {
   local f id
-  for f in "$STATE"/*.meta; do
+  for f in "$TASKS"/*/meta; do
     [ -e "$f" ] || continue
-    id=$(basename "$f" .meta)
+    id=$(basename "$(dirname "$f")")
     case "$(chief_meta_get "$id" status)" in
       working|spawning) printf '%s\n' "$id" ;;
     esac

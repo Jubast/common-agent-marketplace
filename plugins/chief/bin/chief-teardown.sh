@@ -2,7 +2,7 @@
 # chief-teardown.sh - kills the terminal, removes the worktree, marks the
 # backlog item done. A BUILDER task refuses unless its branch has landed on the
 # default branch, unless --abandon force-discards it. Any other role discards
-# unconditionally - its deliverable is the report at $DATA/<id>/report.md,
+# unconditionally - its deliverable is the report at tasks/<id>/report.md,
 # outside the worktree, untouched either way.
 #
 # Discard also best-effort deletes the remote branch: a backstop for when
@@ -54,6 +54,7 @@ _chief_discard() {  # <reason-for-the-echo-line>
   git -C "$PROJECT" push origin --delete "$BRANCH" >/dev/null 2>&1 || true
   "$CHIEF_ROOT/bin/chief-backlog.sh" done "$ID" 2>/dev/null || true
   chief_meta_set "$ID" status torn-down
+  chief_task_archive "$ID"
   echo "torn down: $ID ($1)"
   local rid
   rid=$(chief_meta_get "$ID" reviewer 2>/dev/null || true)

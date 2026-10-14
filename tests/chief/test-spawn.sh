@@ -25,14 +25,14 @@ INTENT=$'multi-line intent\nwith a | pipe too'
 assert_success "spawn: survives a --spec/--intent with embedded newlines and sed-delimiter characters" -- \
   timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode builder --branch feat/t-1 --intent "$INTENT" --spec "$SPEC"
 
-BRIEF="$CHIEF_HOME/data/t-1/brief.md"
+BRIEF="$CHIEF_HOME/tasks/t-1/brief.md"
 assert_file_exists "$BRIEF" "spawn: brief was written"
 assert_contains "$(cat "$BRIEF")" "$INTENT" "spawn: the multi-line intent is rendered verbatim"
 assert_contains "$(cat "$BRIEF")" "$SPEC" "spawn: the multi-line spec is rendered verbatim"
 assert_not_contains "$(cat "$BRIEF")" "{TASK}" "spawn: the {TASK} placeholder was filled"
 assert_not_contains "$(cat "$BRIEF")" "{SPEC}" "spawn: the {SPEC} placeholder was filled"
 
-LIFECYCLE="$CHIEF_HOME/state/t-1.lifecycle"
+LIFECYCLE="$CHIEF_HOME/tasks/t-1/lifecycle"
 assert_file_exists "$LIFECYCLE" "spawn: lifecycle checklist was written"
 assert_contains "$(cat "$LIFECYCLE")" "t-1" "spawn: the {TASK_ID} placeholder was filled with the task id"
 assert_not_contains "$(cat "$LIFECYCLE")" "{TASK_ID}" "spawn: no unfilled {TASK_ID} placeholder remains"
@@ -40,7 +40,7 @@ assert_contains "$(cat "$LIFECYCLE")" "- [ ] filed" "spawn: the builder lifecycl
 
 CFG="$CLAUDE_CONFIG_DIR/.claude.json"
 assert_eq "$(jq -r --arg p "$CHIEF_HOME/worktrees/t-1" '.projects[$p].hasTrustDialogAccepted' "$CFG")" "true" "spawn: the task's worktree is pre-trusted"
-STATE="$CHIEF_HOME/state"; . "$BIN/lib/meta.sh"
+STATE="$CHIEF_HOME/state"; DATA="$CHIEF_HOME/data"; TASKS="$CHIEF_HOME/tasks"; ARCHIVE="$CHIEF_HOME/archive"; . "$BIN/lib/meta.sh"
 assert_eq "$(chief_meta_get t-1 agent)" "claude" "spawn: the default agent is recorded in meta"
 
 rm -f "$CFG"
@@ -49,8 +49,8 @@ assert_success "spawn: CHIEF_NO_PRETRUST=1 still spawns" -- \
 assert_file_missing "$CFG" "spawn: CHIEF_NO_PRETRUST=1 leaves the claude config untouched"
 
 # the brief is agent-neutral: the turn-ended protocol is a path, not a Claude hook
-BRIEF_T1=$(cat "$CHIEF_HOME/data/t-1/brief.md")
-assert_contains "$BRIEF_T1" "touch $CHIEF_HOME/state/t-1.turn-ended" "brief: tells any agent to touch the turn-ended file"
+BRIEF_T1=$(cat "$CHIEF_HOME/tasks/t-1/brief.md")
+assert_contains "$BRIEF_T1" "touch $CHIEF_HOME/tasks/t-1/turn-ended" "brief: tells any agent to touch the turn-ended file"
 assert_not_contains "$BRIEF_T1" "{TURN_FILE}" "brief: no unfilled turn placeholder"
 assert_not_contains "$BRIEF_T1" "{REVIEW_CHECKLIST}" "brief: no review-checklist placeholder"
 assert_not_contains "$BRIEF_T1" "Self-review" "brief: no builder self-review step"

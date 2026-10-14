@@ -32,7 +32,7 @@ JSON output (skipped gracefully if absent).
 | File | Covers |
 |---|---|
 | `test-static.sh` | Every script parses (`bash -n`), every JSON file is valid, executable bits are correct |
-| `test-meta.sh` | `meta.sh` key=value read/write helpers |
+| `test-meta.sh` | `meta.sh` key=value read/write helpers, and the task folder resolver and archive |
 | `test-lock.sh` | `lock.sh` mutex: acquire/release/timeout/stale-lock reclaim |
 | `test-backlog.sh` | `chief-backlog.sh`: add/status/note/hold/done/list/next/show, error cases, and that `status <id> in-flight` restores a held/spawned task's meta status back to `working` |
 | `test-git-sync.sh` | `git-sync.sh`'s `chief_sync_default_branch`: fast-forwards the default branch from origin only when checked out on it with a clean tree, otherwise skips - and never fails its caller, including with no origin remote or a diverged history |

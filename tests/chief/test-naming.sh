@@ -28,12 +28,13 @@ SHOW=$("$BIN/chief-backlog.sh" show t-1)
 assert_not_contains "$SHOW" "workspace:" "mock backend has no workspace line"
 assert_contains "$SHOW" "  branch: feat/t-1" "backlog show prints the branch"
 assert_contains "$SHOW" "  worktree: $CHIEF_HOME/worktrees/t-1" "backlog show prints the worktree"
-assert_contains "$SHOW" "  report: $CHIEF_HOME/data/t-1/report.md" "backlog show prints the report path"
+assert_contains "$SHOW" "  report: $CHIEF_HOME/tasks/t-1/report.md" "backlog show prints the report path"
 
 # older herdr and Orca tasks resolve a workspace name from their endpoint
-printf 'project=%s\nmode=builder\nbranch=b\nworktree=w\nendpoint=herdr:w2:p1\n' "$WORK/project" > "$CHIEF_HOME/state/old-h.meta"
-printf 'project=%s\nmode=researcher\nbranch=b\nworktree=w\nendpoint=orca:h\n' "$WORK/project" > "$CHIEF_HOME/state/old-o.meta"
-printf 'project=%s\nmode=builder\nbranch=b\nworktree=w\nendpoint=herdr:w3:p1\nlabel=x-1 · builder · project\n' "$WORK/project" > "$CHIEF_HOME/state/x-1.meta"
+mkdir -p "$CHIEF_HOME"/tasks/{old-h,old-o,x-1}
+printf 'project=%s\nmode=builder\nbranch=b\nworktree=w\nendpoint=herdr:w2:p1\n' "$WORK/project" > "$CHIEF_HOME/tasks/old-h/meta"
+printf 'project=%s\nmode=researcher\nbranch=b\nworktree=w\nendpoint=orca:h\n' "$WORK/project" > "$CHIEF_HOME/tasks/old-o/meta"
+printf 'project=%s\nmode=builder\nbranch=b\nworktree=w\nendpoint=herdr:w3:p1\nlabel=x-1 · builder · project\n' "$WORK/project" > "$CHIEF_HOME/tasks/x-1/meta"
 for id in old-h old-o x-1; do printf '## %s [in-flight] t\n' "$id" >> "$CHIEF_HOME/data/backlog.md"; done
 assert_contains "$("$BIN/chief-backlog.sh" show old-h)" "  workspace: chief-old-h" "an older herdr task shows chief-<id>"
 assert_contains "$("$BIN/chief-backlog.sh" show old-o)" "  workspace: old-o" "an Orca task shows its worktree name"

@@ -430,6 +430,6 @@ ORCA_MOCK_PROMPT_LANDS=0 ORCA_MOCK_SEND_FAIL=1 "$CHIEF_BIN/chief-spawn.sh" "$FAI
 assert_eq "$?" "1" "chief-spawn.sh fails when the orca backend can't deliver the brief"
 assert_file_missing "$ORCA_MOCK_WORKTREES/$FAIL" "chief-spawn.sh's rollback leaves no Orca worktree behind"
 assert_eq "$(git -C "$WORK/project" branch --list 'feat/flowfail' | wc -l | tr -d ' ')" "0" "chief-spawn.sh's rollback leaves no branch behind"
-assert_file_missing "$CHIEF_HOME/state/$FAIL.meta" "chief-spawn.sh's rollback leaves no meta record"
+assert_file_missing "$CHIEF_HOME/tasks/$FAIL/meta" "chief-spawn.sh's rollback leaves no meta record"
 
 harness_summary

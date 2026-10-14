@@ -6,8 +6,10 @@
 #               read-only, resolved from this script's own location so it
 #               works whether Claude Code installed the plugin or a developer
 #               is running it straight out of a checkout.
-#   CHIEF_HOME  the operator's one shared runtime home (state/, data/) -
-#               defaults to <outermost git root>/.chief of wherever the
+#   CHIEF_HOME  the operator's one shared runtime home: tasks/<id>/ (one folder
+#               per task), archive/ (torn-down tasks), state/ (global locks,
+#               cursors, heartbeat), data/backlog.md, config/, worktrees/.
+#               Defaults to <outermost git root>/.chief of wherever the
 #               Chief session runs (never inside a project - see home.sh),
 #               override with the CHIEF_HOME env var. This is gitignored
 #               working state, never plugin code.
@@ -21,13 +23,17 @@
 _chief_paths_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHIEF_ROOT="${CHIEF_ROOT_OVERRIDE:-$(cd "$_chief_paths_lib_dir/../.." && pwd)}"
 . "$_chief_paths_lib_dir/home.sh"
-unset _chief_paths_lib_dir
 
 CHIEF_HOME="${CHIEF_HOME:-$(chief_default_home)}"
 
+TASKS="$CHIEF_HOME/tasks"
+ARCHIVE="$CHIEF_HOME/archive"
 STATE="$CHIEF_HOME/state"
 DATA="$CHIEF_HOME/data"
 CONFIG="$CHIEF_HOME/config"
 WORKTREES="$CHIEF_HOME/worktrees"
 
-mkdir -p "$STATE" "$DATA" "$CONFIG" "$WORKTREES"
+mkdir -p "$TASKS" "$STATE" "$DATA" "$CONFIG" "$WORKTREES"
+
+. "$_chief_paths_lib_dir/meta.sh"
+unset _chief_paths_lib_dir

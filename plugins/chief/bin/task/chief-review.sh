@@ -16,7 +16,7 @@ BID=${1:-}
 chief_meta_exists "$BID" || fail "no such task: $BID"
 [ "$(chief_meta_get "$BID" mode 2>/dev/null)" = builder ] || fail "$BID is not a builder"
 
-LAST=$(tail -n 1 "$STATE/$BID.status" 2>/dev/null || true)
+LAST=$(tail -n 1 "$(chief_task_path "$BID" status)" 2>/dev/null || true)
 [[ $LAST == done:* ]] || fail "$BID is not done (last status: ${LAST:-none})"
 PROJECT=$(chief_meta_require "$BID" project)
 WORKTREE=$(chief_meta_require "$BID" worktree)
@@ -43,7 +43,7 @@ if [ -n "$LINKED" ]; then
 fi
 
 text="Review round $ROUND. Branch: $BRANCH. Pinned SHA: $SHA. Base: $BASE.
-Builder brief (intent): $DATA/$BID/brief.md
+Builder brief (intent): $(chief_task_path "$BID" brief.md)
 Builder done line: ${LAST#done: }"
 
 if [ "$ROUND" -eq 1 ]; then
@@ -54,14 +54,15 @@ if [ "$ROUND" -eq 1 ]; then
   "$CHIEF_ROOT/bin/chief-spawn.sh" "$RID" "$PROJECT" --mode reviewer --branch "chore/review-$BID" \
     --intent "Review $BID" --spec "$text"
 else
-  [ ! -f "$DATA/$RID/report.md" ] || mv "$DATA/$RID/report.md" "$DATA/$RID/report.round-$((ROUND - 1)).md"
-  priors=$(ls "$DATA/$RID"/report.round-*.md 2>/dev/null || true)
+  REPORT=$(chief_task_path "$RID" report.md)
+  [ ! -f "$REPORT" ] || mv "$REPORT" "${REPORT%.md}.round-$((ROUND - 1)).md"
+  priors=$(ls "${REPORT%.md}".round-*.md 2>/dev/null || true)
   "$CHIEF_ROOT/bin/task/chief-send.sh" "$RID" "$text
 Earlier reports (to verify, not to repeat):
 $priors"
   "$CHIEF_ROOT/bin/chief-backlog.sh" status "$RID" in-flight >/dev/null
-  echo "working: round $ROUND requested" >> "$STATE/$RID.status"
-  touch "$STATE/$RID.turn-ended"
+  echo "working: round $ROUND requested" >> "$(chief_task_path "$RID" status)"
+  touch "$(chief_task_path "$RID" turn-ended)"
 fi
 
 chief_meta_set "$RID" for "$BID"

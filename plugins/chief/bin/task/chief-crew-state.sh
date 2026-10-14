@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # chief-crew-state.sh - deterministic read of a task's CURRENT state.
 #
-# state/<id>.status is an append-only EVENT log (a builder appends only on a
+# tasks/<id>/status is an append-only EVENT log (a builder appends only on a
 # phase change), so its last line can go stale the moment the builder keeps
 # working without another reportable event. The brief tells every builder,
-# whatever its agent, to touch state/<id>.turn-ended each time ITS turn ends;
+# whatever its agent, to touch tasks/<id>/turn-ended each time ITS turn ends;
 # that one fact is enough to tell "quietly still working" apart from
 # "actually stalled" without pane-diffing or any backend-specific heuristic.
 #
@@ -31,8 +31,8 @@ ID=${1:-}
 [ -n "$ID" ] || fail "usage: chief-crew-state.sh <id>"
 chief_meta_exists "$ID" || fail "no such task: $ID"
 
-STATUS_FILE="$STATE/$ID.status"
-TURN_FILE="$STATE/$ID.turn-ended"
+STATUS_FILE=$(chief_task_path "$ID" status)
+TURN_FILE=$(chief_task_path "$ID" turn-ended)
 MODE=$(chief_meta_get "$ID" mode 2>/dev/null || true)
 MODE_SUFFIX=" [mode: ${MODE:-unknown}] [agent: $(chief_meta_agent "$ID")]"
 for link in for reviewer; do

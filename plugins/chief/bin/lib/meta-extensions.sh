@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# meta-extensions.sh - helpers derived from a task's meta (and the data layout).
+# meta-extensions.sh - helpers derived from a task's meta and folder.
 # Sourced by scripts that already sourced paths.sh and meta.sh.
 
 # chief_task_workspace <id> -> the backend's name for the task's workspace.
@@ -26,6 +26,6 @@ chief_task_where() {
   [ -z "$ws" ] || printf '  workspace: %s\n' "$ws"
   printf '  branch: %s\n' "$(chief_meta_get "$id" branch 2>/dev/null || true)"
   printf '  worktree: %s\n' "$(chief_meta_get "$id" worktree 2>/dev/null || true)"
-  printf '  brief: %s\n' "$DATA/$id/brief.md"
-  printf '  report: %s\n' "$DATA/$id/report.md"
+  printf '  brief: %s\n' "$(chief_task_path "$id" brief.md)"
+  printf '  report: %s\n' "$(chief_task_path "$id" report.md)"
 }

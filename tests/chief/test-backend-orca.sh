@@ -297,7 +297,7 @@ assert_eq "$(_child_count)" "0" "no task remains nested under the main worktree"
 export CHIEF_BACKEND=orca
 E2E="chief-test-e2e-$$"
 E2E_BRANCH="feat/$E2E"
-E2E_STATUS="$STATE/$E2E.status"
+E2E_STATUS="$TASKS/$E2E/status"
 wait_for_status() {  # <prefix> [timeout-s] - the task's last status line starts with <prefix>
   local waited=0 timeout=${2:-180}
   while [ "$waited" -lt "$timeout" ]; do
@@ -334,7 +334,7 @@ assert_contains "$("$CHIEF_BIN/task/chief-crew-state.sh" "$E2E" 2>&1)" "state: d
 
 "$CHIEF_BIN/task/chief-send.sh" "$E2E" "no action needed, just reply ok" >"$WORK/e2e-send.out" 2>&1
 assert_eq "$?" "0" "chief-send.sh succeeds"
-assert_file_exists "$STATE/$E2E.inbox/001.msg" "chief-send.sh writes the durable inbox message"
+assert_file_exists "$TASKS/$E2E/inbox/001.msg" "chief-send.sh writes the durable inbox message"
 
 "$CHIEF_BIN/task/chief-control.sh" "$E2E" interrupt >/dev/null 2>&1
 assert_eq "$?" "0" "chief-control.sh interrupt succeeds"

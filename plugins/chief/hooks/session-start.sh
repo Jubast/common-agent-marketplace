@@ -21,6 +21,8 @@ CHIEF_HOME="${CHIEF_HOME:-$(chief_default_home)}"
 SKILL_FILE="$CHIEF_PLUGIN_ROOT/skills/using-chief/SKILL.md"
 [ -f "$SKILL_FILE" ] || { echo '{}'; exit 0; }
 
+TASKS="$CHIEF_HOME/tasks"
+ARCHIVE="$CHIEF_HOME/archive"
 STATE="$CHIEF_HOME/state"
 # shellcheck source=../bin/lib/meta.sh
 . "$CHIEF_PLUGIN_ROOT/bin/lib/meta.sh"
@@ -49,13 +51,13 @@ if [ -d "$STATE" ]; then
   fi
   digest+=$'\n'"### In-flight"$'\n'
   any=0
-  for f in "$STATE"/*.meta; do
+  for f in "$TASKS"/*/meta; do
     [ -e "$f" ] || continue
-    id=$(basename "$f" .meta)
+    id=$(basename "$(dirname "$f")")
     status=$(grep '^status=' "$f" | cut -d= -f2- || echo unknown)
     [ "$status" = "working" ] || continue
     any=1
-    line=$(tail -n 1 "$STATE/$id.status" 2>/dev/null || echo "no status yet")
+    line=$(tail -n 1 "$(chief_task_path "$id" status)" 2>/dev/null || echo "no status yet")
     mode=$(grep '^mode=' "$f" | cut -d= -f2- || echo unknown)
     tags=""
     if [ "$mode" = brainstormer ]; then
