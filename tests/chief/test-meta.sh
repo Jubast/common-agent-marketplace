@@ -7,8 +7,9 @@ REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
 . "$TEST_DIR/lib/harness.sh"
 
-TASKS=$(mktemp -d); ARCHIVE=$(mktemp -d)
-trap 'rm -rf "$TASKS" "$ARCHIVE"' EXIT
+CHIEF_HOME=$(mktemp -d)
+trap 'rm -rf "$CHIEF_HOME"' EXIT
+. "$CHIEF_BIN/lib/layout.sh"
 . "$CHIEF_BIN/lib/meta.sh"
 
 echo "test-meta:"

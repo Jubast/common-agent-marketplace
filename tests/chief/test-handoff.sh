@@ -14,7 +14,7 @@ mkdir -p "$WORK/project" && cd "$WORK/project" && git init -q -b master
 git commit --allow-empty -q -m init
 export CHIEF_HOME="$WORK/.chief"
 export CHIEF_BACKEND=mock
-STATE="$CHIEF_HOME/state"; DATA="$CHIEF_HOME/data"; TASKS="$CHIEF_HOME/tasks"; ARCHIVE="$CHIEF_HOME/archive"
+. "$BIN/lib/layout.sh"
 . "$BIN/lib/meta.sh"
 mkdir -p "$CHIEF_HOME/config"
 CFG="$CHIEF_HOME/config/agents"

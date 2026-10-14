@@ -42,7 +42,7 @@ done
 
 # "spawning" without chief-spawn.sh's lock means the spawn was interrupted.
 if [ "$(chief_meta_get "$ID" status 2>/dev/null || true)" = "spawning" ]; then
-  if [ -e "$STATE/.$ID.spawning" ]; then
+  if [ -e "$(chief_task_path "$ID" spawning)" ]; then
     echo "state: working · spawning$MODE_SUFFIX"
     exit 0
   fi

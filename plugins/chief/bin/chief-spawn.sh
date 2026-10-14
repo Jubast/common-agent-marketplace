@@ -106,9 +106,10 @@ chief_meta_exists "$ID" && fail "task $ID already has a meta record - use a fres
 # `set -C` (noclobber) makes the create-if-absent atomic; the trap releases
 # it on any exit, success or failure.
 if [ "$DRY_RUN" -eq 0 ]; then
-  LOCK="$STATE/.$ID.spawning"
+  LOCK=$(chief_task_path "$ID" spawning)
+  mkdir -p "$(dirname "$LOCK")"
   ( set -C; : > "$LOCK" ) 2>/dev/null || fail "task $ID is already being spawned (lock $LOCK exists)"
-  trap 'rm -f "$LOCK"' EXIT
+  trap 'rm -f "$LOCK"; rmdir "$(dirname "$LOCK")" 2>/dev/null || true' EXIT
 fi
 
 TEMPLATE="$CHIEF_ROOT/templates/brief-$MODE.md"
@@ -144,7 +145,6 @@ echo "agent: $AGENT${MODEL:+:$MODEL}${AGENT_NOTE:+ $AGENT_NOTE}"
 echo "launch: $(chief_agent_command)"
 [ "$DRY_RUN" -eq 0 ] || exit 0
 
-mkdir -p "$(chief_task_dir "$ID")"
 BRIEF=$(chief_task_path "$ID" brief.md)
 STATUS_FILE=$(chief_task_path "$ID" status)
 INBOX_DIR=$(chief_task_path "$ID" inbox)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # chief-backlog.sh - the whole backlog: one markdown file, no external tool.
 #
-# Format, one record per section in $DATA/backlog.md:
+# Format, one record per section in $CHIEF_HOME/backlog.md:
 #   ## <id> [<status>] <title>
 #   note: <free text, optional>
 #
@@ -24,7 +24,6 @@ set -euo pipefail
 . "$CHIEF_ROOT/bin/lib/meta.sh"
 . "$CHIEF_ROOT/bin/lib/meta-extensions.sh"
 
-BACKLOG="$DATA/backlog.md"
 LOCK="$STATE/.backlog.lock"
 touch "$BACKLOG"
 
@@ -37,7 +36,7 @@ _rewrite() {
   shift
   chief_lock_acquire "$LOCK" 10 || fail "could not acquire backlog lock"
   local tmp
-  tmp=$(mktemp "$DATA/.backlog.md.XXXXXX")
+  tmp=$(mktemp "$CHIEF_HOME/.backlog.md.XXXXXX")
   # "$@" (the -v assignments) must precede the program text - they're awk
   # options, not operands - so it comes first even though it read the other
   # way at the call sites below.

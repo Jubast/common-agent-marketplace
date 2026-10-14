@@ -3,7 +3,7 @@
 # checks every in-flight task's state, and only exits (with a reason printed
 # on stdout) when something needs the operator's attention. Chief's Stop hook
 # runs this in the background at zero model cost and only "rewakes" you when
-# it exits - see hooks/session-stop.sh.
+# it exits - see hooks/stop-watch-arm.sh.
 #
 # Usage: chief-watch.sh   (runs until something actionable happens, or forever)
 set -euo pipefail

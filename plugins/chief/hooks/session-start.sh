@@ -21,18 +21,16 @@ CHIEF_HOME="${CHIEF_HOME:-$(chief_default_home)}"
 SKILL_FILE="$CHIEF_PLUGIN_ROOT/skills/using-chief/SKILL.md"
 [ -f "$SKILL_FILE" ] || { echo '{}'; exit 0; }
 
-TASKS="$CHIEF_HOME/tasks"
-ARCHIVE="$CHIEF_HOME/archive"
-STATE="$CHIEF_HOME/state"
+# shellcheck source=../bin/lib/layout.sh
+. "$CHIEF_PLUGIN_ROOT/bin/lib/layout.sh"
 # shellcheck source=../bin/lib/meta.sh
 . "$CHIEF_PLUGIN_ROOT/bin/lib/meta.sh"
-BACKLOG="$CHIEF_HOME/data/backlog.md"
-BACKEND_CONFIG="$CHIEF_HOME/config/backend"
+BACKEND_CONFIG="$CONFIG/backend"
 
 digest="## Configuration"$'\n'
 if [ -f "$BACKEND_CONFIG" ]; then
   digest+="backend: $(cat "$BACKEND_CONFIG") (from .chief/config/backend)"$'\n'
-  if [ -f "$CHIEF_HOME/config/agents" ]; then
+  if [ -f "$CONFIG/agents" ]; then
     digest+="agents: from .chief/config/agents"$'\n'
   else
     digest+="agents: not configured, workers run claude (.chief/config/agents sets the agent and model)"$'\n'

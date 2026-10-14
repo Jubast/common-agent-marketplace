@@ -1,29 +1,9 @@
 #!/usr/bin/env bash
-# meta.sh - a task's folder and its flat key=value record, <task dir>/meta.
-# Sourced by paths.sh and the session hook (needs $TASKS and $ARCHIVE).
+# meta.sh - read/write a task's flat key=value record, tasks/<id>/meta.
+# Sourced by scripts that already sourced paths.sh (or layout.sh).
 #
 # A meta file is one key=value pair per line, no quoting, no nesting.
 # That's the whole format - deliberately too simple to need a parser.
-
-# chief_task_dir <id> -> the task's folder: under $TASKS, or $ARCHIVE once torn down.
-chief_task_dir() {
-  if [ ! -d "$TASKS/$1" ] && [ -d "$ARCHIVE/$1" ]; then
-    printf '%s/%s' "$ARCHIVE" "$1"
-  else
-    printf '%s/%s' "$TASKS" "$1"
-  fi
-}
-
-# chief_task_path <id> <name> -> a file or folder inside the task's folder.
-chief_task_path() {
-  printf '%s/%s' "$(chief_task_dir "$1")" "$2"
-}
-
-# chief_task_archive <id> -> moves the task's folder into $ARCHIVE.
-chief_task_archive() {
-  mkdir -p "$ARCHIVE"
-  mv "$TASKS/$1" "$ARCHIVE/$1"
-}
 
 # chief_meta_get <id> <key> -> prints the value, or nothing if absent.
 chief_meta_get() {

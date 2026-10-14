@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-crew-state.sh - chief-crew-state.sh's state classification, exercised
-# directly against hand-written state/status files rather than a real spawn
+# directly against hand-written task files rather than a real spawn
 # (faster, and isolates the classification logic from the spawn machinery,
 # which test-lifecycle.sh already covers together).
 set -uo pipefail

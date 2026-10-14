@@ -101,7 +101,7 @@ A done researcher or brainstormer with a report can be followed by a successor: 
 
 ## Backlog reference
 
-`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh add|status|note|hold|done|list|next|show <id> ...`: one markdown file (`.chief/data/backlog.md`); statuses are `queued|in-flight|held|done`. `hold <id> "<reason>"` marks anything waiting on an operator decision.
+`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh add|status|note|hold|done|list|next|show <id> ...`: one markdown file (`.chief/backlog.md`); statuses are `queued|in-flight|held|done`. `hold <id> "<reason>"` marks anything waiting on an operator decision.
 
 ## What NOT to do
 

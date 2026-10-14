@@ -40,7 +40,7 @@ assert_contains "$(cat "$LIFECYCLE")" "- [ ] filed" "spawn: the builder lifecycl
 
 CFG="$CLAUDE_CONFIG_DIR/.claude.json"
 assert_eq "$(jq -r --arg p "$CHIEF_HOME/worktrees/t-1" '.projects[$p].hasTrustDialogAccepted' "$CFG")" "true" "spawn: the task's worktree is pre-trusted"
-STATE="$CHIEF_HOME/state"; DATA="$CHIEF_HOME/data"; TASKS="$CHIEF_HOME/tasks"; ARCHIVE="$CHIEF_HOME/archive"; . "$BIN/lib/meta.sh"
+. "$BIN/lib/layout.sh"; . "$BIN/lib/meta.sh"
 assert_eq "$(chief_meta_get t-1 agent)" "claude" "spawn: the default agent is recorded in meta"
 
 rm -f "$CFG"
@@ -65,7 +65,7 @@ spawn() {  # <id> [flags...]
   timeout 10 "$BIN/chief-spawn.sh" "$id" "$WORK/project" --mode builder --branch "feat/$id" --intent x "$@"
 }
 meta() { chief_meta_get "$1" "$2"; }
-leftovers() { ls "$CHIEF_HOME/state" | grep -c "^\.\?$1[.]" || true; }
+leftovers() { ls -A "$CHIEF_HOME/tasks/$1" 2>/dev/null | wc -l | tr -d ' '; }
 
 assert_success "spawn: --agent claude:opus" -- spawn a-1 --agent claude:opus
 assert_eq "$(meta a-1 agent):$(meta a-1 model)" "claude:opus" "spawn: --agent agent:model is recorded"
@@ -120,7 +120,7 @@ fails() {  # <id> <expected message> [flags...] - the spawn fails and leaves not
   local out; out=$(spawn "$id" "$@" 2>&1); local rc=$?
   assert_eq "$rc" "1" "spawn $id: fails"
   assert_contains "$out" "$msg" "spawn $id: says why"
-  assert_eq "$(leftovers "$id")" "0" "spawn $id: no state left behind"
+  assert_eq "$(leftovers "$id")" "0" "spawn $id: no task files left behind"
   assert_file_missing "$CHIEF_HOME/worktrees/$id" "spawn $id: no worktree left behind"
   assert_eq "$(git -C "$WORK/project" branch --list "feat/$id" | wc -l | tr -d ' ')" "0" "spawn $id: no branch left behind"
 }
@@ -142,7 +142,7 @@ printf 'claude command="/opt/wrap.sh --x"\n' > "$CHIEF_HOME/config/agents"
 out=$(CHIEF_BACKEND=herdr spawn b-11 2>&1); rc=$?
 assert_eq "$rc" "1" "spawn: a command with another executable fails on herdr"
 assert_contains "$out" "herdr starts the agent's own executable (claude)" "spawn: and says to use args= or orca"
-assert_eq "$(leftovers b-11)" "0" "spawn b-11: no state left behind"
+assert_eq "$(leftovers b-11)" "0" "spawn b-11: no task files left behind"
 printf 'claude command="%s --x"\n' "$HARNESS_BIN/claude" > "$CHIEF_HOME/config/agents"
 mkdir "$WORK/fakeherdr"; printf '#!/bin/sh\nexit 1\n' > "$WORK/fakeherdr/herdr"; chmod +x "$WORK/fakeherdr/herdr"
 out=$(PATH="$WORK/fakeherdr:$PATH" CHIEF_BACKEND=herdr spawn b-12 2>&1)
@@ -155,6 +155,6 @@ rm "$CHIEF_HOME/config/agents"
 out=$(PATH=/usr/bin:/bin timeout 10 "$BIN/chief-spawn.sh" b-5 "$WORK/project" --mode builder --branch feat/b-5 --intent x 2>&1); rc=$?
 assert_eq "$rc" "1" "spawn: a missing agent CLI fails"
 assert_contains "$out" "the 'claude' CLI is not installed" "spawn: and says which CLI"
-assert_eq "$(leftovers b-5)" "0" "spawn: and leaves no state behind"
+assert_eq "$(leftovers b-5)" "0" "spawn: and leaves no task files behind"
 
 harness_summary

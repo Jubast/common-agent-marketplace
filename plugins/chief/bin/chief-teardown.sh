@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # chief-teardown.sh - kills the terminal, removes the worktree, marks the
-# backlog item done. A BUILDER task refuses unless its branch has landed on the
+# backlog item done and archives the task's folder. A BUILDER task refuses unless its branch has landed on the
 # default branch, unless --abandon force-discards it. Any other role discards
 # unconditionally - its deliverable is the report at tasks/<id>/report.md,
 # outside the worktree, untouched either way.

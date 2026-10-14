@@ -35,7 +35,7 @@ mkdir -p "$CHIEF_HOME"/tasks/{old-h,old-o,x-1}
 printf 'project=%s\nmode=builder\nbranch=b\nworktree=w\nendpoint=herdr:w2:p1\n' "$WORK/project" > "$CHIEF_HOME/tasks/old-h/meta"
 printf 'project=%s\nmode=researcher\nbranch=b\nworktree=w\nendpoint=orca:h\n' "$WORK/project" > "$CHIEF_HOME/tasks/old-o/meta"
 printf 'project=%s\nmode=builder\nbranch=b\nworktree=w\nendpoint=herdr:w3:p1\nlabel=x-1 · builder · project\n' "$WORK/project" > "$CHIEF_HOME/tasks/x-1/meta"
-for id in old-h old-o x-1; do printf '## %s [in-flight] t\n' "$id" >> "$CHIEF_HOME/data/backlog.md"; done
+for id in old-h old-o x-1; do printf '## %s [in-flight] t\n' "$id" >> "$CHIEF_HOME/backlog.md"; done
 assert_contains "$("$BIN/chief-backlog.sh" show old-h)" "  workspace: chief-old-h" "an older herdr task shows chief-<id>"
 assert_contains "$("$BIN/chief-backlog.sh" show old-o)" "  workspace: old-o" "an Orca task shows its worktree name"
 assert_contains "$("$BIN/chief-backlog.sh" show x-1)" "  workspace: x-1 · builder · project" "a recorded label is shown"

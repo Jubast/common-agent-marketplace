@@ -34,7 +34,7 @@ assert_success "exit succeeds" -- "$CTL" t-1 exit
 kill -0 "$old_pid" 2>/dev/null
 assert_eq "$?" "1" "exit stops the agent process"
 assert_file_exists "$CHIEF_HOME/worktrees/t-1" "exit preserves the worktree"
-TASK_STATUS=$(. "$META_LIB"; TASKS="$CHIEF_HOME/tasks"; ARCHIVE="$CHIEF_HOME/archive"; chief_meta_get t-1 status)
+TASK_STATUS=$(. "$BIN/lib/layout.sh"; . "$META_LIB"; chief_meta_get t-1 status)
 assert_eq "$TASK_STATUS" "exited" "exit records status=exited"
 
 assert_failure "relaunch without --note is refused" -- "$CTL" t-1 relaunch
@@ -51,7 +51,7 @@ new_pid=$(cat "$CHIEF_HOME/tasks/t-1/term.pid")
 kill -0 "$new_pid" 2>/dev/null
 assert_eq "$?" "0" "relaunch starts a new backend process in the same worktree"
 assert_eq "$(jq -r --arg p "$CHIEF_HOME/worktrees/t-1" '.projects[$p].hasTrustDialogAccepted' "$CLAUDE_CONFIG_DIR/.claude.json")" "true" "relaunch re-trusts the worktree"
-TASK_STATUS2=$(. "$META_LIB"; TASKS="$CHIEF_HOME/tasks"; ARCHIVE="$CHIEF_HOME/archive"; chief_meta_get t-1 status)
+TASK_STATUS2=$(. "$BIN/lib/layout.sh"; . "$META_LIB"; chief_meta_get t-1 status)
 assert_eq "$TASK_STATUS2" "working" "relaunch records status=working again"
 
 # a relaunched brainstormer gets its attach hint recomputed
