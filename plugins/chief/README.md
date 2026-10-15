@@ -8,7 +8,7 @@ Inspired by [Firstmate](https://github.com/kunchenguid/firstmate), which does th
 
 ## Layout
 
-- `bin/` - the lifecycle scripts, split into `bin/` (`chief-spawn`, `chief-watch`, `chief-teardown`, `chief-backlog`, `chief-setup`, `chief-agents`), `bin/task/` (`chief-control`, `chief-crew-state`, `chief-send`, `chief-promote`, `chief-review`), and `bin/pr/` (`chief-pr-open`, `chief-pr-update`, `chief-pr-state`, `chief-pr-review`, `chief-pr-approve`, `chief-pr-merge`); and `bin/lib/` (`paths.sh`/`home.sh`/`meta.sh`/`lock.sh`/`brief.sh`/`meta-extensions.sh` helpers, `bin/lib/agents/` with the loader and selector `agent.sh` (a task's adapter from its meta; profile selection from `.chief/config/agents`) and the adapters `{claude,codex,copilot}.sh` - the agent's launch command, screen texts and folder pre-trust - `git-sync.sh` - best-effort freshening of a project's default-branch checkout against origin, used by spawn/pr-merge/teardown - `worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one - `bin/lib/backends/` with the loader `backend.sh` and its adapters `{herdr,orca,mock}.sh`, and `bin/lib/pr-providers/` with the loader `pr-provider.sh` and its adapters `{github,gitlab,azuredevops,mock}.sh`).
+- `bin/` - the lifecycle scripts, split into `bin/` (`chief-spawn`, `chief-watch`, `chief-teardown`, `chief-backlog`, `chief-setup`, `chief-agents`), `bin/task/` (`chief-control`, `chief-crew-state`, `chief-send`, `chief-promote`, `chief-review`); and `bin/lib/` (`paths.sh`/`home.sh`/`meta.sh`/`lock.sh`/`brief.sh`/`meta-extensions.sh` helpers, `bin/lib/agents/` with the loader and selector `agent.sh` (a task's adapter from its meta; profile selection from `.chief/config/agents`) and the adapters `{claude,codex,copilot}.sh` - the agent's launch command, screen texts and folder pre-trust - `git-sync.sh` - best-effort freshening of a project's default-branch checkout against origin, used by spawn/teardown - `worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one - `bin/lib/backends/` with the loader `backend.sh` and its adapters `{herdr,orca,mock}.sh`).
 - `templates/` - a brief template (`brief-<role>.md`) and a per-task lifecycle checklist (`lifecycle-<role>.md`) per worker role (`builder`, `researcher`, `reviewer`, `brainstormer`) rendered into `tasks/<id>/lifecycle` at spawn time, mirroring `skills/dispatch/SKILL.md`'s own steps so Chief can recover in-flight progress after a context compaction.
 - `skills/using-chief` - the identity/job-description skill, force-injected every session via the `SessionStart` hook so Chief always knows its role without being asked.
 - `skills/setup` - one-time CHIEF_HOME config (backend choice + gitignoring `.chief/`); only relevant before `.chief/config/backend` exists, which the `SessionStart` digest flags explicitly.
@@ -82,7 +82,7 @@ The operator decides, per builder, whether it is reviewed; Chief asks after ever
 - **Round 1** files backlog item `<builder>-review` and spawns a reviewer (`--mode reviewer`, branch `chore/review-<builder>`, the `[reviewer]` pool). Its spec pins the builder's HEAD SHA, names the branch and base, points at the builder's brief and `done` line. Meta links: `for=<builder>` on the reviewer, `reviewer=` and `review_round=` on the builder.
 - **Later rounds** re-arm the same reviewer: its `report.md` is archived as `report.round-<N-1>.md`, the round message goes to its inbox, the backlog item returns to in-flight, and `working: round N requested` is appended to its status. The same commit is refused while the reviewer is working.
 - **The reviewer** resets its scratch worktree, detaches at the pinned SHA and reviews the full `base...sha` diff every round against the 8-item checklist in its brief (item 3 runs the project's checks), then verifies earlier findings. It writes `report.md` (`Verdict`, `Target`, `Blocking`, `Suggestions`, `Checklist`, `Prior findings`) and ends with `done: round N PASS @<sha7>` or `done: round N FAIL (<n> blocking) @<sha7>`; `failed` means the review could not be completed. It never posts, pushes or merges. A builder's `done` line starts with its short commit SHA, so every re-report is a new line to the watcher.
-- **Chief** presents the verdict, holds the reviewer, and on the operator's yes sends the findings to the builder; the builder fixes them with new commits and reports `done` again. Findings go to a PR only when the operator asks (`chief-pr-review.sh`).
+- **Chief** presents the verdict, holds the reviewer, and on the operator's yes sends the findings to the builder; the builder fixes them with new commits and reports `done` again. Findings go to a PR only when the operator asks.
 - **Teardown** of a builder also discards its reviewer once the builder's own teardown succeeds; a refused builder leaves it alone. A reviewer can be torn down alone; that ends review of that builder, and a manual `--mode reviewer` spawn is the way to review it again. `chief-crew-state.sh` and the session digest show `[for: <builder>]` / `[reviewer: <id>]`.
 
 A reviewer on any branch, with no builder: `chief-spawn.sh <id> <project> --mode reviewer --branch chore/<name> --intent "..." --spec "<branch, pinned SHA, base, intent>"`.
@@ -102,11 +102,22 @@ Each backend pre-accepts the agent's folder-trust dialog before a worker starts,
 - `CHIEF_NO_PRETRUST=1` opts out. Use it only if you trust folders another way; on Orca spawns will otherwise stall at the trust dialog.
 - Orca picks its own worktree path, so it is trusted right after `orca worktree create`, before the agent starts.
 
+## Gating finishing actions
+
+Chief runs the finishing actions itself with the host CLI (`gh`, `az`, `glab`) after the operator's go-ahead; no script wraps them. To make the harness stop before each one, add `ask` rules to your own `settings.json` (a plugin cannot ship them):
+
+```json
+{ "permissions": { "ask": [
+  "Bash(gh pr create *)", "Bash(gh pr merge *)", "Bash(gh pr review *)",
+  "Bash(az repos pr create *)", "Bash(az repos pr update *)",
+  "Bash(glab mr create *)", "Bash(glab mr merge *)", "Bash(git push *)" ] } }
+```
+
+Best-effort only: forms like `git -C . push` or `sh -c '...'` do not match. GitHub branch protection (required reviews and checks) is the server-side backstop.
+
 ## Status
 
-Core lifecycle (backlog, spawn, send, control/relaunch, crew-state, watch, teardown, merge, handoff) is implemented and tested end-to-end against a mock backend. The **herdr adapter** (`bin/lib/backends/herdr.sh`) is verified against a live herdr 0.9.0 install - spawn/busy/send/kill/relaunch all exercised end to end with a real `claude` turn in `tests/chief/test-backend-herdr.sh` (opt-in, `CHIEF_TEST_HERDR=1`) and against a fake `herdr` with live-captured screens in `tests/chief/test-backend-herdr-mock.sh`. The **Orca adapter** (`bin/lib/backends/orca.sh`) follows the same flow - bypass-permissions launch, spawn rollback, relaunch, teardown - verified live in `tests/chief/test-backend-orca.sh` (opt-in, `CHIEF_TEST_ORCA=1`; adapter functions plus the real spawn/send/control/crew-state/teardown scripts) and against a fake `orca` CLI in `tests/chief/test-backend-orca-mock.sh`. The **copilot adapter**'s screen needles and a real researcher spawn are checked against the real Copilot CLI in `tests/chief/test-backend-copilot.sh` (opt-in, `CHIEF_TEST_COPILOT=1`).
-
-PR provider adapters: **GitHub** is implemented and tested against a fake `gh` CLI, including inline (file:line) review comments. **GitLab and Azure DevOps are fully implemented but their `pr_review_line` (inline comments) is an unverified draft**, same status as the Orca backend - built from each provider's documented API shape, not run against a live `glab`/`az` install; each adapter's header comment lists exactly what needs confirming.
+Core lifecycle (backlog, spawn, send, control/relaunch, crew-state, watch, teardown, handoff) is implemented and tested end-to-end against a mock backend. The **herdr adapter** (`bin/lib/backends/herdr.sh`) is verified against a live herdr 0.9.0 install - spawn/busy/send/kill/relaunch all exercised end to end with a real `claude` turn in `tests/chief/test-backend-herdr.sh` (opt-in, `CHIEF_TEST_HERDR=1`) and against a fake `herdr` with live-captured screens in `tests/chief/test-backend-herdr-mock.sh`. The **Orca adapter** (`bin/lib/backends/orca.sh`) follows the same flow - bypass-permissions launch, spawn rollback, relaunch, teardown - verified live in `tests/chief/test-backend-orca.sh` (opt-in, `CHIEF_TEST_ORCA=1`; adapter functions plus the real spawn/send/control/crew-state/teardown scripts) and against a fake `orca` CLI in `tests/chief/test-backend-orca-mock.sh`. The **copilot adapter**'s screen needles and a real researcher spawn are checked against the real Copilot CLI in `tests/chief/test-backend-copilot.sh` (opt-in, `CHIEF_TEST_COPILOT=1`).
 
 ## Maintaining these docs
 
@@ -117,8 +128,7 @@ One owner per fact - don't restate one doc's content in another:
   only; never restated here.
 - Step-by-step process for one workflow -> that step's own `SKILL.md`
   (`skills/dispatch`, `skills/setup`).
-- Stable architecture and extension points (backend adapters, PR-provider
-  adapters) -> a future `plugins/chief/ARCHITECTURE.md`, created once the
+- Stable architecture and extension points (backend adapters) -> a future `plugins/chief/ARCHITECTURE.md`, created once the
   "Layout" section above actually needs to split out, not pre-emptively.
 
 This plugin's one-line pitch lives in `.claude-plugin/plugin.json`'s
