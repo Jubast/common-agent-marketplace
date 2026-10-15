@@ -36,7 +36,7 @@ NEXT=$(
     ls "$INBOX/handled" 2>/dev/null | grep -E '^[0-9]{3}\.msg$' || true
   } | sed -E 's/\.msg$//' | sort -n | tail -1
 )
-NEXT=$(printf '%03d' "$(( ${NEXT:-0} + 1 ))")
+NEXT=$(printf '%03d' "$(( 10#${NEXT:-0} + 1 ))")
 MSG_FILE="$INBOX/$NEXT.msg"
 printf '%s\n' "$TEXT" > "$MSG_FILE"
 
