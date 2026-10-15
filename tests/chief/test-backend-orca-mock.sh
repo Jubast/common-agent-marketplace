@@ -161,6 +161,10 @@ chief_ensure_dirs
 . "$CHIEF_BIN/lib/backends/orca.sh"
 capture() { _chief_orca_screen "$(_chief_orca_handle "$1")"; }
 
+# chief-spawn.sh records the agent before it calls backend_spawn.
+eval "$(declare -f backend_spawn | sed '1s/^backend_spawn/orca_spawn/')"
+backend_spawn() { chief_meta_get "$1" agent >/dev/null 2>&1 || chief_meta_set "$1" agent claude; orca_spawn "$@"; }
+
 ID=t-orca-1
 BRANCH="chief/$ID"
 BRIEF="$WORK/brief.md"
@@ -355,6 +359,7 @@ backend_spawn_cleanup "t-orca-cmd" "$WORK/project" "chief/t-orca-cmd"
 spawn_fails() {  # <label> <id> [env assignments...] - runs backend_spawn with the env set
   local label=$1 sid=$2; shift 2
   : > "$ORCA_MOCK_LOG"
+  chief_meta_set "$sid" agent claude
   env "$@" bash -c '. "$0"; . "$1"; . "$2"; . "$7"; . "$3"; backend_spawn "$4" "$5" "$6" "chief/$4"' \
     "$CHIEF_BIN/lib/paths.sh" "$CHIEF_BIN/lib/meta.sh" "$CHIEF_BIN/lib/backends/orca.sh" /dev/null "$sid" "$WORK/project" "$BRIEF" "$CHIEF_BIN/lib/agents/agent.sh" 2>"$WORK/fail.err"
   assert_eq "$?" "1" "backend_spawn fails: $label"
@@ -368,6 +373,7 @@ assert_contains "$(cat "$WORK/fail.err")" "agent not ready" "the not-ready failu
 spawn_fails "a lost prompt that can't be resent" t-orca-lost ORCA_MOCK_PROMPT_LANDS=0 ORCA_MOCK_SEND_FAIL=1
 
 # Relaunch also refuses an agent that is not ready.
+chief_meta_set "t-orca-relnb" agent claude
 chief_meta_set "t-orca-relnb" worktree "$ORCA_MOCK_WORKTREES/t-orca-keep"
 : > "$ORCA_MOCK_LOG"
 ORCA_MOCK_NO_BYPASS=1 backend_relaunch "t-orca-relnb" "$BRIEF" 2>/dev/null

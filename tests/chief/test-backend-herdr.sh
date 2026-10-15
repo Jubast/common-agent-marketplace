@@ -101,7 +101,7 @@ cleanup() {
   # for the scratch project checkout itself (repo_root match).
   herdr workspace list 2>/dev/null \
     | jq -r --arg label "$ID" --arg work "$WORK" \
-        '.result.workspaces[]? | select((.label | startswith($label)) or (.label | startswith("chief-" + $label)) or (.worktree.repo_root // "" | startswith($work))) | .workspace_id' 2>/dev/null \
+        '.result.workspaces[]? | select((.label | startswith($label)) or (.worktree.repo_root // "" | startswith($work))) | .workspace_id' 2>/dev/null \
     | while read -r ws; do herdr workspace close "$ws" --group >/dev/null 2>&1 || true; done
   [ "$STARTED_SERVER" = 1 ] && herdr server stop >/dev/null 2>&1 || true
   rm -rf "$WORK"
@@ -244,18 +244,17 @@ assert_contains "$RELAUNCH_CAPTURE" "ok" "the pane shows the relaunched claude's
 backend_kill "$ID"
 assert_eq "$(_linked_ws_count "$WORK/project")" "0" "no task workspace remains after all tasks are killed"
 
-# _chief_herdr_close_task_workspace closes the task workspace by its label, new or older form.
-for LABEL_FORM in "t-herdr-cleanup · builder · project" "chief-t-herdr-cleanup"; do
-  CLEANUP_ID=t-herdr-cleanup
-  herdr worktree create --cwd "$WORK/project" --branch "chief/$CLEANUP_ID" \
-    --path "$WORK/.chief/worktrees/$CLEANUP_ID" --label "$LABEL_FORM" \
-    --trust-repository --no-focus >/dev/null 2>&1
-  assert_eq "$(_linked_ws_count "$WORK/project")" "1" "cleanup setup: workspace labeled '$LABEL_FORM' is open"
-  _chief_herdr_close_task_workspace "$CLEANUP_ID"
-  assert_eq "$(_linked_ws_count "$WORK/project")" "0" "cleanup closes the task's workspace labeled '$LABEL_FORM'"
-  assert_eq "$(_primary_ws "$WORK/project")" "$PRIMARY" "cleanup leaves the primary workspace alone"
-  git -C "$WORK/project" worktree remove --force "$WORK/.chief/worktrees/$CLEANUP_ID" >/dev/null 2>&1 || true
-  git -C "$WORK/project" branch -D "chief/$CLEANUP_ID" >/dev/null 2>&1 || true
-done
+# _chief_herdr_close_task_workspace closes the task workspace by its label.
+LABEL_FORM="t-herdr-cleanup · builder · project"
+CLEANUP_ID=t-herdr-cleanup
+herdr worktree create --cwd "$WORK/project" --branch "chief/$CLEANUP_ID" \
+  --path "$WORK/.chief/worktrees/$CLEANUP_ID" --label "$LABEL_FORM" \
+  --trust-repository --no-focus >/dev/null 2>&1
+assert_eq "$(_linked_ws_count "$WORK/project")" "1" "cleanup setup: workspace labeled '$LABEL_FORM' is open"
+_chief_herdr_close_task_workspace "$CLEANUP_ID"
+assert_eq "$(_linked_ws_count "$WORK/project")" "0" "cleanup closes the task's workspace labeled '$LABEL_FORM'"
+assert_eq "$(_primary_ws "$WORK/project")" "$PRIMARY" "cleanup leaves the primary workspace alone"
+git -C "$WORK/project" worktree remove --force "$WORK/.chief/worktrees/$CLEANUP_ID" >/dev/null 2>&1 || true
+git -C "$WORK/project" branch -D "chief/$CLEANUP_ID" >/dev/null 2>&1 || true
 
 harness_summary

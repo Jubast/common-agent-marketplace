@@ -55,12 +55,12 @@ _chief_herdr_label() {
 }
 
 # _chief_herdr_close_task_workspace <id> - best-effort: closes the workspace
-# labelled "<id> · ..." (or the older "chief-<id>") - the only id-derived handle
-# guaranteed to survive a failure with no parsed pane id.
+# labelled "<id> · ..." - the only id-derived handle guaranteed to survive a
+# failure with no parsed pane id.
 _chief_herdr_close_task_workspace() {
   herdr workspace list 2>/dev/null \
-    | jq -r --arg old "chief-$1" --arg new "$1 · " \
-        '.result.workspaces[]? | select(.label == $old or (.label | startswith($new))) | .workspace_id' \
+    | jq -r --arg prefix "$1 · " \
+        '.result.workspaces[]? | select(.label | startswith($prefix)) | .workspace_id' \
     | while read -r w; do herdr workspace close "$w" >/dev/null 2>&1; done || true
 }
 
@@ -235,11 +235,12 @@ backend_send() {
 
 # The pane id in the endpoint names the workspace; its label is recorded as label=.
 backend_attach_hint() {
-  local pane_id
+  local pane_id label
   pane_id=$(chief_meta_get "$1" endpoint 2>/dev/null) || return 1
   pane_id=${pane_id#herdr:}
   [ -n "$pane_id" ] || return 1
-  printf 'herdr workspace focus %s (workspace "%s")\n' "$(_chief_herdr_workspace_id "$pane_id")" "$(chief_meta_get "$1" label 2>/dev/null || echo "chief-$1")"
+  label=$(chief_meta_get "$1" label 2>/dev/null) || return 1
+  printf 'herdr workspace focus %s (workspace "%s")\n' "$(_chief_herdr_workspace_id "$pane_id")" "$label"
 }
 
 backend_busy() {
