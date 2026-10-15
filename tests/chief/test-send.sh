@@ -34,6 +34,18 @@ mv "$CHIEF_HOME/tasks/t-1/inbox/001.msg" "$CHIEF_HOME/tasks/t-1/inbox/handled/"
 assert_success "sends a third message after the first was handled" -- "$SEND" t-1 "third message"
 assert_file_exists "$CHIEF_HOME/tasks/t-1/inbox/003.msg" "numbering continues from handled/ history, never reuses 001"
 
+# Zero-padded numbers must count in decimal: 008/009 are invalid octal and 010-017 etc. are valid-but-wrong octal.
+for last in 007 008 009 010 011 019 099; do
+  tid="n-$last"
+  timeout 10 "$SPAWN" "$tid" "$WORK/project" --mode builder --branch "feat/$tid" --intent "test" --spec "test" >/dev/null
+  box="$CHIEF_HOME/tasks/$tid/inbox"
+  mkdir -p "$box/handled"
+  echo old > "$box/handled/$last.msg"
+  want=$(printf '%03d' $((10#$last + 1)))
+  assert_success "sends after a last message numbered $last" -- "$SEND" "$tid" "next"
+  assert_file_exists "$box/$want.msg" "numbering after $last continues at $want"
+done
+
 assert_success "sends a special key" -- "$SEND" t-1 --key Enter
 assert_contains "$(cat "$CHIEF_HOME/tasks/t-1/term.log")" "send: Enter" "the key reached the backend"
 assert_contains "$(cat "$CHIEF_HOME/tasks/t-1/term.log")" "instruction waiting in" "an ordinary message rings a doorbell line, not the raw text"
