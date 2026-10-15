@@ -181,7 +181,10 @@ cleanup_claude() {
   return 0
 }
 cleanup() {
-  agent_release "${WORKTREE:-}"; agent_release "${WORKTREE2:-}"
+  if declare -F chief_agent_release >/dev/null; then
+    chief_agent_release "$ID" "${WORKTREE:-}" 2>/dev/null
+    chief_agent_release "$ID2" "${WORKTREE2:-}" 2>/dev/null
+  fi
   cleanup_orca
   cleanup_claude
   rm -rf "$WORK"
@@ -202,6 +205,7 @@ capture() { _chief_orca_screen "$(_chief_orca_handle "$1")"; }
 BRIEF="$WORK/brief.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF"
 
+chief_meta_set "$ID" agent claude
 SPAWN_OUTPUT=$(backend_spawn "$ID" "$PROJECT" "$BRIEF" "$BRANCH" 2>"$WORK/spawn.err")
 SPAWN_RC=$?
 assert_eq "$SPAWN_RC" "0" "backend_spawn succeeds"
@@ -271,6 +275,7 @@ backend_kill "$ID"
 # project only once; rolling it back leaves the first alone.
 printf 'Reply with exactly the single word: ok\n' > "$WORK/brief3.md"
 REPO_ID=$(_repo_id)
+chief_meta_set "$ID2" agent claude
 SPAWN2=$(backend_spawn "$ID2" "$PROJECT" "$WORK/brief3.md" "chief/$ID2" 2>/dev/null)
 WORKTREE2=$(printf '%s\n' "$SPAWN2" | sed -n 1p)
 record_leaves "$WORKTREE2"

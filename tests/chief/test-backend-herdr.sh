@@ -92,7 +92,10 @@ _ws_exists() {  # <workspace-id> -> the id again if still open, else empty
     | jq -r --arg id "$1" '.result.workspaces[]? | select(.workspace_id == $id) | .workspace_id'
 }
 cleanup() {
-  agent_release "$WORK/.chief/worktrees/$ID"; agent_release "$WORK/.chief/worktrees/$ID2"
+  if declare -F chief_agent_release >/dev/null; then
+    chief_agent_release "$ID" "$WORK/.chief/worktrees/$ID" 2>/dev/null
+    chief_agent_release "${ID2:-}" "$WORK/.chief/worktrees/${ID2:-}" 2>/dev/null
+  fi
   # Safety net independent of how far the test got: close every workspace
   # this run could have produced, even if backend_spawn/relaunch failed
   # partway through and left one open without ever reporting it. Covers
@@ -125,6 +128,7 @@ printf 'Reply with exactly the single word: ok\n' > "$BRIEF"
 
 chief_meta_set "$ID" mode builder
 chief_meta_set "$ID" project "$WORK/project"
+chief_meta_set "$ID" agent claude
 SPAWN_OUTPUT=$(backend_spawn "$ID" "$WORK/project" "$BRIEF" "chief/$ID" 2>"$WORK/spawn.err")
 SPAWN_RC=$?
 assert_eq "$SPAWN_RC" "0" "backend_spawn succeeds (pre-trusts the worktree, then delivers the brief)"
@@ -159,6 +163,7 @@ BRIEF4="$WORK/brief4.md"
 printf 'Reply with exactly the single word: ok\n' > "$BRIEF4"
 chief_meta_set "$ID2" mode builder
 chief_meta_set "$ID2" project "$WORK/project"
+chief_meta_set "$ID2" agent claude
 SPAWN_OUTPUT2=$(backend_spawn "$ID2" "$WORK/project" "$BRIEF4" "chief/$ID2" 2>"$WORK/spawn2.err")
 SPAWN_RC2=$?
 assert_eq "$SPAWN_RC2" "0" "backend_spawn succeeds for a second task against the same project"
