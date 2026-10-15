@@ -35,7 +35,7 @@ The spec names the target branch, the pinned SHA, the base, the builder's brief 
 5. **Scope discipline.** Nothing beyond the spec: a generalization, unrelated refactor or extra hardening nobody asked for is flagged.
 6. **Project docs addressed.** The builder's `done` line says the relevant well-known docs (`README.md`, `AGENTS.md`/`CLAUDE.md`, `ARCHITECTURE.md`, `docs/adr/*.md`, `CONSUMER_GUIDE.md`) were updated for a non-trivial change, or names which don't exist. Flag a `done` line that is silent on this.
 7. **Doc quality.** Any doc touched reads clearly on its own, is short, doesn't narrate decisions or history, has no duplicated content or dead local links.
-8. **Commit conventions.** Read each commit's title and body (`git log <base>..<sha>`). An AI-attribution trailer is a FAIL regardless of project conventions. Also check them against conventions found in `CLAUDE.md`/`AGENTS.md`, a template or an installed convention skill (format, forbidden content such as em dashes, structure). List your available skills; if one covers commit messages (e.g. `conventional-commits`), load it and check every title and body against it, and name the skill in the report. None found is a no-op for that part.
+8. **Commit conventions.** Read each commit's title and body (`git log <base>..<sha>`). An AI-attribution trailer is a FAIL regardless of project conventions. Also check them against conventions found in `CLAUDE.md`/`AGENTS.md`, a template or an installed convention plugin (format, forbidden content such as em dashes, structure). None found is a no-op for that part.
 
 # Output
 `{REPORT_FILE}`:
