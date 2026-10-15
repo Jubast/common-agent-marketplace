@@ -147,8 +147,8 @@ PRIMARY=$(_primary_ws "$WORK/project")
 [ -n "$PRIMARY" ]
 assert_eq "$?" "0" "the project's primary workspace is open"
 WS1=$(_chief_herdr_workspace_id "${ENDPOINT#herdr:}")
-assert_eq "$(_ws_label "$WS1")" "$ID · builder · project" "the task is its own workspace labeled <id> · <role> · <project>"
-assert_eq "$(chief_meta_get "$ID" label)" "$ID · builder · project" "backend_spawn records the label in meta"
+assert_eq "$(_ws_label "$WS1")" "$ID" "the task is its own workspace labeled with its plain id"
+assert_eq "$(chief_meta_get "$ID" label 2>/dev/null || echo none)" "none" "backend_spawn records no label in meta"
 assert_eq "$(_ws_count_for_root "$WORK/project")" "2" "the primary plus one task workspace exist for the project"
 assert_eq "$(_linked_ws_count "$WORK/project")" "1" "the task workspace is a linked worktree"
 
@@ -240,7 +240,7 @@ assert_contains "$NEW_ENDPOINT" "herdr:" "backend_relaunch records a fresh herdr
 [ "$NEW_ENDPOINT" != "$ENDPOINT" ]
 assert_eq "$?" "0" "backend_relaunch's endpoint differs from the original pane"
 assert_eq "$(_linked_ws_count "$WORK/project")" "1" "backend_relaunch opens the task as a linked workspace again"
-assert_eq "$(_ws_label "$(_chief_herdr_workspace_id "${NEW_ENDPOINT#herdr:}")")" "$ID · builder · project" "backend_relaunch keeps the <id> · <role> · <project> label"
+assert_eq "$(_ws_label "$(_chief_herdr_workspace_id "${NEW_ENDPOINT#herdr:}")")" "$ID" "backend_relaunch keeps the plain id label"
 
 wait_for_idle "$ID"
 RELAUNCH_CAPTURE=$(capture "$ID")
@@ -249,17 +249,33 @@ assert_contains "$RELAUNCH_CAPTURE" "ok" "the pane shows the relaunched claude's
 backend_kill "$ID"
 assert_eq "$(_linked_ws_count "$WORK/project")" "0" "no task workspace remains after all tasks are killed"
 
-# _chief_herdr_close_task_workspace closes the task workspace by its label.
-LABEL_FORM="t-herdr-cleanup · builder · project"
+# _chief_herdr_close_task_workspace finds the task workspace by its worktree
+# path, whatever its label, and leaves look-alikes and the primary alone.
 CLEANUP_ID=t-herdr-cleanup
-herdr worktree create --cwd "$WORK/project" --branch "chief/$CLEANUP_ID" \
-  --path "$WORK/.chief/worktrees/$CLEANUP_ID" --label "$LABEL_FORM" \
-  --trust-repository --no-focus >/dev/null 2>&1
-assert_eq "$(_linked_ws_count "$WORK/project")" "1" "cleanup setup: workspace labeled '$LABEL_FORM' is open"
-_chief_herdr_close_task_workspace "$CLEANUP_ID"
-assert_eq "$(_linked_ws_count "$WORK/project")" "0" "cleanup closes the task's workspace labeled '$LABEL_FORM'"
-assert_eq "$(_primary_ws "$WORK/project")" "$PRIMARY" "cleanup leaves the primary workspace alone"
-git -C "$WORK/project" worktree remove --force "$WORK/.chief/worktrees/$CLEANUP_ID" >/dev/null 2>&1 || true
-git -C "$WORK/project" branch -D "chief/$CLEANUP_ID" >/dev/null 2>&1 || true
+_open_task_ws() {  # <id> <label>
+  herdr worktree create --cwd "$WORK/project" --branch "chief/$1" \
+    --path "$WORK/.chief/worktrees/$1" --label "$2" \
+    --trust-repository --no-focus >/dev/null 2>&1
+}
+_drop_task_ws() {  # <id>
+  git -C "$WORK/project" worktree remove --force "$WORK/.chief/worktrees/$1" >/dev/null 2>&1 || true
+  git -C "$WORK/project" branch -D "chief/$1" >/dev/null 2>&1 || true
+}
+_linked_ws_labels() {  # <repo-root> -> labels of its linked-worktree workspaces
+  herdr workspace list 2>/dev/null \
+    | jq -r --arg root "$1" '.result.workspaces[]? | select(.worktree.repo_root == $root and .worktree.is_linked_worktree == true) | .label'
+}
+for LABEL_FORM in "$CLEANUP_ID" "$CLEANUP_ID · builder · project"; do
+  _open_task_ws "$CLEANUP_ID" "$LABEL_FORM"
+  _open_task_ws "$CLEANUP_ID-review" "$CLEANUP_ID-review"
+  assert_eq "$(_linked_ws_count "$WORK/project")" "2" "cleanup setup: workspaces labeled '$LABEL_FORM' and '$CLEANUP_ID-review' are open"
+  _chief_herdr_close_task_workspace "$CLEANUP_ID"
+  assert_eq "$(_linked_ws_labels "$WORK/project")" "$CLEANUP_ID-review" "cleanup closes the workspace labeled '$LABEL_FORM' and leaves the <id>-review look-alike open"
+  assert_eq "$(_primary_ws "$WORK/project")" "$PRIMARY" "cleanup leaves the primary workspace alone"
+  _chief_herdr_close_task_workspace "$CLEANUP_ID-review"
+  assert_eq "$(_linked_ws_count "$WORK/project")" "0" "cleanup closes the review workspace by its own path"
+  _drop_task_ws "$CLEANUP_ID"
+  _drop_task_ws "$CLEANUP_ID-review"
+done
 
 harness_summary

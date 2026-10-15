@@ -102,7 +102,7 @@ chief_meta_exists "$ID" && fail "task $ID already has a meta record - use a fres
 # above and the stub chief_meta_set calls below - without it, a second
 # chief-spawn.sh for the same id (accidental double-dispatch, a naive retry
 # wrapper) would pass the same check and race this one's backend_spawn/
-# backend_spawn_cleanup over the same worktree path/branch/pane label.
+# backend_spawn_cleanup over the same worktree path/branch.
 # `set -C` (noclobber) makes the create-if-absent atomic; the trap releases
 # it on any exit, success or failure.
 if [ "$DRY_RUN" -eq 0 ]; then
