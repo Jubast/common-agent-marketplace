@@ -83,8 +83,9 @@ chief_agent_release() {  # <id> <dir> - agent_release with the task's adapter
 # SEL_COMMAND and POOL_SRC (the role, global, or default when no pool is
 # configured). weighted and random draw from $CHIEF_AGENT_RANDOM when it is set
 # (a test hook), else from $RANDOM; random ignores weights. all takes entry
-# number $CHIEF_AGENT_PICK (default 1); chief_agent_fanout lists them. peek advances no
-# cursor and, for weighted and random, picks nothing: it sets SEL_POOL_DESC.
+# number $CHIEF_AGENT_PICK (default 1); chief_agent_fanout lists them. peek
+# advances no cursor and, for weighted, random and all, picks nothing: it sets
+# SEL_POOL_DESC.
 
 CHIEF_ROLES="builder researcher reviewer brainstormer"
 SEP=$'\x1f'

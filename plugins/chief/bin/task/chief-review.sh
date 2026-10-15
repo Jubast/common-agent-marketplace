@@ -69,12 +69,11 @@ if [ "$ROUND" -eq 1 ]; then
     chief_meta_set "$BID" reviewer "$IDS"
   done < <(chief_agent_fanout reviewer)
 else
-  priors_of() { ls "$DATA/$1"/report.round-*.md 2>/dev/null || true; }
   for RID in $LINKED; do
     [ ! -f "$DATA/$RID/report.md" ] || mv "$DATA/$RID/report.md" "$DATA/$RID/report.round-$((ROUND - 1)).md"
     "$CHIEF_ROOT/bin/task/chief-send.sh" "$RID" "$text
 Earlier reports (to verify, not to repeat):
-$(priors_of "$RID")"
+$(ls "$DATA/$RID"/report.round-*.md 2>/dev/null || true)"
     "$CHIEF_ROOT/bin/chief-backlog.sh" status "$RID" in-flight >/dev/null
     echo "working: round $ROUND requested" >> "$STATE/$RID.status"
     touch "$STATE/$RID.turn-ended"
