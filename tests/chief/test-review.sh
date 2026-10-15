@@ -153,6 +153,37 @@ assert_eq "$(chief_meta_get b-3-review status)" "torn-down" "teardown: the revie
 assert_contains "$("$BIN/chief-backlog.sh" show b-3-review)" "[done]" "teardown: its backlog item is done"
 assert_eq "$(git -C "$WORK/project" branch --list chore/review-b-3)" "" "teardown: its branch is deleted"
 
+# --- strategy all: one reviewer per [reviewer] entry ---
+mkdir -p "$CHIEF_HOME/config"
+printf '[reviewer]\nstrategy = all\nclaude:sonnet\ncodex\nclaude:sonnet\n' > "$CHIEF_HOME/config/agents"
+"$BIN/chief-backlog.sh" add b-4 "Add four" >/dev/null
+timeout 10 "$BIN/chief-spawn.sh" b-4 "$WORK/project" --mode builder --branch feat/b-4 --intent "Add four" >/dev/null
+commit b-4 four.txt >/dev/null
+echo "done: $(git -C "$CHIEF_HOME/worktrees/b-4" rev-parse --short HEAD) ok" >> "$STATE/b-4.status"
+out=$(timeout 30 "$RV" b-4 2>&1)
+assert_contains "$out" "review: b-4-review-claude-sonnet, b-4-review-codex, b-4-review-claude-sonnet-3 round 1 of b-4" "all: one reviewer per entry, ids distinct"
+assert_eq "$(chief_meta_get b-4 reviewer)" "b-4-review-claude-sonnet b-4-review-codex b-4-review-claude-sonnet-3" "all: the builder links every reviewer"
+assert_eq "$(chief_meta_get b-4-review-codex agent)" "codex" "all: each reviewer runs its own entry"
+assert_eq "$(chief_meta_get b-4-review-codex for)" "b-4" "all: each reviewer is for the builder"
+assert_eq "$(chief_meta_get b-4-review-codex branch)" "chore/review-b-4-codex" "all: distinct branches"
+assert_contains "$("$CS" b-4)" "[reviewer: b-4-review-claude-sonnet b-4-review-codex b-4-review-claude-sonnet-3]" "all: crew-state lists the reviewers"
+assert_contains "$("$RV" b-4 2>&1)" "already reviewing" "all: a working reviewer refuses the same SHA"
+for r in $(chief_meta_get b-4 reviewer); do
+  printf 'Verdict: PASS\n' > "$DATA/$r/report.md"
+  echo "done: round 1 PASS @x" >> "$STATE/$r.status"
+done
+SHA4=$(commit b-4 four-b.txt)
+echo "done: ${SHA4:0:7} fixed" >> "$STATE/b-4.status"
+out=$(timeout 30 "$RV" b-4 2>&1)
+assert_contains "$out" "round 2 of b-4" "all: round 2 re-arms them all"
+for r in $(chief_meta_get b-4 reviewer); do
+  assert_file_exists "$DATA/$r/report.round-1.md" "all: $r report archived"
+  assert_contains "$(cat "$STATE/$r.inbox/001.msg")" "Pinned SHA: $SHA4" "all: $r got the round message"
+done
+out=$("$BIN/chief-teardown.sh" b-4 --abandon 2>&1)
+assert_eq "$(grep -c '^torn down' <<< "$out")" "4" "all: teardown discards the builder and every reviewer"
+rm "$CHIEF_HOME/config/agents"
+
 # --- manual use on an arbitrary branch ---
 git -C "$WORK/project" branch feat/other main
 assert_success "manual: chief-spawn --mode reviewer --spec" -- \
@@ -166,6 +197,7 @@ RB=$(cat "$TEMPLATES/brief-reviewer.md")
 for item in "Matches intent" "Code and comment quality" "Checks run clean" "No debris" "Scope discipline" "Project docs addressed" "Doc quality" "Commit conventions"; do
   assert_contains "$RB" "**$item.**" "reviewer brief: checklist item $item"
 done
+assert_contains "$RB" "if one covers commit messages (e.g. \`conventional-commits\`), load it" "reviewer brief: item 8 loads an installed commit-convention skill"
 assert_contains "$RB" "Run the project's own check command" "reviewer brief: item 3 runs the project's checks"
 assert_contains "$RB" "git reset --hard && git clean -fd" "reviewer brief: resets the scratch worktree"
 assert_contains "$RB" "git switch --detach <sha>" "reviewer brief: detaches at the pinned SHA"
@@ -179,7 +211,7 @@ assert_contains "$RB" "working: round N" "reviewer brief: working status line"
 assert_contains "$RB" "A FAIL verdict is still \`done\`" "reviewer brief: FAIL is done, failed means incomplete"
 assert_contains "$RB" "never push, post, comment, merge or edit project files" "reviewer brief: read-only toward everything else"
 assert_contains "$RB" "AI-attribution trailer is a FAIL" "reviewer brief: attribution is a FAIL"
-assert_not_contains "$(tr A-Z a-z <<< "$RB")" "skill" "reviewer brief: no skill dependency"
+assert_not_contains "$(tr A-Z a-z <<< "$RB")" "superpowers" "reviewer brief: no dependency on a named skill pack"
 assert_not_contains "$(sed 's/CLAUDE\.md//g' <<< "$RB" | tr A-Z a-z)" "claude" "reviewer brief: agent-neutral wording"
 for ph in TASK SPEC BRANCH REPORT_FILE STATUS_FILE TURN_FILE INBOX_DIR; do
   assert_not_contains "$(cat "$DATA/rv-1/brief.md")" "{$ph}" "reviewer brief: no unfilled {$ph}"
@@ -192,7 +224,7 @@ BL=$(cat "$TEMPLATES/lifecycle-builder.md")
 assert_contains "$BL" "chief-review.sh <id>" "builder lifecycle: names the review helper"
 assert_contains "$BL" "every time (never automatic)" "builder lifecycle: the review question is always asked"
 assert_contains "$BL" "review everything this session" "builder lifecycle: the standing preference"
-assert_contains "$BL" "also discards its reviewer" "builder lifecycle: the teardown cascade"
+assert_contains "$BL" "also discards its reviewers" "builder lifecycle: the teardown cascade"
 DS=$(cat "$REPO_ROOT/plugins/chief/skills/dispatch/SKILL.md")
 assert_contains "$DS" "## The review loop" "dispatch: has the review loop"
 assert_contains "$DS" "chief-review.sh <builder-id>" "dispatch: runs the helper"
