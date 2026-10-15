@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test-teardown.sh - chief-teardown.sh's non-happy-path branches: a researcher's
 # unconditional discard (a researcher's deliverable is its report at
-# $DATA/<id>/report.md, outside the worktree - the worktree itself was
+# tasks/<id>/report.md, outside the worktree - the worktree itself was
 # always scratch, so there is nothing to prove "landed" before discarding
 # it), and a builder's explicit --abandon override. The ordinary
 # builder-refuses-then-succeeds-after-merge path is already covered end to end
@@ -26,9 +26,9 @@ echo "test-teardown:"
 assert_success "backlog: file the researcher" -- "$BIN/chief-backlog.sh" add s-1 "Investigate caching options"
 assert_success "spawn: researcher task" -- \
   timeout 10 "$BIN/chief-spawn.sh" s-1 "$WORK/project" --mode researcher --branch feat/s-1 --intent "Investigate caching options"
-assert_contains "$(cat "$CHIEF_HOME/state/s-1.lifecycle")" "handed off to a successor" \
+assert_contains "$(cat "$CHIEF_HOME/tasks/s-1/lifecycle")" "handed off to a successor" \
   "spawn: a researcher task gets the researcher lifecycle checklist, not the builder one"
-echo "findings: use an LRU cache" > "$CHIEF_HOME/data/s-1/report.md"
+echo "findings: use an LRU cache" > "$CHIEF_HOME/tasks/s-1/report.md"
 
 # Simulate the researcher doing exactly what its brief invites: a throwaway
 # commit in its own scratch worktree, never meant to land.
@@ -38,13 +38,15 @@ echo "findings: use an LRU cache" > "$CHIEF_HOME/data/s-1/report.md"
   git add scratch.txt
   git -c user.email=t@t -c user.name=t commit -q -m "scratch"
 )
-echo "done: wrote report.md" >> "$CHIEF_HOME/state/s-1.status"
+echo "done: wrote report.md" >> "$CHIEF_HOME/tasks/s-1/status"
 
 assert_success "teardown: a researcher tears down unconditionally, even with an unlanded commit" -- \
   "$BIN/chief-teardown.sh" s-1
 assert_file_missing "$CHIEF_HOME/worktrees/s-1" "teardown: researcher worktree removed"
-assert_file_exists "$CHIEF_HOME/data/s-1/report.md" "teardown: the researcher's report survives - it lives outside the worktree"
-assert_eq "$(cat "$CHIEF_HOME/data/s-1/report.md")" "findings: use an LRU cache" "teardown: the report content is untouched"
+assert_file_missing "$CHIEF_HOME/tasks/s-1" "teardown: the task folder leaves tasks/"
+assert_file_exists "$CHIEF_HOME/archive/s-1/report.md" "teardown: the researcher's report survives in the archive"
+assert_eq "$(cat "$CHIEF_HOME/archive/s-1/report.md")" "findings: use an LRU cache" "teardown: the report content is untouched"
+assert_contains "$(cat "$CHIEF_HOME/archive/s-1/meta")" "status=torn-down" "teardown: the archived meta says torn-down"
 assert_contains "$("$BIN/chief-backlog.sh" show s-1)" "[done]" "teardown: backlog item marked done"
 
 # --- a builder, never landed, explicitly abandoned --------------------------
@@ -57,7 +59,7 @@ assert_success "spawn: builder task" -- \
   git add hello.txt
   git -c user.email=t@t -c user.name=t commit -q -m "add hello.txt"
 )
-echo "done: added hello.txt" >> "$CHIEF_HOME/state/b-1.status"
+echo "done: added hello.txt" >> "$CHIEF_HOME/tasks/b-1/status"
 
 assert_failure "teardown: still refuses a builder with no --abandon, even after done" -- "$BIN/chief-teardown.sh" b-1
 assert_file_exists "$CHIEF_HOME/worktrees/b-1" "teardown refusal: builder worktree is untouched"
@@ -135,16 +137,12 @@ git -C "$WORK/project" merge --ff-only feat/b-4 >/dev/null
 assert_success "teardown: a landed builder deletes its now-merged remote branch" -- "$BIN/chief-teardown.sh" b-4
 assert_eq "$(git -C "$BARE" branch --list feat/b-4)" "" "teardown: remote branch feat/b-4 deleted from origin"
 
-# --- a brainstormer discards like a researcher; an unknown mode refuses ---
+# --- a brainstormer discards like a researcher ---
 assert_success "spawn: brainstormer task" -- \
   timeout 10 "$BIN/chief-spawn.sh" bs-1 "$WORK/project" --mode brainstormer --branch feat/bs-1 --intent x
 assert_success "teardown: a brainstormer discards unconditionally" -- "$BIN/chief-teardown.sh" bs-1
-assert_success "spawn: a task to give a legacy mode" -- \
-  timeout 10 "$BIN/chief-spawn.sh" lg-1 "$WORK/project" --mode builder --branch feat/lg-1 --intent x
-sed -i 's/^mode=.*/mode=ship/' "$CHIEF_HOME/state/lg-1.meta"
-assert_failure "teardown: a legacy mode=ship task is refused, not silently discarded" -- "$BIN/chief-teardown.sh" lg-1
-assert_file_exists "$CHIEF_HOME/worktrees/lg-1" "teardown refusal: legacy worktree is untouched"
-assert_success "teardown: --abandon still clears a legacy task" -- "$BIN/chief-teardown.sh" lg-1 --abandon
+assert_contains "$("$BIN/chief-teardown.sh" bs-1)" "torn down: bs-1" "teardown: re-running on an archived task completes"
+assert_file_exists "$CHIEF_HOME/archive/bs-1/meta" "teardown: the re-run leaves the archive in place"
 
 # --- teardown releases the task's pre-trusted worktree -------------------
 export CHIEF_HOME="$WORK/.chief-trust"

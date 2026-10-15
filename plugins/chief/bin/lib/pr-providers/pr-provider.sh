@@ -6,7 +6,7 @@
 #   - chief-pr-open.sh doesn't know the provider yet: it must DETECT it from
 #     the task's own git remote (chief_pr_detect_provider).
 #   - chief-pr-state.sh/review.sh/approve.sh/merge.sh already have a cached
-#     pr_provider in the task's .meta (written by chief-pr-open.sh): they
+#     pr_provider in the task's meta (written by chief-pr-open.sh): they
 #     LOAD that exact adapter directly (chief_pr_load_provider), no detection.
 #
 # Adapter contract - each pr-providers/<name>.sh must define all seven:

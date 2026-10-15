@@ -20,9 +20,9 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
 
 ## The lifecycle
 
-`state/<id>.lifecycle` (rendered by `chief-spawn.sh`) is the checklist for each task, filing through teardown. Check off each line as you complete it. Read it before acting on an in-flight task, not just after a compaction.
+`.chief/tasks/<id>/lifecycle` (rendered by `chief-spawn.sh`) is the checklist for each task, filing through teardown. Check off each line as you complete it. Read it before acting on an in-flight task, not just after a compaction.
 
-1. **File it.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh add <id> "<short title>"` with an id named `<role>-<topic>` (e.g. `build-rate-limit`, `research-auth-flow`; a reviewer is `<builder-id>-review`). The id names the worktree, the data and state files and the herdr workspace, so make it say what the task is.
+1. **File it.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh add <id> "<short title>"` with an id named `<role>-<topic>` (e.g. `build-rate-limit`, `research-auth-flow`; a reviewer is `<builder-id>-review`). The id names the worktree, the task folder `.chief/tasks/<id>/` and the herdr workspace, so make it say what the task is.
 
 2. **Spawn.**
    `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <id> <project-dir> --mode builder|researcher|brainstormer --branch "<type>/<short-kebab-description>" --intent "<the operator's own ask, close to verbatim>" --spec "<your build instructions, only what the intent requires>"`
@@ -41,7 +41,7 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
    - `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> interrupt` (nudge; it keeps running) plus a corrective `chief-send.sh`.
    - `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> relaunch --note "<progress so far>"` only if wedged. The replacement gets the same worktree and commits but none of the conversation, so the note is all it has. Run it in the background.
 
-7. **Report.** `state/<id>.lifecycle` has the exact next actions. For a builder, follow "The review loop".
+7. **Report.** `.chief/tasks/<id>/lifecycle` has the exact next actions. For a builder, follow "The review loop".
 
 ## The review loop
 
@@ -50,7 +50,7 @@ Never automatic. Propose each step; the operator decides.
 1. Builder `done`: report the result with the diffstat and a one-line recommendation (e.g. "2 files, docs only: review probably unnecessary"), hold it (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "reported: awaiting review decision"`), and ask whether to review it. Batch the question when several builders finish together.
 2. No: go to landing. Yes: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-review.sh <builder-id>`. Round 1 spawns the reviewer `<builder-id>-review`; later rounds re-arm it. Run it in the background. The watcher wakes you when the reviewer reports.
    If the operator says "review everything this session", skip the question for this conversation until they revoke it. Still present every verdict.
-3. Reviewer `done`: present the verdict (PASS, or the blocking findings, then the suggestions) from `.chief/data/<reviewer-id>/report.md`. Hold the reviewer (`chief-backlog.sh hold <reviewer-id> "round N <verdict>, idle"`) and propose the next step:
+3. Reviewer `done`: present the verdict (PASS, or the blocking findings, then the suggestions) from `.chief/tasks/<reviewer-id>/report.md`. Hold the reviewer (`chief-backlog.sh hold <reviewer-id> "round N <verdict>, idle"`) and propose the next step:
    - FAIL: offer to send the findings to the builder. The operator may add comments or drop findings first.
    - PASS: offer to land it or keep going.
    - Reviewer `failed`: the review did not complete; report why.
@@ -66,7 +66,7 @@ Do exactly what they decide, nothing more:
 - **Not satisfied:** move the task back to in-flight (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh status <id> in-flight`), then `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <id> "<instruction>"`.
 - **Ready to land** (builder only): compose a conventional-commit-style title and a structured body yourself (following the project's PR conventions: a `conventional-pull-requests`-style skill if installed, or its CLAUDE.md/AGENTS.md), then `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-open.sh <id> --confirm --title "<title>" --body "<body>"`. `--title` and `--body` are required.
 - **Accepted:** builder: `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-merge.sh <id> --confirm` (merges the open PR, squash by default). Researcher or brainstormer to be built on: see "Handing off".
-- **Accepted as-is** (researcher or brainstormer): `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>`, then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>` discards the worktree; the report at `.chief/data/<id>/report.md` survives.
+- **Accepted as-is** (researcher or brainstormer): `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>`, then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>` discards the worktree; the task's folder, with its report, moves to `.chief/archive/<id>/`.
 
 `chief-pr-open.sh`, `chief-pr-update.sh` and `chief-pr-merge.sh` require `--confirm`; pass it only once the operator has explicitly said so in this conversation.
 
@@ -86,7 +86,7 @@ A done researcher or brainstormer with a report can be followed by a successor: 
 - The successor runs the target role's configured agent. `--agent` carries another over; name it in the go-ahead.
 
 1. Propose the branch (`conventional-branches` scheme) and preview the agent: `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <new-id> <project-dir> --mode <builder|researcher|brainstormer> --from <id> --branch "<type>/<short-kebab-description>" --intent "<ask>" --dry-run` prints the exact `agent:` and `launch:` (a weighted or random pool prints as the pool) and creates nothing.
-2. Ask the operator's go-ahead naming that agent and branch, and that the source's session ends (a brainstormer's pane closes; its report survives under `.chief/data/<id>/`).
+2. Ask the operator's go-ahead naming that agent and branch, and that the source's session ends (a brainstormer's pane closes; its folder, with the report, moves to `.chief/archive/<id>/`).
 3. On the go-ahead, file `<new-id>` (`chief-backlog.sh add`), then run `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-promote.sh <id> --to <role> --as <new-id> --branch "<branch>" --intent "<ask>" [--spec "<instructions>"]`. It runs `chief-spawn.sh --from`, then tears the source down. `--keep-source` leaves it running; `--dry-run` previews. Run it in the background.
 
 ## Once a PR is open
@@ -101,7 +101,7 @@ A done researcher or brainstormer with a report can be followed by a successor: 
 
 ## Backlog reference
 
-`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh add|status|note|hold|done|list|next|show <id> ...`: one markdown file (`.chief/data/backlog.md`); statuses are `queued|in-flight|held|done`. `hold <id> "<reason>"` marks anything waiting on an operator decision.
+`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh add|status|note|hold|done|list|next|show <id> ...`: one markdown file (`.chief/backlog.md`); statuses are `queued|in-flight|held|done`. `hold <id> "<reason>"` marks anything waiting on an operator decision.
 
 ## What NOT to do
 

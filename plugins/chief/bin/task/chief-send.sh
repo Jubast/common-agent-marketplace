@@ -29,7 +29,7 @@ fi
 TEXT=${1:-}
 [ -n "$(printf '%s' "$TEXT" | tr -d '[:space:]')" ] || fail "message text must not be empty"
 
-INBOX="$STATE/$ID.inbox"
+INBOX=$(chief_task_path "$ID" inbox)
 mkdir -p "$INBOX/handled"
 NEXT=$(
   { ls "$INBOX" 2>/dev/null | grep -E '^[0-9]{3}\.msg$' || true

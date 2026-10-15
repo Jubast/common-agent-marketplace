@@ -61,7 +61,9 @@ dialog_for() {
 }
 
 . "$CHIEF_BIN/lib/paths.sh"; . "$CHIEF_BIN/lib/meta.sh"; . "$CHIEF_BIN/lib/agents/agent.sh"
+chief_ensure_dirs
 . "$CHIEF_BIN/lib/backends/herdr.sh"
+chief_meta_set t1 agent claude
 chief_agent_use t1 >/dev/null 2>&1
 WT="$WORK/chief/worktrees/t1"
 BRIEF="You are a researcher: an autonomous worker agent dispatched by Chief. $(printf 'line %s\n' $(seq 1 40))"
@@ -190,12 +192,12 @@ mkproj; reset; cp "$FX/screen-ready.txt" "$FAKE/screen"; echo "$BLOCKED" > "$FAK
 out=$(spawn s1); rc=$?
 assert_eq "$((rc != 0))" "1" "a dialog and a 'blocked' reply -> non-zero"
 assert_not_contains "$out" "spawned:" "...no 'spawned:' line"
-assert_file_missing "$CHIEF_HOME/state/s1.meta" "...rolled back, no meta left"
+assert_file_missing "$CHIEF_HOME/tasks/s1/meta" "...rolled back, no meta left"
 mkproj; reset; cp "$FX/screen-shell-only.txt" "$FAKE/screen"
 out=$(spawn s3); rc=$?
 assert_eq "$((rc != 0))" "1" "a pane that never renders -> non-zero"
 assert_not_contains "$out" "spawned:" "...no 'spawned:' line"
-assert_file_missing "$CHIEF_HOME/state/s3.meta" "...rolled back, no meta left"
+assert_file_missing "$CHIEF_HOME/tasks/s3/meta" "...rolled back, no meta left"
 mkproj; reset; cp "$FX/screen-ready.txt" "$FAKE/screen"; echo "$WORKING" > "$FAKE/prompt.json"
 out=$(spawn s2); rc=$?
 assert_eq "$rc" "0" "a healthy spawn succeeds"

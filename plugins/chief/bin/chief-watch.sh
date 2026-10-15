@@ -3,12 +3,13 @@
 # checks every in-flight task's state, and only exits (with a reason printed
 # on stdout) when something needs the operator's attention. Chief's Stop hook
 # runs this in the background at zero model cost and only "rewakes" you when
-# it exits - see hooks/session-stop.sh.
+# it exits - see hooks/stop-watch-arm.sh.
 #
 # Usage: chief-watch.sh   (runs until something actionable happens, or forever)
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
+chief_ensure_dirs
 . "$CHIEF_ROOT/bin/lib/meta.sh"
 . "$CHIEF_ROOT/bin/lib/backends/backend.sh"
 
@@ -17,9 +18,9 @@ BEACON="$STATE/.last-watcher-beat"
 
 in_flight_ids() {
   local f id
-  for f in "$STATE"/*.meta; do
+  for f in "$TASKS"/*/meta; do
     [ -e "$f" ] || continue
-    id=$(basename "$f" .meta)
+    id=$(basename "$(dirname "$f")")
     case "$(chief_meta_get "$id" status)" in
       working|spawning) printf '%s\n' "$id" ;;
     esac
