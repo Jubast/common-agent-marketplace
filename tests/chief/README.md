@@ -9,9 +9,9 @@ CLI stub, and `test-backend-herdr-mock.sh` does the same for
 `backends/herdr.sh` against a fake `herdr` fed screens captured from a live
 herdr and Claude Code (`fixtures/herdr/`), so herdr's rendering quirks - the
 trust dialog, the `[Pasted text #N +M lines]` placeholder, the bare shell line
-before the TUI renders - are real, not hand-written. `test-backend-herdr.sh`
-and `test-backend-orca.sh` are the two exceptions: each opts into a real
-herdr/orca install and a real claude turn - see below.
+before the TUI renders - are real, not hand-written. `test-backend-herdr.sh`,
+`test-backend-orca.sh` and `test-backend-copilot.sh` are the exceptions: each
+opts into a real herdr/orca install and a real agent turn - see below.
 
 ## Cleanup
 
@@ -54,10 +54,11 @@ JSON output (skipped gracefully if absent).
 | `test-review.sh` | `chief-review.sh` (round 1 links and pinned SHA, round 2 archive/send/`working:` line/in-flight, every gate, stale or missing SHA, same-SHA refusal), the teardown cascade (done, refused, hand-removed worktree, reviewer alone), the builder/reviewer link in crew-state and the digest, watch (differing reviewer `done` wakes, identical suppressed), and the reviewer brief and builder lifecycle content |
 | `test-backend-herdr-mock.sh` | `backends/herdr.sh` against a fake `herdr` CLI and live-captured screen fixtures: screen-based start readiness (shell-only, late TUI, `agent start` rc ignored), the folder-trust dialog (accepted once for Chief's own worktree, never for another folder or an agent without trust keys), `blocked` is not a started turn, stall recovery (Enter only over a landed placeholder or raw text, wait for a queued or already-submitted brief, one resend only when the box is empty and the TUI rendered, never over a shell-only screen), and `chief-spawn.sh` / `backend_relaunch` failing non-zero with rollback and no `spawned:` unless a turn started. Zero cost. |
 | `test-backend-herdr.sh` | `backends/herdr.sh` against a REAL herdr install and a real (trivial) claude turn: spawn, pane read, busy, send, kill, relaunch, and the live-input-line check against real pane rendering (a placeholder-hint box and text genuinely in flight). **Not zero-cost** - opt in with `CHIEF_TEST_HERDR=1`; skips cleanly otherwise. See below. |
+| `test-backend-copilot.sh` | The copilot adapter against the REAL Copilot CLI, on its own isolated herdr server: ready text vs. the real idle footer, the folder-trust dialog and banner screens, the paste placeholder and input marker, then a real `chief-spawn.sh --agent copilot --mode researcher` on a throwaway repo through a status line, a report and teardown. **Not zero-cost** - opt in with `CHIEF_TEST_COPILOT=1`; skips cleanly otherwise. See below. |
 | `test-backend-orca-mock.sh` | `backends/orca.sh`'s argument-building and JSON-parsing against a fake `orca` CLI stub: spawn via `worktree create` + `terminal create --command` + `terminal send` (repo registration, parent-worktree nesting, pre-trust, ready-screen check, rollback on every failure), `backend_spawn_cleanup` rollback, pane read, busy, send, kill, `backend_teardown`, relaunch, and the real `chief-spawn`/`send`/`control`/`teardown` scripts end to end on the orca backend (herdr-parity flow). Zero cost. |
 | `test-backend-orca.sh` | `backends/orca.sh` against a REAL live Orca instance and real (trivial) claude turns, on a scratch repo: spawn (incl. repo registration and parent-worktree nesting), pane read, busy, send, kill, relaunch, `backend_teardown`, `backend_spawn_cleanup`, then the real `chief-spawn`/`send`/`control` (interrupt, relaunch)/`crew-state`/`teardown` scripts end to end. **Not zero-cost** - opt in with `CHIEF_TEST_ORCA=1`; skips cleanly otherwise. See below. |
 
-## The herdr and orca backend tests are different from the rest
+## The herdr, orca and copilot backend tests are different from the rest
 
 `test-backend-herdr.sh` and `test-backend-orca.sh` aren't free: each needs
 its real backend reachable (`herdr` + a headless `herdr server`, or `orca`
@@ -88,6 +89,29 @@ runs on EXIT/INT/TERM/HUP, is idempotent, and touches only the scratch repo it
 registered itself (via `orca worktree rm` / `orca project setup-delete`; never
 by editing `orca-data.json`) and the claude transcript/session dirs of its own
 worktrees.
+
+### The copilot test
+
+```bash
+CHIEF_TEST_COPILOT=1 bash tests/chief/test-backend-copilot.sh
+```
+
+Needs `herdr`, `copilot`, `jq`, `ss` and a copilot login in `~/.copilot/config.json`
+(or `$COPILOT_HOME`); skips cleanly without any of them. **Cost: one research
+turn per run** (the spawned worker's brief); everything else, including the
+paste check, is free local screen reading. It fails without retrying on a rate
+or quota message.
+
+It never touches your herdr: it runs in a scrubbed environment (no `HERDR_*`),
+with its own `HOME`/`XDG_*` in a temp dir and its own herdr server and socket,
+and aborts before any herdr call or copilot run unless it proves the socket
+differs from the default and the caller's, its server pid differs from the
+default server's, and its workspace list is empty.
+`CHIEF_TEST_COPILOT_GUARD_ONLY=1` runs that guard alone. Only the login is
+copied into the temp `HOME` (plus trust for the throwaway repo); it is deleted
+on EXIT/INT/TERM/HUP along with the temp dir, and only the test's own server is
+stopped. Copilot has no folder-trust handling, so the spawn repo is pre-trusted
+in the temp config; an untrusted folder stalls at copilot's trust dialog.
 
 ## What's deliberately NOT here (needs the devcontainer instead)
 
