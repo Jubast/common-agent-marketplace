@@ -90,7 +90,7 @@ cmd_status() {
       # baseline so chief-watch.sh can recognize "nothing new yet" and hold
       # off until the state actually moves past this point.
       local baseline
-      baseline=$("$CHIEF_ROOT/bin/task/chief-crew-state.sh" "$id" 2>/dev/null || true)
+      baseline=$(chief_notify_line "$("$CHIEF_ROOT/bin/task/chief-crew-state.sh" "$id" 2>/dev/null || true)")
       [ -n "$baseline" ] && chief_meta_set "$id" notify-baseline "$baseline"
     fi
     chief_meta_set "$id" status working

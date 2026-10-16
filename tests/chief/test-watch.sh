@@ -44,9 +44,9 @@ echo "done: added hello.txt" >> "$CHIEF_HOME/tasks/t-1/status"
 OUT1=$(timeout 10 "$BIN/chief-watch.sh")
 assert_contains "$OUT1" "t-1: state: done" "first Stop hook: watch surfaces the newly-done task"
 
-OUT2=$(timeout 10 "$BIN/chief-watch.sh")
-assert_contains "$OUT2" "t-1: state: done" \
-  "second Stop hook (before anything acts on the task): watch still surfaces it - nothing has advanced its meta status yet"
+OUT2=$(CHIEF_POLL=1 timeout 3 "$BIN/chief-watch.sh"; echo "rc=$?")
+assert_eq "$OUT2" "rc=124" \
+  "second Stop hook (state unchanged): watch stays silent, the done alert was already delivered"
 
 # The normal flow acts on the task: Chief holds it for review.
 "$BIN/chief-backlog.sh" hold t-1 "reported" >/dev/null
@@ -94,9 +94,9 @@ OUT7=$(timeout 10 "$BIN/chief-watch.sh")
 assert_contains "$OUT7" "t-2: state: done · switched to the new approach" \
   "once the state changes, watch surfaces the new terminal state"
 
-OUT8=$(timeout 10 "$BIN/chief-watch.sh")
-assert_contains "$OUT8" "t-2: state: done · switched to the new approach" \
-  "and keeps re-surfacing that new state on every subsequent Stop hook, same as the general case"
+OUT8=$(CHIEF_POLL=1 timeout 3 "$BIN/chief-watch.sh"; echo "rc=$?")
+assert_eq "$OUT8" "rc=124" \
+  "and stays silent on subsequent Stop hooks until the state changes again"
 
 # --- brainstormer: an operator-wait never wakes Chief; done does ---
 "$BIN/chief-backlog.sh" hold t-2 "reported" >/dev/null
@@ -118,5 +118,25 @@ turn_ago 1000000
 silent "brainstormer idle for days: watch still does not wake Chief"
 echo "done: spec ready" >> "$CHIEF_HOME/tasks/bs-1/status"
 assert_contains "$(watch_bs)" "bs-1: state: done · spec ready" "brainstormer done: watch wakes Chief immediately"
+
+# --- stale: the idle counter alone is not a state change ---
+assert_success "spawn: builder for the stale scenario" -- \
+  timeout 10 "$BIN/chief-spawn.sh" st-1 "$WORK/project" --mode builder --branch feat/st-1 --intent "idle"
+kill "$(cat "$CHIEF_HOME/tasks/st-1/term.pid")"; sleep 1
+echo "working: waiting on a job" >> "$CHIEF_HOME/tasks/st-1/status"
+stale_ago() { touch -d "@$(($(date +%s) - $1))" "$CHIEF_HOME/tasks/st-1/turn-ended"; }
+watch_st() { CHIEF_POLL=1 timeout 3 "$BIN/chief-watch.sh"; }
+
+stale_ago 250
+assert_contains "$(watch_st)" "st-1: state: stale" "stale builder: watch wakes Chief once"
+stale_ago 400
+out=$(watch_st); rc=$?
+assert_eq "$rc:$out" "124:" "stale builder, larger idle counter: watch stays silent"
+echo "working: back at it" >> "$CHIEF_HOME/tasks/st-1/status"
+touch "$CHIEF_HOME/tasks/st-1/turn-ended"
+out=$(watch_st); rc=$?
+assert_eq "$rc:$out" "124:" "stale builder active again: watch stays silent"
+stale_ago 250
+assert_contains "$(watch_st)" "st-1: state: stale" "stale again after activity: watch wakes Chief again"
 
 harness_summary
