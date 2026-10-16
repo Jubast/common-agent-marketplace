@@ -181,6 +181,26 @@ reset; cp "$FX/screen-ready.txt" "$FAKE/screen"; echo "$STALLED" > "$FAKE/prompt
 err=$(_chief_herdr_prompt t1 "$BRIEF" 2>&1 >/dev/null)
 assert_eq "$(count 'agent prompt')" "2" "stalled again after the resend -> not resent a third time"
 assert_contains "$err" "no turn started" "...and the failure says no turn started"
+# copilot echoes the brief inline (no needle, no placeholder) and is ready again
+# once its turn ends: the screen changed since the send -> landed, never resent
+reset; chief_meta_set t1 agent copilot; chief_agent_use t1 >/dev/null 2>&1
+cp "$FX/copilot-ready-empty.txt" "$FAKE/screen.1"; cp "$FX/copilot-working-brief-echoed.txt" "$FAKE/screen"
+cp "$FX/copilot-idle-between-steps.txt" "$FAKE/screen.3"
+echo "$STALLED" > "$FAKE/prompt.json"; echo 1 > "$FAKE/prompt.rc"; echo 0 > "$FAKE/wait.rc"
+_chief_herdr_prompt t1 "$BRIEF" >/dev/null 2>&1
+assert_eq "$?" "0" "copilot: brief echoed inline, ready again after the turn -> success"
+assert_eq "$(count 'agent prompt')" "1" "...the brief sent once"
+reset; cp "$FX/copilot-ready-empty.txt" "$FAKE/screen.1"; cp "$FX/copilot-working-brief-echoed.txt" "$FAKE/screen"
+cp "$FX/copilot-idle-between-steps.txt" "$FAKE/screen.3"
+echo "$STALLED" > "$FAKE/prompt.json"; echo 1 > "$FAKE/prompt.rc"; echo 1 > "$FAKE/wait.rc"
+_chief_herdr_prompt t1 "$BRIEF" >/dev/null 2>&1
+assert_eq "$?" "0" "copilot: landed brief, the wait times out -> still success, no rollback"
+assert_eq "$(count 'agent prompt')" "1" "...the brief sent once"
+reset; cp "$FX/copilot-ready-empty.txt" "$FAKE/screen"
+echo "$STALLED" > "$FAKE/prompt.1.json"; echo 1 > "$FAKE/prompt.1.rc"; echo "$WORKING" > "$FAKE/prompt.json"
+_chief_herdr_prompt t1 "$BRIEF" >/dev/null 2>&1
+assert_eq "$(count 'agent prompt')" "2" "copilot: screen unchanged since the send -> resent once"
+chief_meta_set t1 agent claude; chief_agent_use t1 >/dev/null 2>&1
 # TUI not rendered yet: the text is queued in the pty
 reset; cp "$FX/screen-shell-only.txt" "$FAKE/screen"; echo "$STALLED" > "$FAKE/prompt.json"; echo 1 > "$FAKE/prompt.rc"
 _chief_herdr_prompt t1 "$BRIEF" >/dev/null 2>&1

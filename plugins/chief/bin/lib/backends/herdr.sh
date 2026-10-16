@@ -131,16 +131,20 @@ _chief_herdr_submit() {
   _chief_herdr_turn_started "$SUBMIT_REPLY" || return 2
 }
 
-# _chief_herdr_recover <id> <text> - after agent_prompt_stalled, decide from
-# the screen what became of <text>, polling up to CHIEF_HERDR_PROMPT_WAIT s:
+# _chief_herdr_recover <id> <text> <before> - after agent_prompt_stalled, decide
+# from the screen what became of <text>, polling up to CHIEF_HERDR_PROMPT_WAIT s.
+# <before> is the screen read just before the send:
 #   text or the paste placeholder shown -> it landed: a bare Enter if it still
 #     sits in the live input line; never a resend over it
-#   agent ready, none of it shown       -> it never arrived: resend once
+#   agent ready, screen changed         -> it landed (an agent that echoes the
+#     brief inline shows no needle): wait for the turn, never resend, success
+#     whatever the wait says
+#   agent ready, screen as before       -> it never arrived: resend once
 #   anything else (shell only, dialog)  -> not rendered yet, any text is queued
 #     in the pty: keep waiting, never resend
 # 0 only once the turn is observed started.
 _chief_herdr_recover() {
-  local id=$1 text=$2 needle screen waited=0 limit=$(( CHIEF_HERDR_PROMPT_WAIT * 2 ))
+  local id=$1 text=$2 before=$3 needle screen waited=0 limit=$(( CHIEF_HERDR_PROMPT_WAIT * 2 ))
   needle=$(printf '%s' "$text" | tr -s '[:space:]' ' ' | cut -c1-24)
   while :; do
     screen=$(_chief_herdr_screen "$id" detection)
@@ -152,7 +156,12 @@ _chief_herdr_recover() {
       return
     fi
     if printf '%s' "$screen" | grep -Eq -- "$(agent_ready_text)"; then
-      _chief_herdr_submit "$id" "$text"
+      if [ "$screen" = "$before" ]; then
+        _chief_herdr_submit "$id" "$text"
+      else
+        herdr agent wait "$id" --until working --until done --timeout 15000 >/dev/null 2>&1
+        return 0
+      fi
       return
     fi
     [ "$waited" -lt "$limit" ] || return 1
@@ -164,7 +173,8 @@ _chief_herdr_recover() {
 # _chief_herdr_prompt <id> <text> - submit <text> and wait only for the turn to
 # START, not to finish; one recovery attempt after a stall, no further retry.
 _chief_herdr_prompt() {
-  local id=$1 text=$2 rc=0
+  local id=$1 text=$2 rc=0 before
+  before=$(_chief_herdr_screen "$id" detection)
   _chief_herdr_submit "$id" "$text" || rc=$?
   [ "$rc" != 0 ] || return 0
   if [ "$rc" = 1 ]; then
@@ -172,7 +182,7 @@ _chief_herdr_prompt() {
       echo "chief-backend-herdr: 'herdr agent prompt' failed for $id: $SUBMIT_REPLY" >&2
       return 1
     }
-    _chief_herdr_recover "$id" "$text" && return 0
+    _chief_herdr_recover "$id" "$text" "$before" && return 0
   fi
   # A permission/approval prompt nobody is present to answer is not a wedged
   # terminal - `agent get`'s state is `blocked` only for the former.
