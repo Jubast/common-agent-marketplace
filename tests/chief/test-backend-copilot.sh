@@ -82,7 +82,7 @@ sock_owner() {  # <socket> -> pid listening on it, empty if none
 
 # isolation_guard - proves the test's herdr is its own, before any client call.
 isolation_guard() {
-  local forbidden real sock=$HERDR_SOCKET_PATH default_owner own_owner before listing
+  local forbidden sock=$HERDR_SOCKET_PATH default_owner own_owner before listing
   case $sock in "$ISO"/*) ;; *) abort "socket is outside the temp dir" ;; esac
   for forbidden in $(printf '%s\n' "${FORBIDDEN_SOCKS[@]}" | sort -u); do
     [ "$sock" != "$forbidden" ] && [ "$(realpath -m "$sock")" != "$(realpath -m "$forbidden")" ] \
@@ -142,7 +142,6 @@ chief_agent_load copilot
 
 screen() { herdr agent read "$1" --source recent-unwrapped --lines 40 2>/dev/null; }
 shows_ready() { grep -Eq -- "$(agent_ready_text)"; }
-shows_trust() { tr -s '[:space:]' ' ' | grep -Eq -- "$(agent_trust_text)"; }
 shows_quota() { grep -qiE 'rate limit|quota|upgrade|usage limit|premium request'; }
 
 # collect_until <agent> <regex> <timeout-s> <dir> - saves each distinct screen as
