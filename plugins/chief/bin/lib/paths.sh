@@ -26,7 +26,7 @@
 #
 # Every bin/chief-*.sh entrypoint sources this before anything else, relative
 # to its own directory - "lib/paths.sh" from bin/, "../lib/paths.sh" from
-# bin/task/ or bin/pr/.
+# bin/task/.
 
 # This file always lives at <plugin-root>/bin/lib/paths.sh, so its own
 # location - not the caller's - is what tells us where the plugin root is.

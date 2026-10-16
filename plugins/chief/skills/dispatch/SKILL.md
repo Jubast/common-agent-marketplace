@@ -56,7 +56,7 @@ Never automatic. Propose each step; the operator decides.
    - Reviewer `failed`: the review did not complete; report why.
 4. Operator approves sending: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <builder-id> "<blocking findings, the operator's additions, the report path>"`, then `chief-backlog.sh status <builder-id> in-flight`.
 5. Builder `done` again: say it was fixed in `<sha7>` and ask again (step 1). There is no round cap.
-6. Suggest posting findings to the PR only when the operator asks. Then run `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-review.sh <builder-id> --comment "<finding>" --file <path> --line <N>` per finding, then a closing `--comment` or `--request-changes`.
+6. Post findings to the PR only when the operator asks: see "Post a review".
 7. `chief-teardown.sh <builder-id>` also discards its reviewer: name both in the go-ahead. A reviewer alone: `chief-teardown.sh <reviewer-id>`, on the go-ahead.
 
 ## After the operator responds
@@ -64,11 +64,11 @@ Never automatic. Propose each step; the operator decides.
 Do exactly what they decide, nothing more:
 
 - **Not satisfied:** move the task back to in-flight (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh status <id> in-flight`), then `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <id> "<instruction>"`.
-- **Ready to land** (builder only): compose a conventional-commit-style title and a structured body yourself (following the project's PR conventions: a `conventional-pull-requests`-style skill if installed, or its CLAUDE.md/AGENTS.md), then `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-open.sh <id> --confirm --title "<title>" --body "<body>"`. `--title` and `--body` are required.
-- **Accepted:** builder: `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-merge.sh <id> --confirm` (merges the open PR, squash by default). Researcher or brainstormer to be built on: see "Handing off".
+- **Ready to land** (builder only): compose a conventional-commit-style title and a structured body yourself (following the project's PR conventions: a `conventional-pull-requests`-style skill if installed, or its CLAUDE.md/AGENTS.md), push the branch, and open the PR with the project's host CLI or tool. Then hold the item with the URL as the reason: `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "PR: <url>"`.
+- **Accepted:** builder: merge the open PR, squashing and deleting the source branch, then "Landed". Researcher or brainstormer to be built on: see "Handing off".
 - **Accepted as-is** (researcher or brainstormer): `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>`, then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>` discards the worktree; the task's folder, with its report, moves to `.chief/archive/<id>/`.
 
-`chief-pr-open.sh`, `chief-pr-update.sh` and `chief-pr-merge.sh` require `--confirm`; pass it only once the operator has explicitly said so in this conversation.
+Opening, updating and merging a PR are finishing actions: only on the operator's explicit go-ahead in this conversation.
 
 ## The brainstormer
 
@@ -91,13 +91,13 @@ A done researcher or brainstormer with a report can be followed by a successor: 
 
 ## Once a PR is open
 
-- **A follow-up commit lands** - push it and refresh the description if it no longer matches: `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-update.sh <id> --confirm [--title "<title>"] [--body "<body>"]`. It always pushes new commits; omit `--title` and `--body` for a push-only update.
-- **Check it** - `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-state.sh <id>` prints its state (open/draft/mergeable/checks).
-- **Post a review** (only when the operator asks) - `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-review.sh <id> --comment "<text>"` or `--request-changes "<text>"`. Add `--file <path> --line <N>` to a `--comment` to attach it to a line (not valid with `--request-changes`).
-- **Approve it** - `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-approve.sh <id>`.
-- **Merge it** - `${CLAUDE_PLUGIN_ROOT}/bin/pr/chief-pr-merge.sh <id> --confirm`. Squashes by default; pass `--merge` or `--rebase` only if the operator asks.
-- **Abandon** - `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> exit` stops the worker and keeps its worktree and commits. `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id> --abandon` also discards the unlanded work; only on the operator's explicit instruction.
-- **Landed** - `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>` (if not already), then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>`. Teardown refuses unless the branch is reachable from the default branch (or `--abandon`); it also discards the builder's reviewer.
+- **Where it is** - the URL is in the item's note (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh show <id>`). Checking is free; opening, updating, merging and closing are finishing actions that need the operator's go-ahead.
+- **Check it** - state, draft, mergeable/conflicts, checks and review comments, with the project's host CLI or tool.
+- **Needs changes** (conflicts with the default branch, failing checks, feedback from the operator or others) - `chief-send.sh <id> "<what to fix>"` and move the item back to in-flight; for conflicts say to rebase onto the default branch. When the builder reports `done`, push from `.chief/worktrees/<id>` (`--force-with-lease` after a rebase; a plain push is rejected), refresh the PR title and body if they no longer match, and hold the item again with the same `PR: <url>` note (the only place the URL lives).
+- **Post a review or approve** (only when the operator asks) - comment on the specific file and line for each finding where the host supports it, otherwise put `file:line` in the comment text, and give the verdict in the same review.
+- **Merge it** - as under "Accepted".
+- **Abandon with an open PR** - only on the operator's explicit instruction: close the PR on the host first, with a one-line comment saying why. Then `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> exit` (stops the worker, keeps its worktree and commits) or `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id> --abandon` (discards the worktree and the local and remote branch). Neither touches the PR itself; `--abandon` deletes the remote branch, which may close the PR on some hosts, so close it explicitly first.
+- **Landed** - confirm on the host that the PR is merged, `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>` (if not already), then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>`; it also discards the builder's reviewer. Teardown proves landing via git (squash and rebase merges included, git >= 2.38), not the host; if git cannot prove it, verify the PR is merged and use `--abandon`.
 
 ## Backlog reference
 

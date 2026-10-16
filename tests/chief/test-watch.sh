@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test-watch.sh - chief-watch.sh's in_flight_ids against the mock backend.
 # Reproduces the notification-storm bug: once a task's crew state reaches a
-# terminal state and the normal flow (chief-pr-open.sh here) has acted on
+# terminal state and the normal flow (chief-backlog.sh hold here) has acted on
 # it, chief-watch.sh must stop re-notifying about it on every subsequent
 # Stop hook, because in_flight_ids only follows tasks whose meta status is
 # still "working".
@@ -25,10 +25,8 @@ git clone -q "$WORK/remote.git" "$WORK/project"
 
 export CHIEF_HOME="$WORK/.chief"
 export CHIEF_BACKEND=mock
-export CHIEF_PR_PROVIDER=mock
-export CHIEF_PR_MOCK_LOG="$WORK/mock.log"
-export CHIEF_PR_MOCK_URL="https://example.invalid/mock/pr/1"
-: > "$CHIEF_PR_MOCK_LOG"
+
+"$BIN/chief-backlog.sh" add t-1 "Add hello.txt" >/dev/null
 
 assert_success "spawn: creates the worktree and launches the mock backend" -- \
   timeout 10 "$BIN/chief-spawn.sh" t-1 "$WORK/project" --mode builder --branch feat/t-1 --intent "Add hello.txt"
@@ -50,12 +48,12 @@ OUT2=$(timeout 10 "$BIN/chief-watch.sh")
 assert_contains "$OUT2" "t-1: state: done" \
   "second Stop hook (before anything acts on the task): watch still surfaces it - nothing has advanced its meta status yet"
 
-# The normal flow acts on the task: open a PR for it.
-"$BIN/pr/chief-pr-open.sh" t-1 --confirm --title "My title" --body "My body" >/dev/null
+# The normal flow acts on the task: Chief holds it for review.
+"$BIN/chief-backlog.sh" hold t-1 "reported" >/dev/null
 
 OUT3=$(timeout 10 "$BIN/chief-watch.sh")
 assert_not_contains "$OUT3" "t-1: state: done" \
-  "third Stop hook (after chief-pr-open.sh acted on it): watch no longer re-notifies about the same already-surfaced done task"
+  "third Stop hook (after chief-backlog.sh hold acted on it): watch no longer re-notifies about the same already-surfaced done task"
 assert_eq "$OUT3" "nothing in flight" "third Stop hook: nothing left in flight"
 
 # --- resume-for-steering: don't re-nag the SAME terminal string (nag-fix) --

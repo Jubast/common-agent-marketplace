@@ -82,11 +82,8 @@ assert_success "spawn: second builder task" -- \
 git -C "$WORK/project" merge --ff-only feat/b-2 >/dev/null
 assert_success "teardown: a landed builder tears down without --abandon, as before" -- "$BIN/chief-teardown.sh" b-2
 
-# --- a squash/rebase-merged PR: the branch is never a local ancestor of --
-# --- the default branch, but the provider confirms it's merged ---------
-. "$BIN/lib/paths.sh"
-. "$BIN/lib/meta.sh"
-
+# --- a squash-merged builder: never a local ancestor, but landed -------
+GC=(git -c user.email=t@t -c user.name=t)
 assert_success "backlog: file a third builder" -- "$BIN/chief-backlog.sh" add b-3 "Add moon.txt"
 assert_success "spawn: third builder task" -- \
   timeout 10 "$BIN/chief-spawn.sh" b-3 "$WORK/project" --mode builder --branch feat/b-3 --intent "Add moon.txt" --spec "content: moon"
@@ -94,28 +91,41 @@ assert_success "spawn: third builder task" -- \
   cd "$CHIEF_HOME/worktrees/b-3" || exit 1
   echo moon > moon.txt
   git add moon.txt
-  git -c user.email=t@t -c user.name=t commit -q -m "add moon.txt"
+  "${GC[@]}" commit -q -m "add moon.txt"
 )
-chief_meta_set b-3 pr_url "https://example.invalid/mock/pr/99"
-chief_meta_set b-3 pr_provider mock
 
-assert_failure "teardown: still refuses when the recorded PR isn't reported merged" -- "$BIN/chief-teardown.sh" b-3
-assert_file_exists "$CHIEF_HOME/worktrees/b-3" "teardown refusal (PR not merged): worktree is untouched"
+assert_failure "teardown: refuses a builder whose content is not on the default branch" -- "$BIN/chief-teardown.sh" b-3
+assert_file_exists "$CHIEF_HOME/worktrees/b-3" "teardown refusal (not landed): worktree is untouched"
 
-export CHIEF_PR_MOCK_MERGED=1
-assert_success "teardown: a PR the provider reports merged lands even though the branch isn't a local ancestor" -- \
-  "$BIN/chief-teardown.sh" b-3
-unset CHIEF_PR_MOCK_MERGED
-assert_file_missing "$CHIEF_HOME/worktrees/b-3" "teardown (PR merged): worktree removed"
-assert_contains "$("$BIN/chief-backlog.sh" show b-3)" "[done]" "teardown (PR merged): backlog item marked done"
+git -C "$WORK/project" merge --squash feat/b-3 >/dev/null
+"${GC[@]}" -C "$WORK/project" commit -q -m "squash feat/b-3"
+assert_success "teardown: a squash-merged builder lands via the git-only check" -- "$BIN/chief-teardown.sh" b-3
+assert_file_missing "$CHIEF_HOME/worktrees/b-3" "teardown (squash-merged): worktree removed"
+assert_contains "$("$BIN/chief-backlog.sh" show b-3)" "[done]" "teardown (squash-merged): backlog item marked done"
+
+# --- squash-merged, then the default branch changed the same file: unprovable
+assert_success "backlog: file a diverged builder" -- "$BIN/chief-backlog.sh" add b-5 "Add star.txt"
+assert_success "spawn: diverged builder task" -- \
+  timeout 10 "$BIN/chief-spawn.sh" b-5 "$WORK/project" --mode builder --branch feat/b-5 --intent "Add star.txt" --spec "content: star"
+(
+  cd "$CHIEF_HOME/worktrees/b-5" || exit 1
+  echo star > star.txt
+  git add star.txt
+  "${GC[@]}" commit -q -m "add star.txt"
+)
+git -C "$WORK/project" merge --squash feat/b-5 >/dev/null
+"${GC[@]}" -C "$WORK/project" commit -q -m "squash feat/b-5"
+echo "bright star" > "$WORK/project/star.txt"
+"${GC[@]}" -C "$WORK/project" commit -q -am "rework star.txt"
+
+assert_failure "teardown: refuses a squash-merged builder whose landing git cannot prove" -- "$BIN/chief-teardown.sh" b-5
+assert_file_exists "$CHIEF_HOME/worktrees/b-5" "teardown refusal (unprovable): worktree is untouched"
+assert_success "teardown: --abandon discards it once the operator has verified the merge" -- "$BIN/chief-teardown.sh" b-5 --abandon
 
 # --- discard best-effort deletes the remote branch too -------------------
-# Every teardown above ran with no 'origin' remote on $WORK/project at all,
-# so their `git push origin --delete` call already failed every time and
-# was silently ignored (asserted success regardless) - covering the
-# "provider deletion unavailable/fails" backstop case. This one adds a real
-# origin with the branch pushed, to confirm the delete actually happens
-# when it can.
+# Every teardown above ran with no 'origin' remote, so their
+# `git push origin --delete` failed and was ignored. This one adds a real
+# origin with the branch pushed, to confirm the delete happens when it can.
 BARE="$WORK/origin.git"
 git init -q --bare "$BARE"
 git -C "$WORK/project" remote add origin "$BARE"
@@ -148,6 +158,7 @@ assert_file_exists "$CHIEF_HOME/archive/bs-1/meta" "teardown: the re-run leaves 
 export CHIEF_HOME="$WORK/.chief-trust"
 CFG="$CLAUDE_CONFIG_DIR/.claude.json"
 trusted() { jq -r --arg p "$CHIEF_HOME/worktrees/p-1" '.projects[$p].hasTrustDialogAccepted // "unset"' "$CFG"; }
+. "$BIN/lib/paths.sh"
 . "$BIN/lib/agents/claude.sh"
 timeout 10 "$BIN/chief-spawn.sh" p-1 "$WORK/project" --mode researcher --branch feat/p-1 --intent x >/dev/null
 STATE="$CHIEF_HOME/state" agent_prepare "$CHIEF_HOME/worktrees/p-1"
