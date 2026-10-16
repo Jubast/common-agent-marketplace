@@ -35,20 +35,19 @@ while true; do
     [ -n "$id" ] || continue
     any_in_flight=1
     line=$("$CHIEF_ROOT/bin/task/chief-crew-state.sh" "$id" 2>/dev/null) || continue
+    baseline=$(chief_meta_get "$id" notify-baseline 2>/dev/null || true)
     case "$line" in
       "state: done"*|"state: failed"*|"state: blocked"*|"state: needs-decision"*|"state: stale"*)
-        # A task just resumed from held/done to in-flight (to steer it
-        # further) still carries the same terminal crew state that got it
-        # held/done - Chief already acted on that once, so don't re-nag
-        # about the identical string. Once the state actually moves past
-        # it, fall through to the normal every-Stop-hook nag below.
-        baseline=$(chief_meta_get "$id" notify-baseline 2>/dev/null || true)
-        if [ -n "$baseline" ] && [ "$line" = "$baseline" ]; then
-          continue
-        fi
-        [ -n "$baseline" ] && chief_meta_set "$id" notify-baseline ""
+        # Notify once per state change: the delivered line is the baseline,
+        # which a resumed held/done task also starts with (chief-backlog.sh).
+        norm=$(chief_notify_line "$line")
+        [ "$norm" = "$baseline" ] && continue
+        chief_meta_set "$id" notify-baseline "$norm"
         echo "$id: $line"
         exit 0
+        ;;
+      *)
+        [ -n "$baseline" ] && chief_meta_set "$id" notify-baseline ""
         ;;
     esac
   done < <(in_flight_ids)
