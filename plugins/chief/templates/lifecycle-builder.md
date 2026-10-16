@@ -6,7 +6,7 @@
 - [ ] reported to operator with the diffstat and a one-line review recommendation, and held (chief-backlog.sh hold <id> "reported: awaiting review decision")
 - [ ] operator asked whether to review, every time (never automatic). Yes -> chief-review.sh <id>; no -> landing. A standing "review everything this session" skips the question until revoked
 - [ ] reviewer's verdict presented and the reviewer held; next step proposed: FAIL -> send the findings to the builder (operator may edit them), PASS -> land or keep going. After the builder's next done, ask again
-- [ ] landing path chosen - branch pushed and PR opened (host CLI), URL noted (chief-backlog.sh note)
+- [ ] landing path chosen - branch pushed and PR opened (host CLI), held with the URL (chief-backlog.sh hold <id> "PR: <url>")
 - [ ] PR approved (host CLI)
 - [ ] merged (host CLI)
 - [ ] torn down (chief-teardown.sh); this also discards its reviewer, so the go-ahead names both
