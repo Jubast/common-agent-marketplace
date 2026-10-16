@@ -10,7 +10,8 @@ CLI stub, and `test-backend-herdr-mock.sh` does the same for
 herdr and Claude Code (`fixtures/herdr/`), so herdr's rendering quirks - the
 trust dialog, the `[Pasted text #N +M lines]` placeholder, the bare shell line
 before the TUI renders - are real, not hand-written. `test-backend-herdr.sh`,
-`test-backend-orca.sh`, `test-backend-copilot.sh` and `test-backend-copilot-brief.sh` are the exceptions: each
+`test-backend-orca.sh`, `test-backend-copilot.sh` and
+`test-backend-copilot-brief.sh` are the exceptions: each
 opts into a real herdr/orca install and a real agent turn - see below.
 
 ## Cleanup

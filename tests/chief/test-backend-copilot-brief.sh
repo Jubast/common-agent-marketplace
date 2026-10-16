@@ -60,12 +60,13 @@ export CHIEF_HOME="$ISO/chief" CHIEF_BACKEND=herdr
 . "$CHIEF_BIN/lib/meta.sh"
 
 # user_messages <id> - user.message events in the copilot session that got <id>'s brief
+# (<id> as a whole word: t-brief-1 is not t-brief-10)
 user_messages() {
   local f msgs
   for f in "$HOME"/.copilot/session-state/*/events.jsonl; do
     [ -f "$f" ] || continue
     msgs=$(jq -c 'select(.type == "user.message")' "$f" 2>/dev/null)
-    [[ $msgs == *"$1"* ]] || continue
+    printf '%s\n' "$msgs" | jq -e --arg id "$1" 'tostring | test("(^|[^A-Za-z0-9_-])" + $id + "($|[^A-Za-z0-9_-])")' >/dev/null 2>&1 || continue
     printf '%s\n' "$msgs" | wc -l
     return
   done
