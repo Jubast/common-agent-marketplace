@@ -137,7 +137,8 @@ _chief_herdr_submit() {
 #   text or the paste placeholder shown -> it landed: a bare Enter if it still
 #     sits in the live input line; never a resend over it
 #   agent ready, screen changed         -> it landed (an agent that echoes the
-#     brief inline shows no needle): wait for the turn, never resend
+#     brief inline shows no needle): wait for the turn, never resend, success
+#     whatever the wait says
 #   agent ready, screen as before       -> it never arrived: resend once
 #   anything else (shell only, dialog)  -> not rendered yet, any text is queued
 #     in the pty: keep waiting, never resend
@@ -159,6 +160,7 @@ _chief_herdr_recover() {
         _chief_herdr_submit "$id" "$text"
       else
         herdr agent wait "$id" --until working --until done --timeout 15000 >/dev/null 2>&1
+        return 0
       fi
       return
     fi

@@ -190,6 +190,12 @@ echo "$STALLED" > "$FAKE/prompt.json"; echo 1 > "$FAKE/prompt.rc"; echo 0 > "$FA
 _chief_herdr_prompt t1 "$BRIEF" >/dev/null 2>&1
 assert_eq "$?" "0" "copilot: brief echoed inline, ready again after the turn -> success"
 assert_eq "$(count 'agent prompt')" "1" "...the brief sent once"
+reset; cp "$FX/copilot-ready-empty.txt" "$FAKE/screen.1"; cp "$FX/copilot-working-brief-echoed.txt" "$FAKE/screen"
+cp "$FX/copilot-idle-between-steps.txt" "$FAKE/screen.3"
+echo "$STALLED" > "$FAKE/prompt.json"; echo 1 > "$FAKE/prompt.rc"; echo 1 > "$FAKE/wait.rc"
+_chief_herdr_prompt t1 "$BRIEF" >/dev/null 2>&1
+assert_eq "$?" "0" "copilot: landed brief, the wait times out -> still success, no rollback"
+assert_eq "$(count 'agent prompt')" "1" "...the brief sent once"
 reset; cp "$FX/copilot-ready-empty.txt" "$FAKE/screen"
 echo "$STALLED" > "$FAKE/prompt.1.json"; echo 1 > "$FAKE/prompt.1.rc"; echo "$WORKING" > "$FAKE/prompt.json"
 _chief_herdr_prompt t1 "$BRIEF" >/dev/null 2>&1
