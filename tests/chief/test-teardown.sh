@@ -122,30 +122,76 @@ assert_failure "teardown: refuses a squash-merged builder whose landing git cann
 assert_file_exists "$CHIEF_HOME/worktrees/b-5" "teardown refusal (unprovable): worktree is untouched"
 assert_success "teardown: --abandon discards it once the operator has verified the merge" -- "$BIN/chief-teardown.sh" b-5 --abandon
 
-# --- discard best-effort deletes the remote branch too -------------------
-# Every teardown above ran with no 'origin' remote, so their
-# `git push origin --delete` failed and was ignored. This one adds a real
-# origin with the branch pushed, to confirm the delete happens when it can.
+# --- the remote branch is kept unless --delete-remote is passed ---------
 BARE="$WORK/origin.git"
 git init -q --bare "$BARE"
 git -C "$WORK/project" remote add origin "$BARE"
 git -C "$WORK/project" push -q origin master
 
-assert_success "backlog: file a fourth builder" -- "$BIN/chief-backlog.sh" add b-4 "Add sun.txt"
-assert_success "spawn: fourth builder task" -- \
-  timeout 10 "$BIN/chief-spawn.sh" b-4 "$WORK/project" --mode builder --branch feat/b-4 --intent "Add sun.txt" --spec "content: sun"
-(
-  cd "$CHIEF_HOME/worktrees/b-4" || exit 1
-  echo sun > sun.txt
-  git add sun.txt
-  git -c user.email=t@t -c user.name=t commit -q -m "add sun.txt"
-  git push -q origin feat/b-4
-)
-assert_contains "$(git -C "$BARE" branch --list feat/b-4)" "feat/b-4" "setup: feat/b-4 pushed to origin before teardown"
+spawn_pushed() {  # <id> <branch>
+  assert_success "backlog: file $1" -- "$BIN/chief-backlog.sh" add "$1" "Add $1.txt"
+  assert_success "spawn: $1" -- \
+    timeout 10 "$BIN/chief-spawn.sh" "$1" "$WORK/project" --mode builder --branch "$2" --intent "Add $1.txt" --spec "content: $1"
+  (
+    cd "$CHIEF_HOME/worktrees/$1" || exit 1
+    echo "$1" > "$1.txt"
+    git add "$1.txt"
+    git -c user.email=t@t -c user.name=t commit -q -m "add $1.txt"
+    git push -q origin "$2"
+  )
+  assert_contains "$(git -C "$BARE" branch --list "$2")" "$2" "setup: $2 pushed to origin"
+}
 
+spawn_pushed b-4 feat/b-4
 git -C "$WORK/project" merge --ff-only feat/b-4 >/dev/null
-assert_success "teardown: a landed builder deletes its now-merged remote branch" -- "$BIN/chief-teardown.sh" b-4
-assert_eq "$(git -C "$BARE" branch --list feat/b-4)" "" "teardown: remote branch feat/b-4 deleted from origin"
+assert_success "teardown: a landed builder tears down" -- "$BIN/chief-teardown.sh" b-4
+assert_contains "$(git -C "$BARE" branch --list feat/b-4)" "feat/b-4" "teardown: remote branch kept by default"
+
+spawn_pushed p-5 feat/p-5
+assert_success "teardown: --abandon tears down" -- "$BIN/chief-teardown.sh" p-5 --abandon
+assert_contains "$(git -C "$BARE" branch --list feat/p-5)" "feat/p-5" "teardown --abandon: remote branch kept"
+
+spawn_pushed p-6 feat/p-6
+assert_success "teardown: --abandon --delete-remote tears down" -- "$BIN/chief-teardown.sh" p-6 --abandon --delete-remote
+assert_eq "$(git -C "$BARE" branch --list feat/p-6)" "" "teardown --delete-remote: remote branch deleted"
+
+spawn_pushed p-7 feat/p-7
+git -C "$WORK/project" remote set-url origin "$WORK/nowhere.git"
+assert_failure "teardown: --delete-remote fails loudly when it cannot reach the remote" -- \
+  "$BIN/chief-teardown.sh" p-7 --abandon --delete-remote
+assert_file_exists "$CHIEF_HOME/worktrees/p-7" "teardown --delete-remote failure: worktree untouched"
+assert_contains "$("$BIN/chief-backlog.sh" show p-7)" "[in-flight]" "teardown --delete-remote failure: backlog item untouched"
+git -C "$WORK/project" remote set-url origin "$BARE"
+assert_success "teardown: --abandon clears it afterwards" -- "$BIN/chief-teardown.sh" p-7 --abandon
+
+# origin reachable but rejecting the delete: fails loudly, nothing torn down
+spawn_pushed p-10 feat/p-10
+printf '#!/bin/sh\nwhile read old new ref; do [ "$new" = 0000000000000000000000000000000000000000 ] && exit 1; done\nexit 0\n' > "$BARE/hooks/pre-receive"
+chmod +x "$BARE/hooks/pre-receive"
+assert_failure "teardown: --delete-remote fails loudly when the push is rejected" -- \
+  "$BIN/chief-teardown.sh" p-10 --abandon --delete-remote
+assert_file_exists "$CHIEF_HOME/worktrees/p-10" "teardown --delete-remote rejected: worktree untouched"
+assert_contains "$(git -C "$WORK/project" branch --list feat/p-10)" "feat/p-10" "teardown --delete-remote rejected: local branch untouched"
+rm "$BARE/hooks/pre-receive"
+assert_success "teardown: --abandon clears it afterwards (rejected push)" -- "$BIN/chief-teardown.sh" p-10 --abandon
+
+# researcher/reviewer discard path keeps the remote branch too
+assert_success "spawn: pushed researcher" -- \
+  timeout 10 "$BIN/chief-spawn.sh" p-8 "$WORK/project" --mode researcher --branch feat/p-8 --intent x
+git -C "$CHIEF_HOME/worktrees/p-8" push -q origin feat/p-8
+assert_success "teardown: researcher tears down" -- "$BIN/chief-teardown.sh" p-8
+assert_contains "$(git -C "$BARE" branch --list feat/p-8)" "feat/p-8" "teardown (researcher): remote branch kept"
+
+# --delete-remote on a builder is not passed on to its reviewer
+spawn_pushed p-9 feat/p-9
+assert_success "spawn: linked reviewer" -- \
+  timeout 10 "$BIN/chief-spawn.sh" p-9-review "$WORK/project" --mode reviewer --branch chore/review-p-9 --intent x
+git -C "$CHIEF_HOME/worktrees/p-9-review" push -q origin chore/review-p-9
+( . "$BIN/lib/paths.sh"; . "$BIN/lib/meta.sh"; chief_meta_set p-9 reviewer p-9-review )
+assert_success "teardown: builder with --delete-remote tears down" -- "$BIN/chief-teardown.sh" p-9 --abandon --delete-remote
+assert_eq "$(git -C "$BARE" branch --list feat/p-9)" "" "teardown: builder's remote branch deleted"
+assert_file_missing "$CHIEF_HOME/worktrees/p-9-review" "teardown: the reviewer was discarded too"
+assert_contains "$(git -C "$BARE" branch --list chore/review-p-9)" "chore/review-p-9" "teardown: --delete-remote not passed on to the reviewer"
 
 # --- a brainstormer discards like a researcher ---
 assert_success "spawn: brainstormer task" -- \
