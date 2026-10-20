@@ -257,4 +257,35 @@ assert_eq "$(chief_meta_get r1 endpoint)" "herdr:w9:p1" "...and records the endp
 assert_contains "$(cat "$FAKE/calls")" "--label r1 " "...reopening its workspace labeled with the plain id"
 assert_eq "$(chief_meta_get r1 label 2>/dev/null || echo none)" "none" "...recording no label"
 
+echo "[name] herdr agent names are valid, deterministic and unique"
+LONG1=build-dotnet-common-keycloak-by-name-review-copilot-gpt-6-1-sol
+LONG2=build-dotnet-common-keycloak-by-name-review-copilot-gpt-6-1-sul
+N1=$(_chief_herdr_name "$LONG1"); N2=$(_chief_herdr_name "$LONG2")
+assert_eq "$(_chief_herdr_name t1)" "t1" "a valid short id is used as is"
+assert_success "a long id maps to a valid herdr name" -- grep -Eq '^[a-z][a-z0-9_-]{0,31}$' <<<"$N1"
+assert_eq "$N1" "$(_chief_herdr_name "$LONG1")" "...deterministically"
+assert_eq "$([ "$N1" != "$N2" ] && echo ok)" "ok" "...and ids sharing a prefix stay distinct"
+assert_success "an uppercase/dotted id maps to a valid name" -- grep -Eq '^[a-z][a-z0-9_-]{0,31}$' <<<"$(_chief_herdr_name 9Task.Foo)"
+reset; backend_send "$LONG1" hi
+assert_contains "$(cat "$FAKE/calls")" "agent prompt $N1 <2B>" "backend_send uses the derived name"
+
+echo "[name] a long id is started, found and recovered under its derived name"
+chief_meta_set "$LONG1" agent claude
+chief_agent_use "$LONG1" >/dev/null 2>&1
+# stall, brief landed as a placeholder: Enter + wait, all by the derived name
+reset; cp "$FX/screen-pasted-placeholder.txt" "$FAKE/screen"; cp "$FX/screen-ready.txt" "$FAKE/keys.screen"
+echo "$STALLED" > "$FAKE/prompt.json"; echo 1 > "$FAKE/prompt.rc"; echo 0 > "$FAKE/wait.rc"
+_chief_herdr_prompt "$LONG1" "$BRIEF" >/dev/null 2>&1
+assert_eq "$?" "0" "long id: stall recovery succeeds"
+assert_contains "$(cat "$FAKE/calls")" "agent wait $N1 " "...waiting on the derived name"
+assert_eq "$(grep -c -- "^agent [a-z-]* $LONG1" "$FAKE/calls" || true)" "0" "...never addressing herdr by the raw id"
+# relaunch: starts the agent under the derived name
+mkproj; reset; L_WT="$CHIEF_HOME/worktrees/$LONG1"; git -C "$WORK/proj" worktree add -q -b "res/$LONG1" "$L_WT"
+chief_meta_set "$LONG1" project "$WORK/proj"; chief_meta_set "$LONG1" worktree "$L_WT"; chief_meta_set "$LONG1" mode researcher
+cp "$FX/screen-ready.txt" "$FAKE/screen"; echo "$WORKING" > "$FAKE/prompt.json"
+backend_relaunch "$LONG1" "$WORK/brief.md" >/dev/null 2>&1
+assert_eq "$?" "0" "long id: relaunch succeeds"
+assert_contains "$(cat "$FAKE/calls")" "agent start $N1 " "...starting the agent under the derived name"
+assert_eq "$(grep -c -- "^agent [a-z-]* $LONG1" "$FAKE/calls" || true)" "0" "...never addressing herdr by the raw id"
+
 harness_summary
