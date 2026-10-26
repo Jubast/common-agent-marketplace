@@ -19,8 +19,14 @@ CHIEF_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # A spawned builder's own session must never arm a watcher on itself - only
 # the primary (operator-facing) session supervises. This check is race-free
 # even against Orca's create-and-launch-in-one-call spawn; see
-# bin/lib/worktree.sh.
-chief_is_linked_worktree && exit 0
+# bin/lib/worktree.sh. Judge by the launch dir, not the cwd, which drifts in
+# the primary session.
+LAUNCH_DIR="${CLAUDE_PROJECT_DIR:-.}"
+chief_is_linked_worktree "$LAUNCH_DIR" && exit 0
+
+# shellcheck source=../bin/lib/home.sh
+. "$CHIEF_PLUGIN_ROOT/bin/lib/home.sh"
+export CHIEF_HOME="${CHIEF_HOME:-$(cd "$LAUNCH_DIR" && chief_default_home)}"
 
 # shellcheck source=../bin/lib/paths.sh
 . "$CHIEF_PLUGIN_ROOT/bin/lib/paths.sh"
