@@ -96,8 +96,8 @@ A done researcher or brainstormer with a report can be followed by a successor: 
 - **Needs changes** (conflicts with the default branch, failing checks, feedback from the operator or others) - `chief-send.sh <id> "<what to fix>"` and move the item back to in-flight; for conflicts say to rebase onto the default branch. When the builder reports `done`, push from `.chief/worktrees/<id>` (`--force-with-lease` after a rebase; a plain push is rejected), refresh the PR title and body if they no longer match, and hold the item again with the same `PR: <url>` note (the only place the URL lives).
 - **Post a review or approve** (only when the operator asks) - comment on the specific file and line for each finding where the host supports it, otherwise put `file:line` in the comment text, and give the verdict in the same review.
 - **Merge it** - as under "Accepted".
-- **Abandon with an open PR** - only on the operator's explicit instruction: close the PR on the host first, with a one-line comment saying why. Then `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> exit` (stops the worker, keeps its worktree and commits) or `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id> --abandon` (discards the worktree and the local and remote branch). Neither touches the PR itself; `--abandon` deletes the remote branch, which may close the PR on some hosts, so close it explicitly first.
-- **Landed** - confirm on the host that the PR is merged, `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>` (if not already), then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>`; it also discards the builder's reviewer. Teardown proves landing via git (squash and rebase merges included, git >= 2.38), not the host; if git cannot prove it, verify the PR is merged and use `--abandon`.
+- **Abandon with an open PR** - only on the operator's explicit instruction: close the PR on the host first, with a one-line comment saying why. Then `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> exit` (stops the worker, keeps its worktree and commits) or `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id> --abandon` (discards the worktree and the local branch). Neither touches the PR or the remote branch. An open PR is not subject to teardown: a reviewer may request changes, so tear down only once it has landed or the operator abandons it.
+- **Landed** - confirm on the host that the PR is merged, `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>` (if not already), then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>`; it also discards the builder's reviewer. Teardown proves landing via git (squash and rebase merges included, git >= 2.38), not the host; if git cannot prove it, verify the PR is merged and use `--abandon`. Teardown keeps the remote branch.
 
 ## Backlog reference
 
@@ -105,5 +105,6 @@ A done researcher or brainstormer with a report can be followed by a successor: 
 
 ## What NOT to do
 
+- Don't delete a remote branch without checking for an open PR and getting the operator's go-ahead; teardown never does.
 - Don't spawn a worker to answer something a quick read-only look settles. Any actual change to a project, however small, goes to a worker.
 - Don't invent scope in `--spec` beyond what `--intent` asks for.
