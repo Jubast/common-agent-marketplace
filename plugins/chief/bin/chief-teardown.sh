@@ -6,8 +6,7 @@
 # is the report at tasks/<id>/report.md, outside the worktree, untouched either
 # way.
 #
-# Discard also best-effort deletes the remote branch: a backstop for when
-# the work landed by a merge that left it behind.
+# Teardown never touches the remote branch, on any path.
 #
 # A squash- or rebase-merged branch is never a local ancestor of the default
 # branch, so when the ancestry check fails, a git-only check (needs git >= 2.38)
@@ -48,7 +47,6 @@ _chief_discard() {  # <reason-for-the-echo-line>
   backend_teardown "$ID" "$PROJECT" "$WORKTREE" || true
   git -C "$PROJECT" worktree remove --force "$WORKTREE" 2>/dev/null || rm -rf "$WORKTREE"
   git -C "$PROJECT" branch -D "$BRANCH" >/dev/null 2>&1 || true
-  git -C "$PROJECT" push origin --delete "$BRANCH" >/dev/null 2>&1 || true
   "$CHIEF_ROOT/bin/chief-backlog.sh" done "$ID" 2>/dev/null || true
   chief_meta_set "$ID" status torn-down
   chief_task_archive "$ID"
