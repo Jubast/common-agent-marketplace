@@ -13,7 +13,10 @@ You are in an isolated git worktree on branch `{BRANCH}`, checked out from a cle
 Nothing outside this worktree is yours to touch.
 
 # Project conventions
-Early on, check this project's own commit/PR conventions - its root `AGENTS.md`/`CLAUDE.md`, and whether it has installed conventions tooling (a plugin, skill or config, e.g. `conventional-changes`) - and follow them for every commit and any PR text you produce, including any stated AI-attribution policy.
+Early on, check this project's own commit/PR conventions - its root `AGENTS.md`/`CLAUDE.md`, and whether it has installed conventions tooling (a plugin, skill or config) - and follow them for every commit and any PR text you produce, including any stated AI-attribution policy.
+
+# Skills
+Check the skills available to you (listed by name and description) at the start and at each new step. Read any that could plausibly help, even slightly, and follow it where it fits this task. This brief wins over any skill: skip a skill's step that would ask a human, push, open a PR, create a worktree, start other agents, or go beyond the spec.
 
 # Rules
 1. Stay inside this worktree. Never push, never open a PR, never merge - Chief does that after review.

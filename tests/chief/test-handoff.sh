@@ -38,6 +38,11 @@ refused() {  # <name> <reason> <cmd...> - exits nonzero and says why
 printf 'claude:opus\n[researcher]\nclaude:opus\n[brainstormer]\nclaude:opus\n[builder]\ncodex:gpt-5\n' > "$CFG"
 
 assert_success "spawn: researcher r-1" -- spawn r-1 researcher
+RBRIEF=$(cat "$TASKS/r-1/brief.md")
+assert_contains "$RBRIEF" "This brief wins over any skill" "researcher brief: the brief wins over any skill"
+assert_contains "$RBRIEF" "skip a skill's step that would ask a human, push, open a PR, create a worktree, start other agents, or go beyond the spec" "researcher brief: names the skill steps to skip"
+assert_not_contains "$RBRIEF" "conventional-changes" "researcher brief: names no skill"
+assert_not_contains "$(sed 's/CLAUDE\.md//g' <<< "$RBRIEF" | tr A-Z a-z)" "claude" "researcher brief: agent-neutral wording"
 snap() { ls -A "$STATE" "$TASKS" | sort | md5sum; }
 refused "handoff: refused while the source is not done" "r-1 is not done yet" spawn b-x builder --from r-1
 finish r-1 ""

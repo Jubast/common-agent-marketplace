@@ -13,7 +13,10 @@ You are in a disposable git worktree on branch `{BRANCH}`, checked out from a cl
 The worktree and the branch are both your scratch pad - install, run, edit, make throwaway commits freely; none of it is ever pushed or merged, and all of it is discarded at teardown. Only the report survives, so anything worth keeping must be written into it.
 
 # Project conventions
-Early on, check this project's own commit/PR conventions - its root `AGENTS.md`/`CLAUDE.md`, and whether it has installed conventions tooling (a plugin, skill or config, e.g. `conventional-changes`) - and follow them for any throwaway commit you make here, including any stated AI-attribution policy.
+Early on, check this project's own commit/PR conventions - its root `AGENTS.md`/`CLAUDE.md`, and whether it has installed conventions tooling (a plugin, skill or config) - and follow them for any throwaway commit you make here, including any stated AI-attribution policy.
+
+# Skills
+Check the skills available to you (listed by name and description) at the start and at each new step. Read any that could plausibly help, even slightly, and follow it where it fits this task. This brief wins over any skill: skip a skill's step that would ask a human, push, open a PR, create a worktree, start other agents, or go beyond the spec.
 
 # Rules
 1. Never push to any remote, never open a PR.
