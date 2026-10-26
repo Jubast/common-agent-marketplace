@@ -68,4 +68,26 @@ for TASK_LABEL in "fix-58" "fix-58 · builder · project"; do
   assert_eq "$(tr '\n' ' ' < "$CLOSED_LOG")" "w1 " "cleanup closes only the task's workspace labelled '$TASK_LABEL', not look-alikes, label twins or the project's"
 done
 
+# task ids: chief_id_check and chief_id_compose
+. "$BIN/lib/paths.sh"; . "$BIN/lib/meta.sh"; . "$BIN/lib/id.sh"
+for ok in build-x "$(printf 'a%.0s' {1..32})"; do assert_success "id check accepts '$ok'" -- chief_id_check "$ok"; done
+for bad in "$(printf 'a%.0s' {1..33})" Build-x build.x build_x "build x" 9lives; do
+  assert_failure "id check rejects '$bad'" -- chief_id_check "$bad"
+done
+assert_contains "$(chief_id_check 'Build Foo.Bar' 2>&1)" "try 'build-foo-bar'" "id check suggests a valid id"
+assert_contains "$(chief_id_check 9lives 2>&1)" "try 'lives'" "...dropping a leading digit"
+assert_eq "$(chief_id_compose build-keycloak-name rv)" "build-keycloak-name-rv" "compose: base-suffix"
+assert_eq "$(chief_id_compose build-dotnet-common-keycloak-by-name)" "build-dotnet-common-keycloak-by" "compose: the base is cut by whole words"
+assert_eq "$(chief_id_compose build-keycloak-name rv-mastracode)" "build-keycloak-rv-mastracode" "compose: the suffix is never cut"
+assert_eq "$(chief_id_compose "" rv)" "t-rv" "compose: an empty base"
+assert_eq "$(chief_id_compose "$(printf 'a%.0s' {1..40})")" "$(printf 'a%.0s' {1..32})" "compose: a single long word is cut by chars"
+chief_ensure_dirs
+mkdir -p "$TASKS/build-a" "$ARCHIVE/build-b" "$TASKS/build-c"
+printf 'mode=builder\n' > "$TASKS/build-a/meta"; printf 'mode=builder\n' > "$ARCHIVE/build-b/meta"
+assert_eq "$(chief_id_compose build-a)" "build-a-2" "compose: -2 when a live task has the id"
+assert_eq "$(chief_id_compose build-b)" "build-b-2" "compose: -2 when an archived task has the id"
+assert_eq "$(chief_id_compose build-c)" "build-c" "compose: a meta-less folder does not count (retry reuses the id)"
+cp "$TASKS/build-a/meta" "$TASKS/build-a-2.meta"; mkdir -p "$TASKS/build-a-2"; mv "$TASKS/build-a-2.meta" "$TASKS/build-a-2/meta"
+assert_eq "$(chief_id_compose build-a)" "build-a-3" "compose: -3 when -2 is taken too"
+
 harness_summary

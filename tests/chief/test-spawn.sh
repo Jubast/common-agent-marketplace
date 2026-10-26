@@ -157,4 +157,13 @@ assert_eq "$rc" "1" "spawn: a missing agent CLI fails"
 assert_contains "$out" "the 'claude' CLI is not installed" "spawn: and says which CLI"
 assert_eq "$(leftovers b-5)" "0" "spawn: and leaves no task files behind"
 
+for bad in build-keycloak-name-with-a-long-tail-of-words Bad_Id; do
+  for flag in "" --dry-run; do
+    out=$(timeout 10 "$BIN/chief-spawn.sh" "$bad" "$WORK/project" --mode builder --branch feat/bad --intent x $flag 2>&1); rc=$?
+    assert_eq "$rc" "1" "spawn: the invalid id '$bad' is refused ${flag:-}"
+    assert_contains "$out" "invalid task id" "spawn: ...and says why ${flag:-}"
+  done
+  assert_eq "$(ls "$CHIEF_HOME/tasks" "$CHIEF_HOME/worktrees" "$CHIEF_HOME/state" | grep -c "$bad\|bad")" "0" "spawn: the invalid id '$bad' creates no meta, worktree or lock"
+done
+
 harness_summary

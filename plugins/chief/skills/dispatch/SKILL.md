@@ -22,7 +22,7 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
 
 `.chief/tasks/<id>/lifecycle` (rendered by `chief-spawn.sh`) is the checklist for each task, filing through teardown. Check off each line as you complete it. Read it before acting on an in-flight task, not just after a compaction.
 
-1. **File it.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh add <id> "<short title>"` with an id named `<role>-<topic>` (e.g. `build-rate-limit`, `research-auth-flow`; a reviewer is `<builder-id>-review`). The id names the worktree, the task folder `.chief/tasks/<id>/` and the herdr workspace, so make it say what the task is.
+1. **File it.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh add <id> "<short title>"` with an id named `<role>-<topic>`, at most 20 chars (prefixes `build-`, `res-`, `spec-`, `rev-`; e.g. `build-rate-limit`, `res-auth-flow`; a reviewer is `<builder-id>-rv`). The id names the worktree, the task folder `.chief/tasks/<id>/`, the herdr workspace and agent, and the Orca worktree, so make it say what the task is. An id must match `^[a-z][a-z0-9-]*$` and be at most 32 chars (herdr's agent-name limit); `add` and `chief-spawn.sh` reject others and print a valid suggestion: use it.
 
 2. **Spawn.**
    `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <id> <project-dir> --mode builder|researcher|brainstormer --branch "<type>/<short-kebab-description>" --intent "<the operator's own ask, close to verbatim>" --spec "<your build instructions, only what the intent requires>"`
@@ -48,7 +48,7 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
 Never automatic. Propose each step; the operator decides.
 
 1. Builder `done`: report the result with the diffstat and a one-line recommendation (e.g. "2 files, docs only: review probably unnecessary"), hold it (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "reported: awaiting review decision"`), and ask whether to review it. Batch the question when several builders finish together.
-2. No: go to landing. Yes: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-review.sh <builder-id>`. Round 1 spawns the reviewer `<builder-id>-review`; later rounds re-arm it. Run it in the background. The watcher wakes you when the reviewer reports.
+2. No: go to landing. Yes: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-review.sh <builder-id>`. Round 1 spawns the reviewer `<builder-id>-rv`; later rounds re-arm it. Run it in the background. The watcher wakes you when the reviewer reports.
    If the operator says "review everything this session", skip the question for this conversation until they revoke it. Still present every verdict.
 3. Reviewer `done`: present the verdict (PASS, or the blocking findings, then the suggestions) from `.chief/tasks/<reviewer-id>/report.md`. Hold the reviewer (`chief-backlog.sh hold <reviewer-id> "round N <verdict>, idle"`) and propose the next step:
    - FAIL: offer to send the findings to the builder. The operator may add comments or drop findings first.
@@ -87,7 +87,7 @@ A done researcher or brainstormer with a report can be followed by a successor: 
 
 1. Propose the branch (`conventional-branches` scheme) and preview the agent: `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <new-id> <project-dir> --mode <builder|researcher|brainstormer> --from <id> --branch "<type>/<short-kebab-description>" --intent "<ask>" --dry-run` prints the exact `agent:` and `launch:` (a weighted or random pool prints as the pool) and creates nothing.
 2. Ask the operator's go-ahead naming that agent and branch, and that the source's session ends (a brainstormer's pane closes; its folder, with the report, moves to `.chief/archive/<id>/`).
-3. On the go-ahead, file `<new-id>` (`chief-backlog.sh add`), then run `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-promote.sh <id> --to <role> --as <new-id> --branch "<branch>" --intent "<ask>" [--spec "<instructions>"]`. It runs `chief-spawn.sh --from`, then tears the source down. `--keep-source` leaves it running; `--dry-run` previews. Run it in the background.
+3. On the go-ahead, file `<new-id>` (`chief-backlog.sh add`), then run `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-promote.sh <id> --to <role> --as <new-id> --branch "<branch>" --intent "<ask>" [--spec "<instructions>"]`. It runs `chief-spawn.sh --from`, then tears the source down. The successor's id replaces the source's role prefix (`res-auth-flow` -> `build-auth-flow`); `--dry-run` previews and prints `id:` to file. `--keep-source` leaves the source running. Run it in the background.
 
 ## Once a PR is open
 

@@ -23,6 +23,7 @@ set -euo pipefail
 chief_ensure_dirs
 . "$CHIEF_ROOT/bin/lib/lock.sh"
 . "$CHIEF_ROOT/bin/lib/meta.sh"
+. "$CHIEF_ROOT/bin/lib/id.sh"
 . "$CHIEF_ROOT/bin/lib/meta-extensions.sh"
 
 LOCK="$STATE/.backlog.lock"
@@ -52,6 +53,7 @@ _rewrite() {
 
 cmd_add() {
   local id=$1 title=$2
+  chief_id_check "$id" || exit 1
   grep -q "^## $id " "$BACKLOG" 2>/dev/null && fail "task $id already exists in the backlog"
   chief_lock_acquire "$LOCK" 10 || fail "could not acquire backlog lock"
   {
