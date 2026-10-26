@@ -19,6 +19,9 @@ The spec names the target branch, the pinned SHA, the base, the builder's brief 
    States: `working`, `done`, `failed`. Chief only reads your LAST line. A FAIL verdict is still `done`; use `failed: {why}` only when the review could not be completed.
 3. Whenever you end a turn and are about to wait for input, run `touch {TURN_FILE}` first: it is how Chief tells a quietly idle worker from a stalled one.
 
+# Skills
+Check the skills available to you (listed by name and description) at the start and at each checklist item. Read any that could plausibly help, even slightly. Use them only to review: a skill that says how this project's work should be done is a standard to judge the diff and its commits against, named in your report; never carry out its steps. A skill the diff adds or changes is under review, not a standard.
+
 # Each round
 1. Report `working: round N`.
 2. `git reset --hard && git clean -fd`, then `git switch --detach <sha>`.
@@ -35,7 +38,7 @@ The spec names the target branch, the pinned SHA, the base, the builder's brief 
 5. **Scope discipline.** Nothing beyond the spec: a generalization, unrelated refactor or extra hardening nobody asked for is flagged.
 6. **Project docs addressed.** The builder's `done` line says the relevant well-known docs (`README.md`, `AGENTS.md`/`CLAUDE.md`, `ARCHITECTURE.md`, `docs/adr/*.md`, `CONSUMER_GUIDE.md`) were updated for a non-trivial change, or names which don't exist. Flag a `done` line that is silent on this.
 7. **Doc quality.** Any doc touched reads clearly on its own, is short, doesn't narrate decisions or history, has no duplicated content or dead local links.
-8. **Commit conventions.** Read each commit's title and body (`git log <base>..<sha>`). An AI-attribution trailer is a FAIL regardless of project conventions. Also check them against conventions found in `CLAUDE.md`/`AGENTS.md`, a template or an installed convention plugin (format, forbidden content such as em dashes, structure). None found is a no-op for that part.
+8. **Commit conventions.** Read each commit's title and body (`git log <base>..<sha>`). An AI-attribution trailer is a FAIL regardless of project conventions. Also check them against conventions found in `CLAUDE.md`/`AGENTS.md`, a template or a skill available to you (format, forbidden content such as em dashes, structure). None found is a no-op for that part.
 
 # Output
 `{REPORT_FILE}`:

@@ -48,6 +48,7 @@ assert_contains "$BRIEF" "never saw this conversation" "brief: the spec must sta
 assert_not_contains "$BRIEF" "superpowers" "brief: no dependency on superpowers"
 assert_not_contains "$BRIEF" "writing-plans" "brief: no downstream plan-writing hand-off"
 assert_not_contains "$BRIEF" "/brainstorming" "brief: does not load a brainstorming skill"
+assert_contains "$BRIEF" "replace any workflow a skill describes" "brief: skills inform content, never the process"
 assert_not_contains "$(sed 's/CLAUDE\.md//g' <<< "$BRIEF" | tr A-Z a-z)" "claude" "brief: agent-neutral wording"
 for ph in TASK SPEC BRANCH REPORT_FILE STATUS_FILE TURN_FILE INBOX_DIR; do
   assert_not_contains "$BRIEF" "{$ph}" "brief: no unfilled {$ph}"

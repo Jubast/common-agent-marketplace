@@ -58,6 +58,10 @@ assert_contains "$BRIEF_T1" "the project's checks pass, the work is committed, a
 assert_contains "$BRIEF_T1" "done: <short commit sha> <one-line summary>" "brief: the done line starts with the short commit sha"
 assert_contains "$BRIEF_T1" "fix them with new commits (amend only for commit-message findings)" "brief: findings are fixed with new commits"
 assert_contains "$BRIEF_T1" "report \`done\` again" "brief: done is reported again after fixes"
+assert_contains "$BRIEF_T1" "This brief wins over any skill" "builder brief: the brief wins over any skill"
+assert_contains "$BRIEF_T1" "skip a skill's step that would ask a human, push, open a PR, create a worktree, start other agents, or go beyond the spec" "builder brief: names the skill steps to skip"
+assert_not_contains "$BRIEF_T1" "conventional-changes" "builder brief: names no skill"
+assert_not_contains "$(sed 's/CLAUDE\.md//g' <<< "$BRIEF_T1" | tr A-Z a-z)" "claude" "builder brief: agent-neutral wording"
 
 # --- agent selection: flags, config, validation --------------------------
 spawn() {  # <id> [flags...]
