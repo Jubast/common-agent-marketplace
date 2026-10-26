@@ -25,6 +25,7 @@ export CHIEF_HERDR_SUBMIT_TIMEOUT_MS=2000 CHIEF_HERDR_START_WAIT=2 CHIEF_HERDR_P
 #                         keys.screen replaces it after any `send-keys ... enter`
 #   get.json              `agent get` reply; wait.rc  `agent wait` exit code
 #   workspaces.json       `workspace list` reply (default: none)
+# Every `agent` call must target a valid agent name or a pane id, else invalid_agent_name.
 cat > "$WORK/bin/herdr" <<'FAKE_HERDR'
 #!/usr/bin/env bash
 case "$1 $2" in "agent prompt") echo "$1 $2 $3 <${#4}B> ${*:5}" >> "$FAKE/calls";; *) echo "$*" >> "$FAKE/calls";; esac
@@ -32,6 +33,8 @@ bump() { local n=$(( $(cat "$FAKE/n.$1" 2>/dev/null || echo 0) + 1 )); echo $n >
 reply() {  # <stem> <n>: <stem>.<n>.json else <stem>.json; exit code from the matching .rc else 0
   local f=$FAKE/$1.$2; [ -f "$f.json" ] || f=$FAKE/$1
   cat "$f.json" 2>/dev/null; return "$(cat "$f.rc" 2>/dev/null || echo 0)"; }
+[ "$1" = agent ] && [ -n "${3:-}" ] && ! [[ $3 =~ ^[a-z][a-z0-9_-]{0,31}$ || $3 =~ ^w[0-9]+:p[0-9]+$ ]] \
+  && { echo '{"error":{"code":"invalid_agent_name","message":"invalid agent name"}}'; exit 1; }
 case "$1 $2" in
   "worktree create") d=; b=; while [ $# -gt 0 ]; do case "$1" in --cwd) c=$2;; --branch) b=$2;; --path) d=$2;; esac; shift; done
                      git -C "$c" worktree add -q -b "$b" "$d" >/dev/null 2>&1
@@ -111,6 +114,11 @@ err=$(_chief_herdr_start_agent t1 w9:p1 "$WT" 2>&1 >/dev/null); rc=$?
 assert_eq "$rc" "1" "any other 'agent start' failure fails at once"
 assert_eq "$(count 'agent read')" "0" "...without polling"
 assert_contains "$err" "unknown_kind" "...with herdr's own error"
+
+reset; cp "$FX/screen-ready.txt" "$FAKE/screen"
+out=$(_chief_herdr_start_agent build-keycloak-name-with-a-long-tail-of-words w9:p1 "$WT" 2>&1); rc=$?
+assert_eq "$rc" "1" "the fake rejects an agent name over 32 chars (a long id would fail here)"
+assert_contains "$out" "invalid_agent_name" "...with herdr's own error"
 
 echo "[start] folder-trust dialog"
 reset; dialog_for "$WT" > "$FAKE/screen"; cp "$FX/screen-ready.txt" "$FAKE/keys.screen"

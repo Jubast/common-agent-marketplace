@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # chief-review.sh - start or re-arm a builder's reviewer on its latest commit.
-# Round 1 files and spawns <builder>-review; later rounds archive its report,
+# Round 1 files and spawns <builder>-rv; later rounds archive its report,
 # message it and re-arm it. It never reads a verdict or forwards findings.
 #
 # Usage: chief-review.sh <builder-id>
@@ -8,6 +8,7 @@ set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
 . "$CHIEF_ROOT/bin/lib/meta.sh"
+. "$CHIEF_ROOT/bin/lib/id.sh"
 
 fail() { echo "chief-review: $*" >&2; exit 1; }
 
@@ -30,10 +31,10 @@ DONE_SHA=${LAST#done: }; DONE_SHA=${DONE_SHA%% *}
 { [ "${#DONE_SHA}" -ge 7 ] && [[ $SHA == "$DONE_SHA"* ]]; } \
   || fail "$BID's done line does not start with HEAD's SHA ${SHA:0:7} (it committed after reporting done, or the line has no SHA)"
 
-RID=$BID-review
 ROUND=1
 LINKED=$(chief_meta_get "$BID" reviewer 2>/dev/null || true)
 if [ -n "$LINKED" ]; then
+  RID=$LINKED
   [ "$(chief_meta_get "$RID" status 2>/dev/null)" != torn-down ] || fail "reviewer $RID was torn down"
   if [ "$SHA" = "$(chief_meta_get "$BID" review_sha 2>/dev/null)" ] \
     && [[ $("$CHIEF_ROOT/bin/task/chief-crew-state.sh" "$RID") == "state: working"* ]]; then
@@ -47,11 +48,12 @@ Builder brief (intent): $(chief_task_path "$BID" brief.md)
 Builder done line: ${LAST#done: }"
 
 if [ "$ROUND" -eq 1 ]; then
+  RID=$(chief_id_compose "$BID" rv)
   if [ -z "$("$CHIEF_ROOT/bin/chief-backlog.sh" show "$RID")" ]; then
     title=$("$CHIEF_ROOT/bin/chief-backlog.sh" show "$BID" | sed -n '1s/^## [^ ]* \[[a-z-]*\] //; 1s/ \[agent: [^]]*\]$//p')
     "$CHIEF_ROOT/bin/chief-backlog.sh" add "$RID" "review of $BID: $title" >/dev/null
   fi
-  "$CHIEF_ROOT/bin/chief-spawn.sh" "$RID" "$PROJECT" --mode reviewer --branch "chore/review-$BID" \
+  "$CHIEF_ROOT/bin/chief-spawn.sh" "$RID" "$PROJECT" --mode reviewer --branch "chore/$RID" \
     --intent "Review $BID" --spec "$text"
 else
   REPORT=$(chief_task_path "$RID" report.md)

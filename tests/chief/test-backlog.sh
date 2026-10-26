@@ -77,6 +77,17 @@ assert_eq "$(chief_meta_get t-2 status 2>/dev/null || true)" "" "no meta record 
 assert_eq "$(chief_meta_get t-4 status)" "done" "done advances a spawned task's meta status away from working"
 
 assert_failure "add refuses a duplicate id" -- "$BL" add t-1 "dup"
+LONG=build-keycloak-name-with-a-long-tail-of-words
+for bad in "$LONG" Build-x build.x build_x "build x" 9lives; do
+  assert_failure "add refuses the invalid id '$bad'" -- "$BL" add "$bad" "t"
+done
+assert_contains "$("$BL" add "$LONG" t 2>&1)" "try 'build-keycloak-name-with-a-long'" "add suggests a valid id"
+assert_not_contains "$(cat "$BACKLOG")" "$LONG" "a refused add writes nothing"
+printf '## %s [queued] old long id\n' "$LONG" >> "$BACKLOG"
+assert_success "status still works on an already-filed long id" -- "$BL" status "$LONG" in-flight
+assert_success "note still works on an already-filed long id" -- "$BL" note "$LONG" "n"
+assert_success "done still works on an already-filed long id" -- "$BL" done "$LONG"
+
 assert_failure "status refuses an unknown id" -- "$BL" status nope queued
 assert_failure "status refuses an invalid status value" -- "$BL" status t-1 bogus
 assert_failure "note refuses an unknown id" -- "$BL" note nope "x"

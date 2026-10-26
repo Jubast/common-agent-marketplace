@@ -45,26 +45,26 @@ git -C "$CHIEF_HOME/worktrees/b-1" reset -q --hard "$SHA1"
 echo dirt > "$CHIEF_HOME/worktrees/b-1/dirt.txt"
 assert_contains "$("$RV" b-1 2>&1)" "not clean" "gate: the worktree must be clean"
 rm "$CHIEF_HOME/worktrees/b-1/dirt.txt"
-assert_file_missing "$TASKS/b-1-review/meta" "gates: nothing was spawned"
+assert_file_missing "$TASKS/b-1-rv/meta" "gates: nothing was spawned"
 
 # --- round 1 ---
 out=$(timeout 15 "$RV" b-1 2>&1)
-assert_contains "$out" "review: b-1-review round 1 of b-1 @${SHA1:0:7}" "round 1: prints the round"
-assert_eq "$(chief_meta_get b-1-review mode)" "reviewer" "round 1: spawns a reviewer"
-assert_eq "$(chief_meta_get b-1-review branch)" "chore/review-b-1" "round 1: on chore/review-<builder>"
-assert_eq "$(chief_meta_get b-1-review for)" "b-1" "round 1: reviewer for=builder"
-assert_eq "$(chief_meta_get b-1 reviewer)" "b-1-review" "round 1: builder reviewer=reviewer"
+assert_contains "$out" "review: b-1-rv round 1 of b-1 @${SHA1:0:7}" "round 1: prints the round"
+assert_eq "$(chief_meta_get b-1-rv mode)" "reviewer" "round 1: spawns a reviewer"
+assert_eq "$(chief_meta_get b-1-rv branch)" "chore/b-1-rv" "round 1: on chore/<reviewer-id>"
+assert_eq "$(chief_meta_get b-1-rv for)" "b-1" "round 1: reviewer for=builder"
+assert_eq "$(chief_meta_get b-1 reviewer)" "b-1-rv" "round 1: builder reviewer=reviewer"
 assert_eq "$(chief_meta_get b-1 review_round)" "1" "round 1: builder review_round=1"
-assert_contains "$("$BIN/chief-backlog.sh" show b-1-review)" "[in-flight] review of b-1: Add hello" "round 1: backlog item filed and in flight"
-BRIEF=$(cat "$TASKS/b-1-review/brief.md")
+assert_contains "$("$BIN/chief-backlog.sh" show b-1-rv)" "[in-flight] review of b-1: Add hello" "round 1: backlog item filed and in flight"
+BRIEF=$(cat "$TASKS/b-1-rv/brief.md")
 assert_contains "$BRIEF" "Pinned SHA: $SHA1" "round 1: spec pins the SHA"
 assert_contains "$BRIEF" "Base: main" "round 1: spec names the base"
 assert_contains "$BRIEF" "Branch: feat/b-1" "round 1: spec names the branch"
 assert_contains "$BRIEF" "$TASKS/b-1/brief.md" "round 1: spec points at the builder's brief"
 assert_contains "$BRIEF" "Builder done line: ${SHA1:0:7} added hello.txt" "round 1: spec carries the done line"
 assert_contains "$BRIEF" "Review round 1" "round 1: spec carries the round"
-assert_contains "$("$CS" b-1-review)" "[for: b-1]" "crew-state: the reviewer shows its builder"
-assert_contains "$("$CS" b-1)" "[reviewer: b-1-review]" "crew-state: the builder shows its reviewer"
+assert_contains "$("$CS" b-1-rv)" "[for: b-1]" "crew-state: the reviewer shows its builder"
+assert_contains "$("$CS" b-1)" "[reviewer: b-1-rv]" "crew-state: the builder shows its reviewer"
 
 digest=$(python3 -c "import json,sys; print(json.load(sys.stdin)['hookSpecificOutput']['additionalContext'])" < <("$REPO_ROOT/plugins/chief/hooks/session-start.sh"))
 assert_contains "$digest" "[mode: reviewer] [agent: claude] [for: b-1]" "digest: the reviewer shows its builder"
@@ -73,10 +73,10 @@ assert_contains "$digest" "[mode: reviewer] [agent: claude] [for: b-1]" "digest:
 assert_contains "$("$RV" b-1 2>&1)" "already reviewing ${SHA1:0:7}" "same SHA while the reviewer is working: refused"
 
 # --- reviewer reports; the watcher wakes on it ---
-mkdir -p "$TASKS/b-1-review"
-printf 'Verdict: FAIL\n' > "$TASKS/b-1-review/report.md"
-echo "done: round 1 FAIL (1 blocking) @${SHA1:0:7}" >> "$TASKS/b-1-review/status"
-"$BIN/chief-backlog.sh" hold b-1-review "round 1 FAIL, idle" >/dev/null
+mkdir -p "$TASKS/b-1-rv"
+printf 'Verdict: FAIL\n' > "$TASKS/b-1-rv/report.md"
+echo "done: round 1 FAIL (1 blocking) @${SHA1:0:7}" >> "$TASKS/b-1-rv/status"
+"$BIN/chief-backlog.sh" hold b-1-rv "round 1 FAIL, idle" >/dev/null
 "$BIN/chief-backlog.sh" hold b-1 "reported" >/dev/null
 
 # --- round 2 ---
@@ -86,45 +86,45 @@ assert_contains "$("$RV" b-1 2>&1)" "is not done" "gate: a builder resumed to wo
 "$BIN/chief-backlog.sh" status b-1 in-flight >/dev/null
 echo "done: ${SHA2:0:7} fixed" >> "$TASKS/b-1/status"
 out=$(timeout 15 "$RV" b-1 2>&1)
-assert_contains "$out" "review: b-1-review round 2 of b-1 @${SHA2:0:7}" "round 2: prints the round"
-assert_eq "$(cat "$TASKS/b-1-review/report.round-1.md")" "Verdict: FAIL" "round 2: the previous report is archived"
-assert_file_missing "$TASKS/b-1-review/report.md" "round 2: report.md is cleared for the new round"
-MSG=$(cat "$TASKS/b-1-review/inbox/001.msg")
+assert_contains "$out" "review: b-1-rv round 2 of b-1 @${SHA2:0:7}" "round 2: prints the round"
+assert_eq "$(cat "$TASKS/b-1-rv/report.round-1.md")" "Verdict: FAIL" "round 2: the previous report is archived"
+assert_file_missing "$TASKS/b-1-rv/report.md" "round 2: report.md is cleared for the new round"
+MSG=$(cat "$TASKS/b-1-rv/inbox/001.msg")
 assert_contains "$MSG" "Review round 2" "round 2: the round message is delivered"
 assert_contains "$MSG" "Pinned SHA: $SHA2" "round 2: the message pins the new SHA"
-assert_contains "$MSG" "$TASKS/b-1-review/report.round-1.md" "round 2: the message lists the prior report"
-assert_eq "$(tail -n 1 "$TASKS/b-1-review/status")" "working: round 2 requested" "round 2: a working line follows the old done"
-assert_contains "$("$CS" b-1-review)" "state: working" "round 2: the reviewer reads as working"
-assert_contains "$("$BIN/chief-backlog.sh" show b-1-review)" "[in-flight]" "round 2: backlog item back in flight"
-assert_eq "$(chief_meta_get b-1-review status)" "working" "round 2: meta back to working"
+assert_contains "$MSG" "$TASKS/b-1-rv/report.round-1.md" "round 2: the message lists the prior report"
+assert_eq "$(tail -n 1 "$TASKS/b-1-rv/status")" "working: round 2 requested" "round 2: a working line follows the old done"
+assert_contains "$("$CS" b-1-rv)" "state: working" "round 2: the reviewer reads as working"
+assert_contains "$("$BIN/chief-backlog.sh" show b-1-rv)" "[in-flight]" "round 2: backlog item back in flight"
+assert_eq "$(chief_meta_get b-1-rv status)" "working" "round 2: meta back to working"
 assert_eq "$(chief_meta_get b-1 review_round)" "2" "round 2: builder review_round=2"
 assert_contains "$("$RV" b-1 2>&1)" "already reviewing ${SHA2:0:7}" "round 2: a repeat call for the same SHA is refused"
-assert_eq "$(ls "$TASKS/b-1-review/inbox" | grep -c msg)" "1" "round 2: the refused call sent nothing"
+assert_eq "$(ls "$TASKS/b-1-rv/inbox" | grep -c msg)" "1" "round 2: the refused call sent nothing"
 
 # --- watch: a differing reviewer done wakes; one identical to the baseline is suppressed ---
-kill "$(cat "$TASKS/b-1-review/term.pid")" 2>/dev/null; sleep 1
+kill "$(cat "$TASKS/b-1-rv/term.pid")" 2>/dev/null; sleep 1
 "$BIN/chief-backlog.sh" hold b-1 "reported" >/dev/null
 watch_out() { CHIEF_POLL=1 timeout 3 "$BIN/chief-watch.sh"; }
 silent=$(watch_out); rc=$?
 assert_eq "$rc:$silent" "124:" "watch: the re-armed reviewer's working line does not wake Chief"
-echo "done: round 2 PASS @${SHA2:0:7}" >> "$TASKS/b-1-review/status"
-assert_contains "$(watch_out)" "b-1-review: state: done · round 2 PASS @${SHA2:0:7}" "watch: the reviewer's new done wakes Chief"
-"$BIN/chief-backlog.sh" hold b-1-review "round 2 PASS, idle" >/dev/null
-"$BIN/chief-backlog.sh" status b-1-review in-flight >/dev/null
+echo "done: round 2 PASS @${SHA2:0:7}" >> "$TASKS/b-1-rv/status"
+assert_contains "$(watch_out)" "b-1-rv: state: done · round 2 PASS @${SHA2:0:7}" "watch: the reviewer's new done wakes Chief"
+"$BIN/chief-backlog.sh" hold b-1-rv "round 2 PASS, idle" >/dev/null
+"$BIN/chief-backlog.sh" status b-1-rv in-flight >/dev/null
 silent=$(watch_out); rc=$?
 assert_eq "$rc:$silent" "124:" "watch: a done identical to the baseline is suppressed"
-"$BIN/chief-backlog.sh" hold b-1-review "idle" >/dev/null
+"$BIN/chief-backlog.sh" hold b-1-rv "idle" >/dev/null
 
 # --- teardown: the cascade ---
 assert_failure "teardown: an unlanded builder is refused" -- "$BIN/chief-teardown.sh" b-1
-assert_file_exists "$CHIEF_HOME/worktrees/b-1-review" "teardown refused: the reviewer is left alone"
+assert_file_exists "$CHIEF_HOME/worktrees/b-1-rv" "teardown refused: the reviewer is left alone"
 git -C "$WORK/project" merge --ff-only feat/b-1 >/dev/null
 out=$("$BIN/chief-teardown.sh" b-1 2>&1)
 assert_contains "$out" "torn down: b-1 " "teardown: the landed builder is discarded"
-assert_contains "$out" "torn down: b-1-review " "teardown: its reviewer is discarded with it"
-assert_file_missing "$CHIEF_HOME/worktrees/b-1-review" "teardown: the reviewer worktree is gone"
-assert_file_exists "$ARCHIVE/b-1-review/report.round-1.md" "teardown: the reviewer's reports survive, archived"
-assert_contains "$("$BIN/chief-backlog.sh" show b-1-review)" "[done]" "teardown: the reviewer's backlog item is done"
+assert_contains "$out" "torn down: b-1-rv " "teardown: its reviewer is discarded with it"
+assert_file_missing "$CHIEF_HOME/worktrees/b-1-rv" "teardown: the reviewer worktree is gone"
+assert_file_exists "$ARCHIVE/b-1-rv/report.round-1.md" "teardown: the reviewer's reports survive, archived"
+assert_contains "$("$BIN/chief-backlog.sh" show b-1-rv)" "[done]" "teardown: the reviewer's backlog item is done"
 assert_failure "review after teardown: refused" -- "$RV" b-1
 
 # --- a reviewer torn down alone; --abandon cascades too ---
@@ -133,10 +133,10 @@ timeout 10 "$BIN/chief-spawn.sh" b-2 "$WORK/project" --mode builder --branch fea
 commit b-2 two.txt >/dev/null
 echo "done: $(git -C "$CHIEF_HOME/worktrees/b-2" rev-parse --short HEAD) ok" >> "$TASKS/b-2/status"
 timeout 15 "$RV" b-2 >/dev/null 2>&1
-out=$("$BIN/chief-teardown.sh" b-2-review 2>&1)
-assert_contains "$out" "torn down: b-2-review " "teardown: a reviewer tears down alone"
+out=$("$BIN/chief-teardown.sh" b-2-rv 2>&1)
+assert_contains "$out" "torn down: b-2-rv " "teardown: a reviewer tears down alone"
 assert_eq "$(git -C "$WORK/project" worktree list | grep -c 'worktrees/b-2 ')" "1" "teardown alone: the builder is untouched"
-assert_contains "$("$RV" b-2 2>&1)" "reviewer b-2-review was torn down" "review: a torn-down reviewer is reported"
+assert_contains "$("$RV" b-2 2>&1)" "reviewer b-2-rv was torn down" "review: a torn-down reviewer is reported"
 out=$("$BIN/chief-teardown.sh" b-2 --abandon 2>&1)
 assert_eq "$(grep -c '^torn down' <<< "$out")" "1" "abandon: an already-discarded reviewer is not torn down twice"
 
@@ -146,12 +146,26 @@ timeout 10 "$BIN/chief-spawn.sh" b-3 "$WORK/project" --mode builder --branch fea
 commit b-3 three.txt >/dev/null
 echo "done: $(git -C "$CHIEF_HOME/worktrees/b-3" rev-parse --short HEAD) ok" >> "$TASKS/b-3/status"
 timeout 15 "$RV" b-3 >/dev/null 2>&1
-git -C "$WORK/project" worktree remove --force "$CHIEF_HOME/worktrees/b-3-review"
+git -C "$WORK/project" worktree remove --force "$CHIEF_HOME/worktrees/b-3-rv"
 out=$("$BIN/chief-teardown.sh" b-3 --abandon 2>&1)
-assert_contains "$out" "torn down: b-3-review " "teardown: a hand-removed reviewer worktree is still cleaned up"
-assert_eq "$(chief_meta_get b-3-review status)" "torn-down" "teardown: the reviewer is marked torn down"
-assert_contains "$("$BIN/chief-backlog.sh" show b-3-review)" "[done]" "teardown: its backlog item is done"
-assert_eq "$(git -C "$WORK/project" branch --list chore/review-b-3)" "" "teardown: its branch is deleted"
+assert_contains "$out" "torn down: b-3-rv " "teardown: a hand-removed reviewer worktree is still cleaned up"
+assert_eq "$(chief_meta_get b-3-rv status)" "torn-down" "teardown: the reviewer is marked torn down"
+assert_contains "$("$BIN/chief-backlog.sh" show b-3-rv)" "[done]" "teardown: its backlog item is done"
+assert_eq "$(git -C "$WORK/project" branch --list chore/b-3-rv)" "" "teardown: its branch is deleted"
+
+# --- a long builder id: the reviewer id is fitted, found again in round 2, and reused after a failed spawn ---
+LB=build-keycloak-name-extra-words
+"$BIN/chief-backlog.sh" add $LB "Long" >/dev/null
+timeout 10 "$BIN/chief-spawn.sh" $LB "$WORK/project" --mode builder --branch feat/long --intent "Long" >/dev/null
+commit $LB long.txt >/dev/null
+echo "done: $(git -C "$CHIEF_HOME/worktrees/$LB" rev-parse --short HEAD) ok" >> "$TASKS/$LB/status"
+assert_failure "long id: a failed round-1 spawn" -- env CHIEF_MOCK_SPAWN_FAIL=1 "$RV" $LB
+assert_file_missing "$TASKS/build-keycloak-name-extra-rv/meta" "long id: a failed spawn leaves no meta"
+timeout 15 "$RV" $LB >/dev/null 2>&1
+assert_eq "$(chief_meta_get $LB reviewer)" "build-keycloak-name-extra-rv" "long id: the retry reuses the fitted reviewer id"
+commit $LB long2.txt >/dev/null
+echo "done: $(git -C "$CHIEF_HOME/worktrees/$LB" rev-parse --short HEAD) ok" >> "$TASKS/$LB/status"
+assert_contains "$("$RV" $LB 2>&1)" "review: build-keycloak-name-extra-rv round 2 of $LB" "long id: round 2 reads reviewer= from meta"
 
 # --- manual use on an arbitrary branch ---
 git -C "$WORK/project" branch feat/other main

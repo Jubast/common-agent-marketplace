@@ -123,7 +123,7 @@ assert_file_missing "$TASKS/d-5/meta" "dry-run: weighted creates nothing"
 # the promote wrapper: successor spawn, then the source is retired
 printf '[builder]\ncodex:gpt-5\n' > "$CFG"
 spawn r-9 researcher --agent claude:opus >/dev/null; finish r-9 "report nine"
-"$BIN/chief-backlog.sh" add r-9-builder "build it" >/dev/null
+"$BIN/chief-backlog.sh" add build-r-9 "build it" >/dev/null
 refused "promote: refuses an unknown id" "no meta record" "$BIN/task/chief-promote.sh" nope --to builder --branch feat/p --intent x
 refused "promote: --to is required" "--to <role> is required" "$BIN/task/chief-promote.sh" r-9 --branch feat/p --intent x
 refused "promote: --mode is rejected" "--mode is set by chief-promote.sh" "$BIN/task/chief-promote.sh" r-9 --to builder --mode researcher --branch feat/p --intent x
@@ -134,25 +134,30 @@ assert_file_missing "$TASKS/r-9-nope/meta" "promote: an unfiled id spawns nothin
 assert_eq "$(meta r-9 status)" "working" "promote: an unfiled id leaves the source running"
 out=$("$BIN/task/chief-promote.sh" r-9 --to builder --branch feat/p-9 --intent "build it" --dry-run)
 assert_contains "$out" "agent: codex:gpt-5" "promote: --dry-run passes through"
+assert_contains "$out" "id: build-r-9" "promote: --dry-run prints the id to file"
+refused "promote: --as is checked" "invalid task id 'R_9'" "$BIN/task/chief-promote.sh" r-9 --to builder --as R_9 --branch feat/p-n --intent x
 assert_eq "$(meta r-9 status)" "working" "promote: --dry-run retires nothing"
 assert_success "promote: successor spawned, source retired" -- "$BIN/task/chief-promote.sh" r-9 --to builder --branch feat/p-9 --intent "build it"
-assert_eq "$(meta r-9-builder from)" "r-9" "promote: the successor is <id>-<role> with from="
-assert_eq "$(meta r-9-builder agent)" "codex" "promote: the successor runs the target role's agent"
+assert_eq "$(meta build-r-9 from)" "r-9" "promote: the successor replaces the role prefix, with from="
+assert_eq "$(meta build-r-9 agent)" "codex" "promote: the successor runs the target role's agent"
 assert_eq "$(meta r-9 status)" "torn-down" "promote: the source is torn down"
 assert_file_exists "$ARCHIVE/r-9/report.md" "promote: the source report survives, archived"
-assert_contains "$("$BIN/chief-backlog.sh" show r-9-builder)" "[in-flight]" "promote: the successor is in flight"
+assert_contains "$("$BIN/chief-backlog.sh" show build-r-9)" "[in-flight]" "promote: the successor is in flight"
+spawn research-auth researcher >/dev/null; finish research-auth "report auth"
+spawn build-auth builder >/dev/null
+assert_contains "$("$BIN/task/chief-promote.sh" research-auth --to builder --branch feat/p-a --intent x --dry-run)" "id: build-auth-2" "promote: the legacy prefix is replaced; a taken id gets -2"
 spawn r-8 researcher >/dev/null; finish r-8 "report eight"
 assert_success "promote: --as and --keep-source" -- "$BIN/task/chief-promote.sh" r-8 --to builder --as nb-8 --keep-source --branch feat/p-8 --intent x
 assert_eq "$(meta r-8 status)" "working" "promote: --keep-source leaves the source running"
 assert_file_exists "$TASKS/nb-8/meta" "promote: --as names the successor"
 spawn r-7 researcher >/dev/null; finish r-7 "report seven"
-"$BIN/chief-backlog.sh" add r-7-builder "build it" >/dev/null
+"$BIN/chief-backlog.sh" add build-r-7 "build it" >/dev/null
 refused "promote: a failed spawn fails the promote" "backend_spawn failed" env CHIEF_MOCK_SPAWN_FAIL=1 "$BIN/task/chief-promote.sh" r-7 --to builder --branch feat/p-7 --intent x
 assert_eq "$(meta r-7 status)" "working" "promote: the source survives a failed handoff"
-assert_file_missing "$TASKS/r-7-builder/meta" "promote: a failed spawn leaves no successor meta"
+assert_file_missing "$TASKS/build-r-7/meta" "promote: a failed spawn leaves no successor meta"
 spawn r-6 researcher >/dev/null; finish r-6 "report six"
-"$BIN/chief-backlog.sh" add r-6-builder "build it" >/dev/null
+"$BIN/chief-backlog.sh" add build-r-6 "build it" >/dev/null
 sed -i '/^branch=/d' "$TASKS/r-6/meta"
-refused "promote: a failed source teardown says the successor is running" "r-6-builder is running but tearing down r-6 failed" "$BIN/task/chief-promote.sh" r-6 --to builder --branch feat/p-6 --intent x
+refused "promote: a failed source teardown says the successor is running" "build-r-6 is running but tearing down r-6 failed" "$BIN/task/chief-promote.sh" r-6 --to builder --branch feat/p-6 --intent x
 
 harness_summary

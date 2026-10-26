@@ -19,6 +19,7 @@ set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
 . "$CHIEF_ROOT/bin/lib/meta.sh"
+. "$CHIEF_ROOT/bin/lib/id.sh"
 . "$CHIEF_ROOT/bin/lib/backends/backend.sh"
 . "$CHIEF_ROOT/bin/lib/git-sync.sh"
 
@@ -73,6 +74,7 @@ while [ $# -gt 0 ]; do
     *) fail "unknown argument: $1" ;;
   esac
 done
+chief_id_check "$ID" || exit 1
 [[ " $CHIEF_ROLES " == *" $MODE "* ]] || fail "--mode must be one of: $CHIEF_ROLES"
 [ -n "$INTENT" ] || fail "--intent is required"
 [ -n "$BRANCH" ] || fail "--branch is required (e.g. feat/short-description)"
