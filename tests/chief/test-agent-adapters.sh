@@ -42,6 +42,10 @@ for a in codex copilot; do
   assert_success "$a: agent_require passes when the CLI exists" -- agent_require
 done
 
+chief_agent_use n-codex
+assert_success "codex: ready text matches the 0.164.0 status line" -- bash -c "echo '  ← for agents · ? for shortcuts' | grep -Eq '$(agent_ready_text)'"
+assert_success "codex: ready text still matches the old footer" -- bash -c "echo '100% context left' | grep -Eq '$(agent_ready_text)'"
+
 chief_agent_use n-copilot
 assert_success "copilot: ready text matches the 1.0.97 footer" -- bash -c "echo 'Interactive · Allow All' | grep -Eq '$(agent_ready_text)'"
 assert_success "copilot: ready text still matches the old texts" -- bash -c "echo 'for commands' | grep -Eq '$(agent_ready_text)' && echo 'for shortcuts' | grep -Eq '$(agent_ready_text)'"
