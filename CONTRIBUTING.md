@@ -44,8 +44,10 @@ listed in that file at that commit.
   changed plugin's `plugin.json`, its entry in `marketplace.json`, and
   `metadata.version`. A merged change reaches installs with the next
   release.
-- Maintainers, while 0.x: bump the minor for plugin additions, removals,
-  or breaking changes; bump the patch for any other plugin bump.
+- Marketplace `metadata.version` (while 0.x): bump the minor for plugin
+  additions, removals or breaking changes, and the patch for any other
+  plugin change. Plugins follow semver; a breaking change is a major
+  bump.
 - Don't tag by hand. The `tag-marketplace` workflow creates `v<version>`
   on merge to `main` if it doesn't exist yet.
 
