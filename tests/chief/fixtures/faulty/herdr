@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Fault-injection wrapper around the REAL herdr: runs it, except that
+# `herdr $HERDR_FAULT_CALL ...` (e.g. "agent start") fails the first
+# ${HERDR_FAULT_TIMES:-1} times with $HERDR_FAULT_OUT on stdout and exit 1.
+# HERDR_REAL is the real binary; HERDR_FAULT_COUNT a counter file.
+if [ "$1 $2" = "${HERDR_FAULT_CALL:-}" ]; then
+  n=$(cat "$HERDR_FAULT_COUNT" 2>/dev/null || echo 0)
+  if [ "$n" -lt "${HERDR_FAULT_TIMES:-1}" ]; then
+    echo $((n + 1)) > "$HERDR_FAULT_COUNT"
+    printf '%s\n' "${HERDR_FAULT_OUT:-}"
+    exit 1
+  fi
+fi
+exec "$HERDR_REAL" "$@"
