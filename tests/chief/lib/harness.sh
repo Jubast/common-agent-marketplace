@@ -15,7 +15,22 @@ harness_reap_mock() {
   while read -r pid; do
     case "$(ps -o args= -p "$pid" 2>/dev/null)" in chief-mock-*) kill "$pid" 2>/dev/null ;; esac
   done < "$CHIEF_MOCK_PID_LOG"
+  # Give slow-to-die workers a moment before the log is dropped.
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    [ -z "$(harness_leaked_mock_pids "$CHIEF_MOCK_PID_LOG")" ] && break
+    sleep 0.1
+  done
   rm -f "$CHIEF_MOCK_PID_LOG"
+}
+# harness_leaked_mock_pids <log> - pids listed in <log> that are still live
+# chief-mock-* workers. Other runs' workers are never in the log, so ignored.
+harness_leaked_mock_pids() {
+  local pid
+  [ -f "$1" ] || return 0
+  while read -r pid; do
+    case "$(ps -o args= -p "$pid" 2>/dev/null)" in chief-mock-*) echo "$pid" ;; esac
+  done < "$1"
 }
 _harness_exit() { harness_reap_mock; rm -rf "$CLAUDE_CONFIG_DIR" "$HARNESS_BIN"; eval "$HARNESS_CLEANUP"; }
 harness_trap() {
