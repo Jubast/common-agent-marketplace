@@ -48,16 +48,16 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
 Never automatic. Propose each step; the operator decides.
 
 1. Builder `done`: report the result with the diffstat and a one-line recommendation (e.g. "2 files, docs only: review probably unnecessary"), hold it (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "reported: awaiting review decision"`), and ask whether to review it. Batch the question when several builders finish together.
-2. No: go to landing. Yes: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-review.sh <builder-id>`. Round 1 spawns the reviewer `<builder-id>-rv`; later rounds re-arm it. Run it in the background. The watcher wakes you when the reviewer reports.
+2. No: go to landing. Yes: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-review.sh <builder-id>`. Round 1 spawns the reviewer `<builder-id>-rv` (under `strategy = all`, `<builder-id>-rv-1`, `-2`...); later rounds re-arm them. Run it in the background. The watcher wakes you when the reviewer reports.
    If the operator says "review everything this session", skip the question for this conversation until they revoke it. Still present every verdict.
-3. Reviewer `done`: present the verdict (PASS, or the blocking findings, then the suggestions) from `.chief/tasks/<reviewer-id>/report.md`. Hold the reviewer (`chief-backlog.sh hold <reviewer-id> "round N <verdict>, idle"`) and propose the next step:
+3. Reviewer `done`: present the verdict (PASS, or the blocking findings, then the suggestions) from `.chief/tasks/<reviewer-id>/report.md`; with several reviewers, from every live one's report (any FAIL fails). Hold the reviewer (`chief-backlog.sh hold <reviewer-id> "round N <verdict>, idle"`) and propose the next step:
    - FAIL: offer to send the findings to the builder. The operator may add comments or drop findings first.
    - PASS: offer to land it or keep going.
    - Reviewer `failed`: the review did not complete; report why.
 4. Operator approves sending: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <builder-id> "<blocking findings, the operator's additions, the report path>"`, then `chief-backlog.sh status <builder-id> in-flight`.
 5. Builder `done` again: say it was fixed in `<sha7>` and ask again (step 1). There is no round cap.
 6. Post findings to the PR only when the operator asks: see "Post a review".
-7. `chief-teardown.sh <builder-id>` also discards its reviewer: name both in the go-ahead. A reviewer alone: `chief-teardown.sh <reviewer-id>`, on the go-ahead.
+7. `chief-teardown.sh <builder-id>` also discards its reviewers: name them in the go-ahead. A reviewer alone: `chief-teardown.sh <reviewer-id>`, on the go-ahead.
 
 ## After the operator responds
 
