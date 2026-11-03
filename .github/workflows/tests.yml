@@ -1,0 +1,30 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  chief-herdr:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends parallel jq
+      - run: git config --global user.name ci && git config --global user.email ci@example.invalid
+      - run: tests/chief/ci/install-herdr.sh
+      - run: tests/chief/run-tests.sh --jobs 4 --junit out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chief-herdr-junit
+          path: out/report.xml

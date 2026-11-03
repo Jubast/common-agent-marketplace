@@ -12,6 +12,9 @@ Thumbs.db
 # Node (tests/ tooling)
 node_modules/
 
+# test reports
+out/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
