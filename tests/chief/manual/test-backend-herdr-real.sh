@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
-# test-backend-herdr.sh - exercises herdr.sh's five adapter
-# functions against a REAL herdr install and a real (minimal) claude turn.
+# test-backend-herdr-real.sh - MANUAL. exercises herdr.sh's five adapter
+# functions against a REAL herdr install and a real (minimal) claude turn: the
+# check of real Claude Code rendering (placeholder hint, trust dialog, in-flight
+# input line) that the stand-in agent of ../test-backend-herdr.bats can only imitate.
 #
-# Unlike every other file in this directory, this one is NOT zero-cost: it
+# Unlike the bats suite, this one is NOT zero-cost: it
 # needs `herdr` on PATH, a headless herdr server, and spends a small number
 # of real tokens on one trivial claude prompt ("reply with exactly: ok").
 # Opt in explicitly:
 #
-#   CHIEF_TEST_HERDR=1 bash tests/chief/test-backend-herdr.sh
+#   CHIEF_TEST_HERDR=1 bash tests/chief/manual/test-backend-herdr-real.sh
 #
 # Skips cleanly (exit 0) if herdr isn't installed or the opt-in isn't set,
 # so it's safe for run-tests.sh's default sweep and outside the devcontainer.
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$TEST_DIR/../../.." && pwd)"
 CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
-. "$TEST_DIR/lib/harness.sh"
+. "$TEST_DIR/../lib/harness.sh"
 
-echo "test-backend-herdr:"
+echo "test-backend-herdr-real:"
 
 if [ "${CHIEF_TEST_HERDR:-0}" != "1" ]; then
   echo "  (skipped - opt in with CHIEF_TEST_HERDR=1; spends real tokens and needs herdr)"

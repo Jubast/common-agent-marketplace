@@ -90,13 +90,13 @@ spawn() {
   timeout 90 "$BIN/chief-spawn.sh" "$id" "$WORK/project" --mode builder --branch "feat/$id" --intent "test" --spec "test" "$@" >/dev/null
 }
 
-# herdr_fault <call> [times] [stdout] - from now on the first [times] (1) calls
-# of `herdr <call>` fail with [stdout]; every other call runs the real herdr.
+# herdr_fault <call> <times> <before|after> <exit code> <stdout> - from now on
+# `herdr <call>` is faulted the first <times> times (see fixtures/faulty/herdr);
+# every other call runs the real herdr.
 herdr_fault() {
-  export HERDR_REAL="$(command -v herdr)" HERDR_FAULT_CALL="$1" HERDR_FAULT_TIMES="${2:-1}" \
-         HERDR_FAULT_OUT="${3:-}" HERDR_FAULT_COUNT="$BATS_TEST_TMPDIR/fault-count"
-  rm -f "$HERDR_FAULT_COUNT"
-  PATH="$TEST_DIR/fixtures/faulty:$PATH"
+  export HERDR_REAL="${HERDR_REAL:-$(command -v herdr)}" HERDR_FAULTS="$BATS_TEST_TMPDIR/faults"
+  case ":$PATH:" in *":$TEST_DIR/fixtures/faulty:"*) ;; *) PATH="$TEST_DIR/fixtures/faulty:$PATH" ;; esac
+  printf '%s|%s|%s|%s|%s\n' "$@" >> "$HERDR_FAULTS"
 }
 
 # standin_turns <id> - every turn the stand-in in that task's worktree received.

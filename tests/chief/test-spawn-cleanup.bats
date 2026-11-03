@@ -59,7 +59,7 @@ assert_rolled_back() {  # <id>
 }
 
 @test "a failing 'herdr agent start' rolls everything back too" {
-  herdr_fault "agent start" 1000 '{"error":{"code":"internal","message":"boom"}}'
+  herdr_fault "agent start" 1000 before 1 '{"error":{"code":"internal","message":"boom"}}'
   run spawn_raw t-fail
   assert_failure
   assert_output --partial "'herdr agent start' failed for t-fail"
