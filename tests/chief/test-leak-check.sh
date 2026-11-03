@@ -8,7 +8,7 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 WORK=$(mktemp -d)
 PIDS=""
-trap 'kill $PIDS 2>/dev/null; rm -rf "$WORK"' EXIT
+trap 'kill $PIDS $(cat "$WORK/foreign.pid" 2>/dev/null) 2>/dev/null; rm -rf "$WORK"' EXIT
 
 echo "test-leak-check:"
 
@@ -25,7 +25,8 @@ kill "$OWN"; wait "$OWN" 2>/dev/null
 assert_eq "$(harness_leaked_mock_pids "$WORK/log")" "" "a logged worker that exited is not reported"
 assert_eq "$(harness_leaked_mock_pids "$WORK/missing")" "" "a missing log reports nothing"
 
-# Through the runner: a test that drops its EXIT trap and leaves a worker.
+# Through the runner: a test that drops its EXIT trap and leaves a worker,
+# while an unlogged foreign worker also appears mid-run and must not count.
 RUN="$WORK/run"; mkdir -p "$RUN/lib"
 cp "$TEST_DIR/run-tests.sh" "$RUN/"; cp "$TEST_DIR/lib/harness.sh" "$RUN/lib/"
 cat > "$RUN/test-leaky.sh" <<EOF
@@ -35,12 +36,14 @@ chief_agent_use() { :; }; agent_prepare() { :; }
 chief_task_path() { echo "$WORK/\$1.\$2"; }; chief_meta_get() { :; }
 harness_trap ':'
 backend_relaunch leaky-run /dev/null
+( exec -a chief-mock-foreign sleep 100000 ) >/dev/null 2>&1 &
+echo \$! > "$WORK/foreign.pid"
 trap - EXIT
 exit 0
 EOF
 mkdir "$WORK/tmp"
 OUT=$(TMPDIR="$WORK/tmp" bash "$RUN/run-tests.sh" 2>&1); RC=$?
-assert_contains "$OUT" "mock workers left behind: 1" "the runner reports a worker left by a test that dropped its trap"
+assert_contains "$OUT" "mock workers left behind: 1" "the runner reports only the logged worker a test left behind, not a foreign one"
 assert_eq "$((RC != 0))" "1" "the runner fails on that leak"
 
 harness_summary
