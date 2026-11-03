@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# run-tests.sh - runs every tests/chief/test-*.sh and reports a summary.
+# run-tests.sh - runs every tests/chief/test-*.sh and test-*.bats and reports a summary.
 #
-# These are functional/integration tests of Chief's own bash scripts. Most
-# run against the `mock` backend (no `claude` CLI, zero tokens).
+# These are functional/integration tests of Chief's own bash scripts. The
+# *.bats files run on a real herdr with a zero-cost stand-in agent; the legacy
+# *.sh files mostly run against the `mock` backend (no `claude` CLI, zero tokens).
 # test-backend-orca-mock.sh is also zero-cost - it unit-tests
 # backends/orca.sh against a fake `orca` CLI. test-backend-herdr.sh,
 # test-backend-orca.sh, test-backend-copilot.sh and

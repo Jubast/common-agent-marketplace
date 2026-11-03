@@ -1,7 +1,9 @@
 # Chief plugin tests
 
-Functional/integration tests of Chief's own bash scripts. Most files run
-against the `mock` backend (`plugins/chief/bin/lib/backends/mock.sh`, a
+Functional/integration tests of Chief's own bash scripts. The `*.bats` files
+run against a real herdr with a zero-cost stand-in agent (see "Real herdr with
+a stand-in agent" below); the remaining legacy `*.sh` files are being converted
+and mostly run against the `mock` backend (`plugins/chief/bin/lib/backends/mock.sh`, a
 throwaway background process standing in for a real terminal session) - no
 `claude` CLI, zero tokens, safe anywhere. `test-backend-orca-mock.sh` is
 also zero-cost: it unit-tests `backends/orca.sh` against a fake `orca`
@@ -13,6 +15,21 @@ before the TUI renders - are real, not hand-written. `test-backend-herdr.sh`,
 `test-backend-orca.sh`, `test-backend-copilot.sh` and
 `test-backend-copilot-brief.sh` are the exceptions: each
 opts into a real herdr/orca install and a real agent turn - see below.
+
+## Real herdr with a stand-in agent (`*.bats`)
+
+Converted tests run against a real, headless `herdr server` - one per test, with
+its own `HOME`/`XDG_*` and socket, stopped in `teardown` (`lib/common.bash`).
+The agent in its panes is `fixtures/standin/claude`, a Claude-Code-shaped TUI
+that costs no tokens; the server's `PATH` holds only the stand-ins, and
+`chief_zero_cost_guard` aborts if a real `claude`/`codex`/`copilot` could be
+found. Panes inherit the server's environment, not the test's: configure the
+stand-in through files under `$STANDIN_DIR` (`standin_mode`, `standin_hold`),
+never exported variables. Use `eventually` for anything asynchronous, never a
+bare `sleep`. Never source `lib/harness.sh` in a `.bats` file.
+
+`tests/chief/ci/install-herdr.sh` installs the pinned herdr into
+`tests/.cache/bin`, which the suite prefers over the herdr on `PATH`.
 
 ## Cleanup
 
@@ -33,7 +50,7 @@ in `tests/package.json` (bats 1.14.0, bats-assert, bats-support, bats-file;
 writes `DIR/report.xml`. Tests tagged `manual` are skipped. A single bats file:
 
 ```bash
-BATS_LIB_PATH=tests/node_modules tests/node_modules/.bin/bats tests/chief/test-lock.bats
+BATS_LIB_PATH=$PWD/tests/node_modules tests/node_modules/.bin/bats tests/chief/test-lock.bats
 ```
 
 Requires `git` and `bash`; `python3` is used where available to validate
@@ -44,14 +61,17 @@ JSON output (skipped gracefully if absent).
 | File | Covers |
 |---|---|
 | `test-static.sh` | Every script parses (`bash -n`), every JSON file is valid, executable bits are correct |
-| `test-meta.sh` | `meta.sh` key=value read/write helpers, and the task folder resolver and archive |
-| `test-lock.sh` | `lock.sh` mutex: acquire/release/timeout/stale-lock reclaim |
+| `test-meta.bats` | `meta.sh` key=value read/write helpers, and the task folder resolver and archive |
+| `test-lock.bats` | `lock.sh` mutex: acquire/release/timeout/stale-lock reclaim |
 | `test-backlog.sh` | `chief-backlog.sh`: add/status/note/hold/done/list/next/show, error cases, and that `status <id> in-flight` restores a held/spawned task's meta status back to `working` |
 | `test-git-sync.sh` | `git-sync.sh`'s `chief_sync_default_branch`: fast-forwards the default branch from origin only when checked out on it with a clean tree, otherwise skips - and never fails its caller, including with no origin remote or a diverged history |
 | `test-worktree-guard.sh` | `chief_is_linked_worktree` - main checkout vs. a linked worktree vs. a non-git dir |
 | `test-crew-state.sh` | `chief-crew-state.sh`'s state classification across all six states, plus a brainstormer's awaiting-operator idle rule (never stale) and attach hint |
 | `test-naming.sh` | Where-lines (`backlog show`) and herdr's workspace label and its cleanup (fake `herdr`) |
-| `test-send.sh` | `chief-send.sh`: durable inbox numbering, handled-file awareness, key sends |
+| `test-send.bats` | `chief-send.sh` on a real herdr: durable inbox numbering, handled-file awareness, key sends, the doorbell line |
+| `test-watch.bats` | `chief-watch.sh` on a real herdr: notify-once per state change (done, resumed, brainstormer, stale, agent and reviewer tags), one watcher per home, and `chief_notify_line` |
+| `test-zero-cost.bats` | The zero-cost guard refuses a server PATH holding a real agent CLI |
+| `test-standin.bats` | The stand-in agent's modes (`hold`, `exit`, `never-ready`, kill) on a real herdr |
 | `test-control.sh` | `chief-control.sh`: interrupt (agent keeps running), exit, relaunch with checkpoint note |
 | `test-setup.sh` | `chief-setup.sh`: backend config, idempotent gitignore, no-git-repo case |
 | `test-hooks.sh` | `session-start.sh` and `stop-watch-arm.sh`'s own bash logic across fresh/configured/in-flight/builder-worktree scenarios |
