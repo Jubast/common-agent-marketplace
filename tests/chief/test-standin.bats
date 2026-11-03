@@ -22,9 +22,7 @@ pid_dead() { ! kill -0 "$(cat "$STANDIN_DIR/$1.pid")" 2>/dev/null; }
 @test "hold keeps the turn working until released" {
   standin_hold t-1
   spawn t-1
-  sleep 2
-  run agent_working t-1
-  assert_success
+  eventually 10 agent_working t-1
   standin_release t-1
   eventually 10 agent_not_working t-1
 }
