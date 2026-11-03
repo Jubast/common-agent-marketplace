@@ -11,9 +11,25 @@
 # default - see this directory's README.md. Skill-BEHAVIOR tests (does Claude actually follow
 # using-chief/dispatch/setup correctly) live in tests/claude-code/
 # instead.
+#
+# Also runs every test-*.bats through the npm-pinned bats in tests/ (installed
+# on first use):
+#   run-tests.sh [--jobs N] [--junit DIR] [bats args...]
+# --jobs needs GNU parallel (else the run is serial); --junit writes
+# DIR/report.xml; anything else goes to bats.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+JOBS=4
+JUNIT=""
+BATS_ARGS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --jobs) JOBS=$2; shift 2 ;;
+    --junit) JUNIT=$2; shift 2 ;;
+    *) BATS_ARGS+=("$1"); shift ;;
+  esac
+done
 
 echo "========================================"
 echo " Chief plugin - functional test suite"
@@ -39,6 +55,27 @@ for f in "$SCRIPT_DIR"/test-*.sh; do
   fi
   echo ""
 done
+
+bats_files=("$SCRIPT_DIR"/test-*.bats)
+if [ -e "${bats_files[0]}" ]; then
+  TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+  BATS="$TESTS_DIR/node_modules/.bin/bats"
+  if [ ! -x "$BATS" ] || [ "$TESTS_DIR/package-lock.json" -nt "$BATS" ]; then
+    npm --prefix "$TESTS_DIR" ci --no-audit --no-fund >/dev/null || exit 1
+  fi
+  export BATS_LIB_PATH="$TESTS_DIR/node_modules"
+  bats_cmd=("$BATS" --filter-tags '!manual')
+  if command -v parallel >/dev/null; then
+    bats_cmd+=(-j "$JOBS")
+  else
+    echo "warning: GNU parallel not found; running bats serially (slow)" >&2
+  fi
+  [ -z "$JUNIT" ] || { mkdir -p "$JUNIT"; bats_cmd+=(--report-formatter junit -o "$JUNIT"); }
+  echo "--- bats ---"
+  total_files=$((total_files + ${#bats_files[@]}))
+  "${bats_cmd[@]}" ${BATS_ARGS[@]+"${BATS_ARGS[@]}"} "$SCRIPT_DIR" || failed_files=$((failed_files + 1))
+  echo ""
+fi
 
 LEAKED_PIDS=$(harness_leaked_mock_pids "$CHIEF_MOCK_RUN_LOG")
 LEAKED=$(printf '%s\n' "$LEAKED_PIDS" | grep -c .)

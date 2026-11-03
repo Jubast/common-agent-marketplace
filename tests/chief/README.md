@@ -22,7 +22,18 @@ Tests that use the mock backend set their cleanup with `harness_trap` (`lib/harn
 
 ```bash
 ./tests/chief/run-tests.sh          # everything
-bash tests/chief/test-lifecycle.sh  # a single file
+bash tests/chief/test-lifecycle.sh  # a single legacy .sh file
+```
+
+`*.bats` files run on [bats-core](https://github.com/bats-core/bats-core) pinned
+in `tests/package.json` (bats 1.14.0, bats-assert, bats-support, bats-file;
+`run-tests.sh` runs `npm ci` on first use, so Node and npm are needed). Options:
+`run-tests.sh [--jobs N] [--junit DIR] [bats args...]`. `--jobs` needs GNU
+`parallel` (required locally; without it the run is serial and slow); `--junit`
+writes `DIR/report.xml`. Tests tagged `manual` are skipped. A single bats file:
+
+```bash
+BATS_LIB_PATH=tests/node_modules tests/node_modules/.bin/bats tests/chief/test-lock.bats
 ```
 
 Requires `git` and `bash`; `python3` is used where available to validate

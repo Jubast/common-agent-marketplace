@@ -9,7 +9,7 @@ Thumbs.db
 .idea/
 *.swp
 
-# Node (in case tooling is added later)
+# Node (tests/ tooling)
 node_modules/
 
 # Byte-compiled / optimized / DLL files
