@@ -36,9 +36,11 @@ plugins/<new-plugin-name>/
 marketplace as a whole. The tag `v<version>` pins every plugin version
 listed in that file at that commit.
 
-- Don't bump plugin versions or `metadata.version` in a PR, including
-  downstream PRs. The maintainers (upstream) decide when to release a
-  version and bump it then.
+- Don't bump plugin versions or `metadata.version` in feature or fix
+  PRs. Maintainers bump them together in a dedicated release PR: each
+  changed plugin's `plugin.json`, its entry in `marketplace.json`, and
+  `metadata.version`. A merged change reaches installs with the next
+  release.
 - Maintainers, while 0.x: bump the minor for plugin additions, removals,
   or breaking changes; bump the patch for any other plugin bump.
 - Don't tag by hand. The `tag-marketplace` workflow creates `v<version>`
