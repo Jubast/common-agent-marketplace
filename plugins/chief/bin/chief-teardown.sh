@@ -12,8 +12,8 @@
 # branch, so when the ancestry check fails, a git-only check (needs git >= 2.38)
 # asks whether merging it into the fetched default branch would change nothing.
 #
-# Tearing down a builder also discards its linked reviewer, once the builder's
-# own teardown has succeeded; a refused builder leaves the reviewer alone.
+# Tearing down a builder also discards its linked reviewers, once the builder's
+# own teardown has succeeded; a refused builder leaves them alone.
 #
 # Usage: chief-teardown.sh <id> [--abandon]
 set -euo pipefail
@@ -52,10 +52,11 @@ _chief_discard() {  # <reason-for-the-echo-line>
   chief_task_archive "$ID"
   echo "torn down: $ID ($1)"
   local rid
-  rid=$(chief_meta_get "$ID" reviewer 2>/dev/null || true)
-  if [ -n "$rid" ] && chief_meta_exists "$rid" && [ "$(chief_meta_get "$rid" status)" != torn-down ]; then
-    "$CHIEF_ROOT/bin/chief-teardown.sh" "$rid" || echo "chief-teardown: could not tear down reviewer $rid" >&2
-  fi
+  for rid in $(chief_meta_get "$ID" reviewer 2>/dev/null || true); do
+    if chief_meta_exists "$rid" && [ "$(chief_meta_get "$rid" status)" != torn-down ]; then
+      "$CHIEF_ROOT/bin/chief-teardown.sh" "$rid" || echo "chief-teardown: could not tear down reviewer $rid" >&2
+    fi
+  done
 }
 
 case "$MODE" in

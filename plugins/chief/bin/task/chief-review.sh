@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# chief-review.sh - start or re-arm a builder's reviewer on its latest commit.
-# Round 1 files and spawns <builder>-rv; later rounds archive its report,
-# message it and re-arm it. It never reads a verdict or forwards findings.
+# chief-review.sh - start or re-arm a builder's reviewers on its latest commit.
+# Round 1 files and spawns <builder>-rv (<builder>-rv-1, -2... under strategy
+# all); later rounds archive each report, message and re-arm each reviewer.
+# It never reads a verdict or forwards findings.
 #
 # Usage: chief-review.sh <builder-id>
 set -euo pipefail
@@ -9,6 +10,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
 . "$CHIEF_ROOT/bin/lib/meta.sh"
 . "$CHIEF_ROOT/bin/lib/id.sh"
+. "$CHIEF_ROOT/bin/lib/agents/agent.sh"
 
 fail() { echo "chief-review: $*" >&2; exit 1; }
 
@@ -33,13 +35,16 @@ DONE_SHA=${LAST#done: }; DONE_SHA=${DONE_SHA%% *}
 
 ROUND=1
 LINKED=$(chief_meta_get "$BID" reviewer 2>/dev/null || true)
+LIVE=""
+for RID in $LINKED; do [ "$(chief_meta_get "$RID" status 2>/dev/null)" = torn-down ] || LIVE+="${LIVE:+ }$RID"; done
 if [ -n "$LINKED" ]; then
-  RID=$LINKED
-  [ "$(chief_meta_get "$RID" status 2>/dev/null)" != torn-down ] || fail "reviewer $RID was torn down"
-  if [ "$SHA" = "$(chief_meta_get "$BID" review_sha 2>/dev/null)" ] \
-    && [[ $("$CHIEF_ROOT/bin/task/chief-crew-state.sh" "$RID") == "state: working"* ]]; then
-    fail "$RID is already reviewing ${SHA:0:7}"
-  fi
+  [ -n "$LIVE" ] || fail "reviewer $LINKED was torn down"
+  for RID in $LIVE; do
+    if [ "$SHA" = "$(chief_meta_get "$BID" review_sha 2>/dev/null)" ] \
+      && [[ $("$CHIEF_ROOT/bin/task/chief-crew-state.sh" "$RID") == "state: working"* ]]; then
+      fail "$RID is already reviewing ${SHA:0:7}"
+    fi
+  done
   ROUND=$(( $(chief_meta_get "$BID" review_round) + 1 ))
 fi
 
@@ -48,27 +53,36 @@ Builder brief (intent): $(chief_task_path "$BID" brief.md)
 Builder done line: ${LAST#done: }"
 
 if [ "$ROUND" -eq 1 ]; then
-  RID=$(chief_id_compose "$BID" rv)
-  if [ -z "$("$CHIEF_ROOT/bin/chief-backlog.sh" show "$RID")" ]; then
-    title=$("$CHIEF_ROOT/bin/chief-backlog.sh" show "$BID" | sed -n '1s/^## [^ ]* \[[a-z-]*\] //; 1s/ \[agent: [^]]*\]$//p')
-    "$CHIEF_ROOT/bin/chief-backlog.sh" add "$RID" "review of $BID: $title" >/dev/null
-  fi
-  "$CHIEF_ROOT/bin/chief-spawn.sh" "$RID" "$PROJECT" --mode reviewer --branch "chore/$RID" \
-    --intent "Review $BID" --spec "$text"
+  # One reviewer per [reviewer] entry under strategy all (<builder>-rv-<n>), else <builder>-rv.
+  N=$(chief_agent_count reviewer) || fail "cannot read the [reviewer] pool"
+  title=$("$CHIEF_ROOT/bin/chief-backlog.sh" show "$BID" | sed -n '1s/^## [^ ]* \[[a-z-]*\] //; 1s/ \[agent: [^]]*\]$//p')
+  for PICK in $(seq "$N"); do
+    RID=$(chief_id_compose "$BID" "rv$([ "$N" = 1 ] || echo "-$PICK")")
+    [ -n "$("$CHIEF_ROOT/bin/chief-backlog.sh" show "$RID")" ] \
+      || "$CHIEF_ROOT/bin/chief-backlog.sh" add "$RID" "review of $BID: $title" >/dev/null
+    if ! CHIEF_AGENT_PICK=$PICK "$CHIEF_ROOT/bin/chief-spawn.sh" "$RID" "$PROJECT" --mode reviewer --branch "chore/$RID" \
+      --intent "Review $BID" --spec "$text"; then
+      for r in $LIVE; do "$CHIEF_ROOT/bin/chief-teardown.sh" "$r" --abandon >/dev/null 2>&1 || true; done
+      fail "spawning reviewer $RID failed; nothing is linked, retry the review"
+    fi
+    chief_meta_set "$RID" for "$BID"
+    LIVE+="${LIVE:+ }$RID"
+  done
+  chief_meta_set "$BID" reviewer "$LIVE"
 else
-  REPORT=$(chief_task_path "$RID" report.md)
-  [ ! -f "$REPORT" ] || mv "$REPORT" "${REPORT%.md}.round-$((ROUND - 1)).md"
-  priors=$(ls "${REPORT%.md}".round-*.md 2>/dev/null || true)
-  "$CHIEF_ROOT/bin/task/chief-send.sh" "$RID" "$text
+  for RID in $LIVE; do
+    REPORT=$(chief_task_path "$RID" report.md)
+    [ ! -f "$REPORT" ] || mv "$REPORT" "${REPORT%.md}.round-$((ROUND - 1)).md"
+    priors=$(ls "${REPORT%.md}".round-*.md 2>/dev/null || true)
+    "$CHIEF_ROOT/bin/task/chief-send.sh" "$RID" "$text
 Earlier reports (to verify, not to repeat):
 $priors"
-  "$CHIEF_ROOT/bin/chief-backlog.sh" status "$RID" in-flight >/dev/null
-  echo "working: round $ROUND requested" >> "$(chief_task_path "$RID" status)"
-  touch "$(chief_task_path "$RID" turn-ended)"
+    "$CHIEF_ROOT/bin/chief-backlog.sh" status "$RID" in-flight >/dev/null
+    echo "working: round $ROUND requested" >> "$(chief_task_path "$RID" status)"
+    touch "$(chief_task_path "$RID" turn-ended)"
+  done
 fi
 
-chief_meta_set "$RID" for "$BID"
-chief_meta_set "$BID" reviewer "$RID"
 chief_meta_set "$BID" review_round "$ROUND"
 chief_meta_set "$BID" review_sha "$SHA"
-echo "review: $RID round $ROUND of $BID @${SHA:0:7}"
+echo "review: ${LIVE// /, } round $ROUND of $BID @${SHA:0:7}"

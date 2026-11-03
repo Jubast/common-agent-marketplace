@@ -45,13 +45,15 @@ Workers run on `claude` (default), `codex` or `copilot`, on herdr and Orca alike
    codex:gpt-5-mini
 
    [reviewer]                   # and for reviewers
+   strategy = all               # chief-review.sh runs one reviewer per entry
+   copilot
    claude:sonnet
 
    [brainstormer]               # and for brainstormers
    claude:opus
    ```
 
-   Sections are the worker roles: `[builder]`, `[researcher]`, `[reviewer]`, `[brainstormer]`; any other name is an error. `#` starts a comment. Per entry, `weight=`, `args=` and `command=` may come in any order. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<role>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights.
+   Sections are the worker roles: `[builder]`, `[researcher]`, `[reviewer]`, `[brainstormer]`; any other name is an error. `#` starts a comment. Per entry, `weight=`, `args=` and `command=` may come in any order. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<role>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights. `all` is for `[reviewer]`: see the review loop.
 3. Else `claude` with its default model.
 
 The choice is recorded in the task's meta (`agent`, `model`, `args`, `command`) and reused by relaunch; `chief-crew-state.sh`, `chief-backlog.sh list|show` (in-flight) and the session digest show `[agent: <agent>[:<model>]]`. Spawn fails before creating anything for an unknown agent, a malformed profile or weight, a missing CLI, or a bad `command=` / `args=` / model combination below. Models are passed to the agent unvalidated.
@@ -80,6 +82,7 @@ The launch line each worker runs is the adapter's `agent_command` in `bin/lib/ag
 The operator decides, per builder, whether it is reviewed; Chief asks after every builder `done` and never starts a review itself (unless told "review everything this session"). `chief-review.sh <builder>` needs the builder's last status `done`, a clean worktree and a commit ahead of the default branch.
 
 - **Round 1** files backlog item `<builder>-rv` and spawns a reviewer (`--mode reviewer`, branch `chore/<builder>-rv`, the `[reviewer]` pool). Its spec pins the builder's HEAD SHA, names the branch and base, points at the builder's brief and `done` line. Meta links: `for=<builder>` on the reviewer, `reviewer=` and `review_round=` on the builder.
+- **Several reviewers:** under `strategy = all`, round 1 spawns `<builder>-rv-1`, `-2`... (one per entry, all or none) and later rounds re-arm each live one. The watcher wakes Chief only when no sibling is still working; a failed, stale or torn-down one never holds the others.
 - **Later rounds** re-arm the same reviewer: its `report.md` is archived as `report.round-<N-1>.md`, the round message goes to its inbox, the backlog item returns to in-flight, and `working: round N requested` is appended to its status. The same commit is refused while the reviewer is working.
 - **The reviewer** resets its scratch worktree, detaches at the pinned SHA and reviews the full `base...sha` diff every round against the 8-item checklist in its brief (item 3 runs the project's checks), then verifies earlier findings. It writes `report.md` (`Verdict`, `Target`, `Blocking`, `Suggestions`, `Checklist`, `Prior findings`) and ends with `done: round N PASS @<sha7>` or `done: round N FAIL (<n> blocking) @<sha7>`; `failed` means the review could not be completed. It never posts, pushes or merges. A builder's `done` line starts with its short commit SHA, so every re-report is a new line to the watcher.
 - **Chief** presents the verdict, holds the reviewer, and on the operator's yes sends the findings to the builder; the builder fixes them with new commits and reports `done` again. Findings go to a PR only when the operator asks.

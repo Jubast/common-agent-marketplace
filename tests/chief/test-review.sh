@@ -167,6 +167,72 @@ commit $LB long2.txt >/dev/null
 echo "done: $(git -C "$CHIEF_HOME/worktrees/$LB" rev-parse --short HEAD) ok" >> "$TASKS/$LB/status"
 assert_contains "$("$RV" $LB 2>&1)" "review: build-keycloak-name-extra-rv round 2 of $LB" "long id: round 2 reads reviewer= from meta"
 
+# --- strategy all: several reviewers, one wake per round ---
+for f in "$TASKS"/*/meta; do  # park everything else so only this section's tasks wake the watcher
+  t=$(basename "$(dirname "$f")"); [ "$(chief_meta_get "$t" status)" != working ] || "$BIN/chief-backlog.sh" hold "$t" parked >/dev/null
+done
+mkdir -p "$CHIEF_HOME/config"
+printf '[reviewer]\nstrategy = all\nclaude:sonnet\ncodex\n' > "$CHIEF_HOME/config/agents"
+newb() {  # <id>: a done builder with one commit, held
+  "$BIN/chief-backlog.sh" add "$1" "T $1" >/dev/null
+  timeout 10 "$BIN/chief-spawn.sh" "$1" "$WORK/project" --mode builder --branch "feat/$1" --intent "T" >/dev/null
+  commit "$1" "$1.txt" >/dev/null
+  echo "done: $(git -C "$CHIEF_HOME/worktrees/$1" rev-parse --short HEAD) ok" >> "$TASKS/$1/status"
+}
+rdone() { echo "done: round $2 PASS @x" >> "$TASKS/$1/status"; }  # <reviewer> <round>
+quiet() { local o rc; o=$(watch_out); rc=$?; assert_eq "$rc:$o" "124:" "$1"; }
+newb b-4
+out=$(timeout 30 "$RV" b-4 2>&1)
+"$BIN/chief-backlog.sh" hold b-4 reported >/dev/null
+assert_contains "$out" "review: b-4-rv-1, b-4-rv-2 round 1 of b-4" "all: one reviewer per entry, numbered"
+assert_eq "$(chief_meta_get b-4 reviewer)" "b-4-rv-1 b-4-rv-2" "all: the builder links both"
+assert_eq "$(chief_meta_get b-4-rv-2 agent):$(chief_meta_get b-4-rv-1 model)" "codex:sonnet" "all: each runs its own entry"
+assert_eq "$(chief_meta_get b-4-rv-2 for)" "b-4" "all: each is for the builder"
+rdone b-4-rv-1 1
+quiet "all: the first done stays quiet while a sibling works"
+rdone b-4-rv-2 1
+assert_contains "$(watch_out)" "b-4-rv-2: state: done" "all: the last done wakes Chief"
+quiet "all: the earlier done is not announced again"
+
+# round 2: both re-armed; both finish in the same poll: one wake
+S4=$(commit b-4 b4b.txt); echo "done: ${S4:0:7} fixed" >> "$TASKS/b-4/status"
+out=$(timeout 30 "$RV" b-4 2>&1)
+"$BIN/chief-backlog.sh" hold b-4 reported >/dev/null
+assert_contains "$out" "review: b-4-rv-1, b-4-rv-2 round 2 of b-4" "round 2: re-arms both"
+assert_contains "$(cat "$TASKS/b-4-rv-2/inbox/001.msg")" "Pinned SHA: $S4" "round 2: each gets the round"
+quiet "round 2: the re-armed working lines do not wake"
+rdone b-4-rv-1 2; rdone b-4-rv-2 2
+assert_contains "$(watch_out)" "state: done · round 2" "same poll: one wake"
+quiet "same poll: no second wake"
+
+# a failed sibling wakes on its own and does not block the other
+S4=$(commit b-4 b4c.txt); echo "done: ${S4:0:7} again" >> "$TASKS/b-4/status"
+timeout 30 "$RV" b-4 >/dev/null 2>&1; "$BIN/chief-backlog.sh" hold b-4 reported >/dev/null
+echo "failed: could not run checks" >> "$TASKS/b-4-rv-1/status"
+assert_contains "$(watch_out)" "b-4-rv-1: state: failed" "failed sibling: wakes at once"
+rdone b-4-rv-2 3
+assert_contains "$(watch_out)" "b-4-rv-2: state: done" "failed sibling: does not hold the other back"
+
+# a torn-down sibling is skipped by the watcher and by the next round
+S4=$(commit b-4 b4d.txt); echo "done: ${S4:0:7} more" >> "$TASKS/b-4/status"
+timeout 30 "$RV" b-4 >/dev/null 2>&1; "$BIN/chief-backlog.sh" hold b-4 reported >/dev/null
+"$BIN/chief-teardown.sh" b-4-rv-1 --abandon >/dev/null 2>&1
+rdone b-4-rv-2 4
+assert_contains "$(watch_out)" "b-4-rv-2: state: done" "torn-down sibling: skipped"
+S4=$(commit b-4 b4e.txt); echo "done: ${S4:0:7} last" >> "$TASKS/b-4/status"
+assert_contains "$(timeout 30 "$RV" b-4 2>&1)" "review: b-4-rv-2 round 5 of b-4" "torn-down sibling: the next round re-arms only the live one"
+"$BIN/chief-backlog.sh" hold b-4-rv-2 idle >/dev/null
+
+# teardown cascades to every reviewer; a spawn failure discards the started ones
+out=$("$BIN/chief-teardown.sh" b-4 --abandon 2>&1)
+assert_contains "$out" "torn down: b-4-rv-2 " "cascade: the live reviewer is discarded"
+assert_eq "$(grep -c '^torn down' <<< "$out")" "2" "cascade: the torn-down one is not torn down twice"
+newb b-6
+assert_failure "spawn failure: the review fails" -- env CHIEF_MOCK_SPAWN_FAIL_ID=b-6-rv-2 timeout 30 "$RV" b-6
+assert_eq "$(chief_meta_get b-6-rv-1 status):$(chief_meta_get b-6 reviewer 2>/dev/null)" "torn-down:" "spawn failure: the started one is discarded, nothing linked"
+"$BIN/chief-teardown.sh" b-6 --abandon >/dev/null 2>&1
+rm "$CHIEF_HOME/config/agents"
+
 # --- manual use on an arbitrary branch ---
 git -C "$WORK/project" branch feat/other main
 assert_success "manual: chief-spawn --mode reviewer --spec" -- \

@@ -178,6 +178,15 @@ copilot
 EOF2
 chief_agent_select builder peek; assert_eq "$(chief_agent_describe)" "weighted pool: claude:opus (3), codex (1) (global fallback)" "peek: a weighted pool is listed with its weights, not picked"
 chief_agent_select reviewer peek; assert_eq "$(chief_agent_describe)" "weighted pool: copilot (1)" "describe: a role's own pool has no marker (strategy inherited)"
+cfg <<'EOF2'
+[reviewer]
+strategy = all
+copilot
+claude:sonnet args="--verbose"
+EOF2
+assert_eq "$(chief_agent_count reviewer):$(chief_agent_count builder)" "2:1" "all: one reviewer per entry, other roles one"
+CHIEF_AGENT_PICK=2 chief_agent_select reviewer; assert_eq "$SEL_MODEL|$SEL_ARGS" "sonnet|--verbose" "all: CHIEF_AGENT_PICK picks that entry"
+chief_agent_select reviewer peek; assert_eq "$(chief_agent_describe)" "all pool: copilot, claude:sonnet" "peek: an all pool is listed"
 cfg <<< "# no pool"
 chief_agent_select builder peek; assert_eq "$(chief_agent_describe)" "claude (no pool configured)" "describe: no pool marks the claude default"
 

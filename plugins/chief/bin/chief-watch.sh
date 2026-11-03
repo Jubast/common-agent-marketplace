@@ -27,6 +27,22 @@ in_flight_ids() {
   done
 }
 
+# siblings_busy <id> - true while another reviewer of the same builder still
+# works, so only the last one of a round wakes Chief; it acks the finished ones.
+siblings_busy() {
+  local bid rid line
+  bid=$(chief_meta_get "$1" for 2>/dev/null) || return 1
+  for rid in $(chief_meta_get "$bid" reviewer 2>/dev/null); do
+    [ "$rid" != "$1" ] && [ "$(chief_meta_get "$rid" status 2>/dev/null)" = working ] || continue
+    line=$("$CHIEF_ROOT/bin/task/chief-crew-state.sh" "$rid" 2>/dev/null) || continue
+    case "$line" in
+      "state: working"*) return 0 ;;
+      "state: done"*) chief_meta_set "$rid" notify-baseline "$(chief_notify_line "$line")" ;;
+    esac
+  done
+  return 1
+}
+
 while true; do
   touch "$BEACON"
 
@@ -43,6 +59,7 @@ while true; do
         norm=$(chief_notify_line "$line")
         [ "$norm" = "$(chief_notify_line "$baseline")" ] && continue
         chief_meta_set "$id" notify-baseline "$norm"
+        [[ $line == "state: done"* ]] && siblings_busy "$id" && continue
         echo "$id: $line"
         exit 0
         ;;
