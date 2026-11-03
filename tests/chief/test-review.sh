@@ -167,6 +167,190 @@ commit $LB long2.txt >/dev/null
 echo "done: $(git -C "$CHIEF_HOME/worktrees/$LB" rev-parse --short HEAD) ok" >> "$TASKS/$LB/status"
 assert_contains "$("$RV" $LB 2>&1)" "review: build-keycloak-name-extra-rv round 2 of $LB" "long id: round 2 reads reviewer= from meta"
 
+# --- strategy all: one reviewer per [reviewer] entry ---
+mkdir -p "$CHIEF_HOME/config"
+printf '[reviewer]\nstrategy = all\nclaude:sonnet\ncodex\nclaude:sonnet\n' > "$CHIEF_HOME/config/agents"
+"$BIN/chief-backlog.sh" add b-4 "Add four" >/dev/null
+timeout 10 "$BIN/chief-spawn.sh" b-4 "$WORK/project" --mode builder --branch feat/b-4 --intent "Add four" >/dev/null
+commit b-4 four.txt >/dev/null
+echo "done: $(git -C "$CHIEF_HOME/worktrees/b-4" rev-parse --short HEAD) ok" >> "$TASKS/b-4/status"
+out=$(timeout 30 "$RV" b-4 2>&1)
+assert_contains "$out" "review: b-4-rv-sonnet, b-4-rv-codex, b-4-rv-sonnet-2 round 1 of b-4" "all: one reviewer per entry, ids distinct"
+assert_eq "$(chief_meta_get b-4 reviewer)" "b-4-rv-sonnet b-4-rv-codex b-4-rv-sonnet-2" "all: the builder links every reviewer"
+assert_eq "$(chief_meta_get b-4-rv-codex agent)" "codex" "all: each reviewer runs its own entry"
+assert_eq "$(chief_meta_get b-4-rv-codex for)" "b-4" "all: each reviewer is for the builder"
+assert_eq "$(chief_meta_get b-4-rv-codex branch)" "chore/b-4-rv-codex" "all: distinct branches"
+assert_contains "$("$CS" b-4)" "[reviewer: b-4-rv-sonnet b-4-rv-codex b-4-rv-sonnet-2]" "all: crew-state lists the reviewers"
+assert_contains "$("$RV" b-4 2>&1)" "already reviewing" "all: a working reviewer refuses the same SHA"
+for r in $(chief_meta_get b-4 reviewer); do
+  printf 'Verdict: PASS\n' > "$TASKS/$r/report.md"
+  echo "done: round 1 PASS @x" >> "$TASKS/$r/status"
+done
+SHA4=$(commit b-4 four-b.txt)
+echo "done: ${SHA4:0:7} fixed" >> "$TASKS/b-4/status"
+out=$(timeout 30 "$RV" b-4 2>&1)
+assert_contains "$out" "round 2 of b-4" "all: round 2 re-arms them all"
+for r in $(chief_meta_get b-4 reviewer); do
+  assert_file_exists "$TASKS/$r/report.round-1.md" "all: $r report archived"
+  assert_contains "$(cat "$TASKS/$r/inbox/001.msg")" "Pinned SHA: $SHA4" "all: $r got the round message"
+done
+out=$("$BIN/chief-teardown.sh" b-4 --abandon 2>&1)
+assert_eq "$(grep -c '^torn down' <<< "$out")" "4" "all: teardown discards the builder and every reviewer"
+rm "$CHIEF_HOME/config/agents"
+
+# --- fan-out hardening ---
+. "$BIN/lib/id.sh"
+newb() {  # <id>: a done builder with one commit
+  "$BIN/chief-backlog.sh" add "$1" "T $1" >/dev/null
+  timeout 10 "$BIN/chief-spawn.sh" "$1" "$WORK/project" --mode builder --branch "feat/$1" --intent "T" >/dev/null
+  commit "$1" "$1.txt" >/dev/null
+  echo "done: $(git -C "$CHIEF_HOME/worktrees/$1" rev-parse --short HEAD) ok" >> "$TASKS/$1/status"
+}
+printf '[reviewer]\nstrategy = all\nclaude:sonnet\ncodex\n' > "$CHIEF_HOME/config/agents"
+
+# a torn-down reviewer is skipped and unlinked; none left fails
+newb b-5
+timeout 30 "$RV" b-5 >/dev/null 2>&1
+"$BIN/chief-teardown.sh" b-5-rv-codex >/dev/null 2>&1
+for r in b-5-rv-sonnet; do printf 'Verdict: PASS\n' > "$TASKS/$r/report.md"; echo "done: round 1 PASS @x" >> "$TASKS/$r/status"; done
+S5=$(commit b-5 b5b.txt); echo "done: ${S5:0:7} fixed" >> "$TASKS/b-5/status"
+out=$(timeout 30 "$RV" b-5 2>&1)
+assert_contains "$out" "review: b-5-rv-sonnet round 2 of b-5" "torn-down reviewer: the others still get the round"
+assert_eq "$(chief_meta_get b-5 reviewer)" "b-5-rv-sonnet" "torn-down reviewer: unlinked from reviewer="
+"$BIN/chief-teardown.sh" b-5-rv-sonnet >/dev/null 2>&1
+S5=$(commit b-5 b5c.txt); echo "done: ${S5:0:7} fixed" >> "$TASKS/b-5/status"
+assert_contains "$("$RV" b-5 2>&1)" "reviewer b-5-rv-sonnet was torn down" "torn-down reviewer: none left fails"
+
+# a spawn failure mid fan-out discards the started reviewers and links nothing
+newb b-6
+out=$(CHIEF_MOCK_SPAWN_FAIL_ID=b-6-rv-codex timeout 30 "$RV" b-6 2>&1); rc=$?
+assert_eq "$rc" "1" "spawn failure: exits 1"
+assert_contains "$out" "spawning reviewer b-6-rv-codex failed; discarded b-6-rv-sonnet" "spawn failure: a clear error"
+assert_eq "$(chief_meta_get b-6 reviewer 2>/dev/null)" "" "spawn failure: nothing linked"
+assert_eq "$(chief_meta_get b-6-rv-sonnet status)" "torn-down" "spawn failure: the started reviewer is discarded"
+out=$(timeout 30 "$RV" b-6 2>&1)
+assert_contains "$out" "round 1 of b-6" "spawn failure: the retry is a clean round 1"
+assert_eq "$(chief_meta_get b-6 review_round)" "1" "spawn failure: review_round is set once linked"
+
+# a partial round failure: a retry never overwrites an archived report
+newb b-7
+timeout 30 "$RV" b-7 >/dev/null 2>&1
+for r in $(chief_meta_get b-7 reviewer); do printf 'Verdict: PASS\n' > "$TASKS/$r/report.md"; echo "done: round 1 PASS @x" >> "$TASKS/$r/status"; done
+S7=$(commit b-7 b7b.txt); echo "done: ${S7:0:7} fixed" >> "$TASKS/b-7/status"
+printf 'old round 1\n' > "$TASKS/b-7-rv-codex/report.round-1.md"
+printf 'Verdict: FAIL\nnew\n' > "$TASKS/b-7-rv-codex/report.md"
+out=$(timeout 30 "$RV" b-7 2>&1)
+assert_eq "$(cat "$TASKS/b-7-rv-codex/report.round-1.md")" "old round 1" "partial round: an archived report is not overwritten"
+assert_contains "$(cat "$TASKS/b-7-rv-codex/inbox/001.msg")" "Review round 2" "partial round: a reviewer not yet re-armed still gets the round"
+assert_contains "$(cat "$TASKS/b-7-rv-codex/report.md")" "new" "partial round: the unarchived report is left in place"
+assert_file_exists "$TASKS/b-7-rv-sonnet/report.round-1.md" "partial round: the others are archived"
+
+# a failed send leaves the reviewer un-armed: the retry re-arms it and skips the armed one
+printf '[reviewer]\nstrategy = all\nclaude:sonnet\ncodex\n' > "$CHIEF_HOME/config/agents"
+newb b-12
+timeout 30 "$RV" b-12 >/dev/null 2>&1
+rm "$CHIEF_HOME/config/agents"
+for r in $(chief_meta_get b-12 reviewer); do printf 'Verdict: PASS\n' > "$TASKS/$r/report.md"; echo "done: round 1 PASS @x" >> "$TASKS/$r/status"; done
+S12=$(commit b-12 b12b.txt); echo "done: ${S12:0:7} fixed" >> "$TASKS/b-12/status"
+mkdir -p "$TASKS/b-12-rv-codex/inbox"; chmod 555 "$TASKS/b-12-rv-codex/inbox"
+assert_failure "failed send: the review fails" -- timeout 30 "$RV" b-12
+chmod 755 "$TASKS/b-12-rv-codex/inbox"
+assert_eq "$(chief_meta_get b-12 review_round)" "1" "failed send: the round is not advanced"
+out=$(timeout 30 "$RV" b-12 2>&1)
+assert_contains "$out" "b-12-rv-sonnet already re-armed" "failed send: the armed reviewer is skipped on retry"
+assert_contains "$out" "round 2 of b-12" "failed send: the retry completes the round"
+assert_contains "$(cat "$TASKS/b-12-rv-codex/inbox/001.msg")" "Review round 2" "failed send: the unarmed reviewer is re-armed"
+assert_eq "$(cat "$TASKS/b-12-rv-codex/report.round-1.md")" "Verdict: PASS" "failed send: the archive is intact"
+assert_eq "$(ls "$TASKS/b-12-rv-sonnet/inbox" | grep -c msg)" "1" "failed send: the armed reviewer got one message"
+
+# a new commit after a partly failed round restarts it for every reviewer at the new SHA
+printf '[reviewer]\nstrategy = all\nclaude:sonnet\ncodex\n' > "$CHIEF_HOME/config/agents"
+newb b-13
+timeout 30 "$RV" b-13 >/dev/null 2>&1
+rm "$CHIEF_HOME/config/agents"
+for r in $(chief_meta_get b-13 reviewer); do printf 'Verdict: PASS\n' > "$TASKS/$r/report.md"; echo "done: round 1 PASS @x" >> "$TASKS/$r/status"; done
+SA=$(commit b-13 b13a.txt); echo "done: ${SA:0:7} a" >> "$TASKS/b-13/status"
+mkdir -p "$TASKS/b-13-rv-codex/inbox"; chmod 555 "$TASKS/b-13-rv-codex/inbox"
+assert_failure "restart: round 2 at A fails midway" -- timeout 30 "$RV" b-13
+chmod 755 "$TASKS/b-13-rv-codex/inbox"
+SB=$(commit b-13 b13b.txt); echo "done: ${SB:0:7} b" >> "$TASKS/b-13/status"
+out=$(timeout 30 "$RV" b-13 2>&1)
+assert_contains "$out" "round 2 of b-13 @${SB:0:7}" "restart: the retry at B completes round 2"
+assert_not_contains "$out" "already re-armed" "restart: no reviewer is skipped at a new SHA"
+assert_contains "$(cat "$TASKS/b-13-rv-sonnet/inbox/002.msg")" "Pinned SHA: $SB" "restart: the reviewer armed at A is re-armed at B"
+assert_contains "$(cat "$TASKS/b-13-rv-codex/inbox/001.msg")" "Pinned SHA: $SB" "restart: the other reviewer gets B too"
+assert_eq "$(chief_meta_get b-13 review_sha)" "$SB" "restart: review_sha is B"
+
+# a long model name yields a valid, short id
+printf '[reviewer]\nstrategy = all\ncopilot:gpt-6.1-sol-with-a-very-long-model-name\n' > "$CHIEF_HOME/config/agents"
+newb build-keycloak-name-extra-wo
+out=$(timeout 30 "$RV" build-keycloak-name-extra-wo 2>&1)
+LR=$(chief_meta_get build-keycloak-name-extra-wo reviewer)
+assert_success "long model: the reviewer id is valid" -- bash -c '[[ $1 =~ ^[a-z][a-z0-9-]*$ ]] && [ ${#1} -le 32 ]' _ "$LR"
+assert_contains "$LR" "-rv-gpt-6-1-sol" "long model: the id carries the model slug only"
+assert_eq "$(chief_id_compose "$(printf 'a%.0s' {1..40})" "rv-$(printf 'z%.0s' {1..60})" | awk '{print (length($0) <= 32)}')" "1" "id: an over-long suffix still fits"
+
+# a malformed agents config fails the review before anything is spawned
+newb b-8
+printf '[reviewer]\nstrategy = bogus\n' > "$CHIEF_HOME/config/agents"
+out=$(timeout 30 "$RV" b-8 2>&1); rc=$?
+assert_eq "$rc" "1" "bad config: exits 1"
+assert_contains "$out" "cannot read the reviewer pool" "bad config: a clear error"
+assert_eq "$(chief_meta_get b-8 reviewer 2>/dev/null)" "" "bad config: nothing linked"
+rm "$CHIEF_HOME/config/agents"
+
+# --- one wake per round: the watcher waits for the last reviewer and writes a combined report ---
+printf '[reviewer]\nstrategy = all\nclaude:sonnet\ncodex\n' > "$CHIEF_HOME/config/agents"
+for t in "$TASKS"/*/; do t=$(basename "$t"); [ "$(chief_meta_get "$t" status 2>/dev/null)" = working ] && "$BIN/chief-backlog.sh" hold "$t" idle >/dev/null; done
+newb b-9
+timeout 30 "$RV" b-9 >/dev/null 2>&1
+rm "$CHIEF_HOME/config/agents"
+"$BIN/chief-backlog.sh" hold b-9 idle >/dev/null
+printf 'Verdict: PASS\n' > "$TASKS/b-9-rv-sonnet/report.md"; echo "done: round 1 PASS @x" >> "$TASKS/b-9-rv-sonnet/status"
+silent=$(CHIEF_POLL=1 timeout 4 "$BIN/chief-watch.sh"); rc=$?
+assert_eq "$rc:$silent" "124:" "one wake: the first reviewer done does not wake Chief"
+printf 'Verdict: FAIL\n' > "$TASKS/b-9-rv-codex/report.md"; echo "done: round 1 FAIL (1 blocking) @x" >> "$TASKS/b-9-rv-codex/status"
+out=$(CHIEF_POLL=1 timeout 4 "$BIN/chief-watch.sh")
+assert_contains "$out" "all 2 reviewers of b-9 done, combined report: $TASKS/b-9/review-round-1.md" "one wake: the last reviewer wakes Chief once, pointing at the combined report"
+CMB=$(cat "$TASKS/b-9/review-round-1.md")
+assert_contains "$CMB" "## b-9-rv-sonnet" "one wake: the combined report has each reviewer"
+assert_contains "$CMB" "Verdict: FAIL" "one wake: the combined report carries each verdict"
+assert_contains "$(cat "$TASKS/b-9-rv-sonnet/report.md")" "Verdict: PASS" "one wake: individual reports stay as they are"
+for r in b-9-rv-sonnet b-9-rv-codex; do "$BIN/chief-backlog.sh" hold $r "idle" >/dev/null; done
+"$BIN/chief-backlog.sh" status b-9-rv-sonnet in-flight >/dev/null
+silent=$(CHIEF_POLL=1 timeout 4 "$BIN/chief-watch.sh"); rc=$?
+assert_eq "$rc:$silent" "124:" "one wake: nothing more wakes for the same round"
+"$BIN/chief-backlog.sh" hold b-9-rv-sonnet "idle" >/dev/null
+
+# simultaneous completions: announced once, and not again on the next run
+for t in "$TASKS"/*/; do t=$(basename "$t"); [ "$(chief_meta_get "$t" status 2>/dev/null)" = working ] && "$BIN/chief-backlog.sh" hold "$t" idle >/dev/null; done
+printf '[reviewer]\nstrategy = all\nclaude:sonnet\ncodex\n' > "$CHIEF_HOME/config/agents"
+newb b-10
+timeout 30 "$RV" b-10 >/dev/null 2>&1
+rm "$CHIEF_HOME/config/agents"
+"$BIN/chief-backlog.sh" hold b-10 idle >/dev/null
+for r in b-10-rv-sonnet b-10-rv-codex; do printf 'Verdict: PASS\n' > "$TASKS/$r/report.md"; echo "done: round 1 PASS @x" >> "$TASKS/$r/status"; done
+out=$(CHIEF_POLL=1 timeout 4 "$BIN/chief-watch.sh")
+assert_contains "$out" "all 2 reviewers of b-10 done" "simultaneous: the round is announced"
+out=$(CHIEF_POLL=1 timeout 4 "$BIN/chief-watch.sh"); rc=$?
+assert_eq "$rc:$out" "124:" "simultaneous: the same round is not announced again"
+
+# a failed sibling blocks the round announcement; the failure itself still wakes
+for t in "$TASKS"/*/; do t=$(basename "$t"); [ "$(chief_meta_get "$t" status 2>/dev/null)" = working ] && "$BIN/chief-backlog.sh" hold "$t" idle >/dev/null; done
+printf '[reviewer]\nstrategy = all\nclaude:sonnet\ncodex\n' > "$CHIEF_HOME/config/agents"
+newb b-11
+timeout 30 "$RV" b-11 >/dev/null 2>&1
+rm "$CHIEF_HOME/config/agents"
+"$BIN/chief-backlog.sh" hold b-11 idle >/dev/null
+printf 'Verdict: PASS\n' > "$TASKS/b-11-rv-sonnet/report.md"; echo "done: round 1 PASS @x" >> "$TASKS/b-11-rv-sonnet/status"
+echo "failed: could not finish" >> "$TASKS/b-11-rv-codex/status"
+out=$(CHIEF_POLL=1 timeout 4 "$BIN/chief-watch.sh")
+assert_contains "$out" "b-11-rv-codex: state: failed" "failed sibling: the failure wakes at once"
+assert_not_contains "$out" "all 2 reviewers" "failed sibling: no completed round is announced"
+out=$(CHIEF_POLL=1 timeout 4 "$BIN/chief-watch.sh"); rc=$?
+assert_eq "$rc:$out" "124:" "failed sibling: the finished reviewer stays quiet"
+assert_file_missing "$TASKS/b-11/review-round-1.md" "failed sibling: no combined report"
+
 # --- manual use on an arbitrary branch ---
 git -C "$WORK/project" branch feat/other main
 assert_success "manual: chief-spawn --mode reviewer --spec" -- \
@@ -211,7 +395,7 @@ BL=$(cat "$TEMPLATES/lifecycle-builder.md")
 assert_contains "$BL" "chief-review.sh <id>" "builder lifecycle: names the review helper"
 assert_contains "$BL" "every time (never automatic)" "builder lifecycle: the review question is always asked"
 assert_contains "$BL" "review everything this session" "builder lifecycle: the standing preference"
-assert_contains "$BL" "also discards its reviewer" "builder lifecycle: the teardown cascade"
+assert_contains "$BL" "also discards its reviewers" "builder lifecycle: the teardown cascade"
 DS=$(cat "$REPO_ROOT/plugins/chief/skills/dispatch/SKILL.md")
 assert_contains "$DS" "## The review loop" "dispatch: has the review loop"
 assert_contains "$DS" "chief-review.sh <builder-id>" "dispatch: runs the helper"
