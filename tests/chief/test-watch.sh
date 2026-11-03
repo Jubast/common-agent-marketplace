@@ -139,6 +139,16 @@ assert_eq "$rc:$out" "124:" "stale builder active again: watch stays silent"
 stale_ago 250
 assert_contains "$(watch_st)" "st-1: state: stale" "stale again after activity: watch wakes Chief again"
 
+# Activity that only touches turn-ended (no new status line) also starts a new
+# stale episode; polling the same episode again stays silent.
+touch "$CHIEF_HOME/tasks/st-1/turn-ended"
+out=$(watch_st); rc=$?
+assert_eq "$rc:$out" "124:" "touch-only activity: watch stays silent"
+stale_ago 260
+assert_contains "$(watch_st)" "st-1: state: stale" "stale again after touch-only activity: watch wakes Chief again"
+out=$(watch_st); rc=$?
+assert_eq "$rc:$out" "124:" "same stale episode polled again: delivered once"
+
 # --- agent flip: a changed [agent: ...] part is not a state change ---
 assert_success "spawn: builder for the agent-flip scenario" -- \
   timeout 10 "$BIN/chief-spawn.sh" ag-1 "$WORK/project" --mode builder --branch feat/ag-1 --intent "flip"
@@ -201,5 +211,50 @@ for x in "state: done · shipped" \
 done
 assert_eq "$(chief_notify_line "state: done · fixed [mode: x] parser [mode: builder] [agent: claude]")" \
   "state: done · fixed [mode: x] parser" "literal tag in the detail is kept, the real tags are cut"
+
+# --- single instance: the newest watcher owns the home ---
+export CHIEF_POLL=1
+ARM="$REPO_ROOT/plugins/chief/hooks/stop-watch-arm.sh"
+OWNERF="$CHIEF_HOME/state/watch.owner"
+owner_is_not() { [ -s "$OWNERF" ] && [ "$(cat "$OWNERF")" != "$1" ]; }
+wait_until() { local n=0; until "$@"; do n=$((n + 1)); [ "$n" -ge 100 ] && return 1; sleep 0.1; done; }
+line() { echo "t-2: state: done · $1 [mode: builder] [agent: claude]"; }
+
+"$BIN/chief-backlog.sh" status t-2 in-flight >/dev/null
+echo "done: race" >> "$CHIEF_HOME/tasks/t-2/status"
+for i in 1 2 3; do ( timeout 6 "$BIN/chief-watch.sh" > "$WORK/race-$i.out" 2>&1 ) & done
+wait
+assert_eq "$(cat "$WORK"/race-*.out)" "$(line race)" "racing watchers: the change is delivered once"
+
+# An older watcher exits silently when a newer one arms, also through the hook.
+echo "working: older exits" >> "$CHIEF_HOME/tasks/t-2/status"
+rm -f "$OWNERF"
+( timeout 10 "$BIN/chief-watch.sh" > "$WORK/old.out" 2>&1; echo "rc=$?" >> "$WORK/old.out" ) &
+wait_until owner_is_not ""
+old_owner=$(cat "$OWNERF")
+( CLAUDE_PROJECT_DIR="$WORK/project" timeout 10 "$ARM" > "$WORK/new.out" 2>&1; echo "rc=$?" >> "$WORK/new.out" ) &
+wait_until owner_is_not "$old_owner"
+echo "done: older exits" >> "$CHIEF_HOME/tasks/t-2/status"
+wait
+assert_eq "$(cat "$WORK/old.out")" "rc=0" "older watcher exits silently (0, no output)"
+assert_eq "$(cat "$WORK/new.out")" "chief watcher: $(line 'older exits')
+rc=2" "the newer watcher, armed by the hook, delivers the change"
+
+# A displaced watcher that read an older state exits without clearing the baseline.
+echo "working: gated" >> "$CHIEF_HOME/tasks/t-2/status"
+cp -r "$REPO_ROOT/plugins/chief" "$WORK/plugin-copy"
+cat > "$WORK/plugin-copy/bin/task/chief-crew-state.sh" <<GATE
+#!/usr/bin/env bash
+touch "$WORK/gate-entered"
+while [ ! -e "$WORK/gate-release" ]; do sleep 0.1; done
+echo "state: working"
+GATE
+( timeout 10 "$WORK/plugin-copy/bin/chief-watch.sh" > "$WORK/gated.out" 2>&1; echo "rc=$?" >> "$WORK/gated.out" ) &
+wait_until test -e "$WORK/gate-entered"
+echo "done: gated" >> "$CHIEF_HOME/tasks/t-2/status"
+assert_eq "$(timeout 10 "$BIN/chief-watch.sh")" "$(line gated)" "replacement watcher delivers while the old one is gated"
+touch "$WORK/gate-release"
+wait
+assert_eq "$(cat "$WORK/gated.out")" "rc=0" "displaced watcher exits silently after its gate"
 
 harness_summary

@@ -5,6 +5,9 @@
 # runs this in the background at zero model cost and only "rewakes" you when
 # it exits - see hooks/stop-watch-arm.sh.
 #
+# One watcher per CHIEF_HOME: the newest owns state/watch.owner, an older one
+# exits silently.
+#
 # Usage: chief-watch.sh   (runs until something actionable happens, or forever)
 set -euo pipefail
 
@@ -15,6 +18,11 @@ chief_ensure_dirs
 
 POLL="${CHIEF_POLL:-15}"
 BEACON="$STATE/.last-watcher-beat"
+OWNER="$STATE/watch.owner"
+
+is_owner() { [ "$(cat "$OWNER" 2>/dev/null || true)" = "$$" ]; }
+
+echo $$ > "$OWNER.$$" && mv -f "$OWNER.$$" "$OWNER"
 
 in_flight_ids() {
   local f id
@@ -44,6 +52,7 @@ siblings_busy() {
 }
 
 while true; do
+  is_owner || exit 0
   touch "$BEACON"
 
   any_in_flight=0
@@ -58,13 +67,14 @@ while true; do
         # which a resumed held/done task also starts with (chief-backlog.sh).
         norm=$(chief_notify_line "$line")
         [ "$norm" = "$(chief_notify_line "$baseline")" ] && continue
+        is_owner || exit 0
         chief_meta_set "$id" notify-baseline "$norm"
         [[ $line == "state: done"* ]] && siblings_busy "$id" && continue
         echo "$id: $line"
         exit 0
         ;;
       *)
-        [ -n "$baseline" ] && chief_meta_set "$id" notify-baseline ""
+        if [ -n "$baseline" ]; then is_owner || exit 0; chief_meta_set "$id" notify-baseline ""; fi
         ;;
     esac
   done < <(in_flight_ids)
