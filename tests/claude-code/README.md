@@ -90,8 +90,8 @@ files the issue.
 
 Application and Pressure scenarios, each generating a fixture PDF and
 checking that a real `invoice/invoice.md` file gets produced with the
-expected content. **Currently a documented, intentional failure** — see the
-comment at the top of the script and `docs/testing.md` for why.
+expected content. Both pass since the 2026-08-20 SKILL.md fix; see
+`docs/testing.md`.
 
 ### `test-using-chief.sh`, `test-dispatch.sh`, `test-chief-setup.sh` (fast)
 
