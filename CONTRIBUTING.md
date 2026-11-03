@@ -29,7 +29,7 @@ plugins/<new-plugin-name>/
    this single file is read by both Claude Code and Copilot CLI, see
    "Claude Code / Copilot CLI compatibility" below. The plugin is not in
    a tagged release until a maintainer bumps `metadata.version`, because
-   the tag workflow only tags when that value changes.
+   the tag workflow creates a tag only for a new `metadata.version`.
 5. Add the new plugin to the root `README.md`'s "Available plugins" list.
 6. Validate every manifest parses: `python3 -m json.tool <path>`.
 
@@ -46,8 +46,8 @@ listed in that file at that commit.
   release.
 - Marketplace `metadata.version` (while 0.x): bump the minor for plugin
   additions, removals or breaking changes, and the patch for any other
-  plugin change. Plugins follow semver; a breaking change is a major
-  bump.
+  plugin change. Plugins follow semver; from 1.0 on, a breaking change
+  is a major bump.
 - Don't tag by hand. The `tag-marketplace` workflow creates `v<version>`
   on merge to `main` if it doesn't exist yet.
 
