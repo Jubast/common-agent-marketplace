@@ -3,8 +3,9 @@
 # Tests run it in a real herdr/Orca pane under the name `claude`; panes inherit
 # the SERVER's env, so config comes from STANDIN_DIR and STANDIN_TURN_SECS.
 # Per worktree <name> it writes $STANDIN_DIR/<name>.pid and its argv to
-# <name>.args, and logs each turn to <name>.log. Also installed as `codex` and
-# `copilot` (symlinks). Modes, one word per line in $STANDIN_DIR/modes/<name>:
+# <name>.args, logs each turn to <name>.log and a lone Escape to <name>.keys.
+# Also installed as `codex` and `copilot` (symlinks). Modes, one word per line
+# in $STANDIN_DIR/modes/<name>:
 #   exit[=N]      exit after N turns (default 1)
 #   never-ready   print a bare shell prompt and never render the TUI
 # While $STANDIN_DIR/hold/<name> exists, a turn stays `working`.
@@ -39,6 +40,7 @@ while IFS= read -rsn1 -d '' c; do
   case "$c" in
     $'\e')
       IFS= read -rsn2 -t 0.05 -d '' seq
+      [ -n "$seq" ] || echo esc >> "$dir/$name.keys"
       if [ "$seq" = "[2" ]; then  # bracketed paste: ESC [ 200 ~ ... ESC [ 201 ~
         IFS= read -rsn3 -t 0.05 -d '' _
         p=""; while IFS= read -rsn1 -d '' ch; do p+="$ch"; [[ $p == *$'\e[201~' ]] && break; done

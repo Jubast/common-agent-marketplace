@@ -27,6 +27,7 @@ chief_zero_cost_guard() {
 chief_common_setup() {
   local v
   for v in $(compgen -e | grep '^HERDR_'); do unset "$v"; done
+  export HERDR_SOCKET_PATH="$BATS_TEST_TMPDIR/none.sock"  # never the operator's herdr
   WORK="$BATS_TEST_TMPDIR/work"
   export CLAUDE_CONFIG_DIR="$BATS_TEST_TMPDIR/claude-config" STANDIN_DIR="$BATS_TEST_TMPDIR/standin"
   mkdir -p "$WORK" "$CLAUDE_CONFIG_DIR" "$STANDIN_DIR/modes" "$STANDIN_DIR/hold"
@@ -91,6 +92,8 @@ spawn() {
 
 # standin_turns <id> - every turn the stand-in in that task's worktree received.
 standin_turns() { cat "$STANDIN_DIR/$1.log" 2>/dev/null; }
+# standin_keys <id> - the lone special keys (esc) the stand-in received.
+standin_keys() { cat "$STANDIN_DIR/$1.keys" 2>/dev/null; }
 # standin_mode <id> <mode>... - modes for the stand-in the next spawn of <id> starts.
 standin_mode() { local id=$1; shift; printf '%s\n' "$@" > "$STANDIN_DIR/modes/$id"; }
 # standin_hold <id> / standin_release <id> - keep the turn `working` / let it finish.
