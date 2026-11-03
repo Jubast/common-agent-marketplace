@@ -21,10 +21,11 @@ setup() {
 }
 
 @test "a server start aborts when a real agent CLI is on its PATH" {
-  mkdir "$BATS_TEST_TMPDIR/real"  # the server PATH gets herdr's own directory
+  mkdir "$BATS_TEST_TMPDIR/real" "$BATS_TEST_TMPDIR/standins"  # the server PATH gets herdr's own directory
   ln -s "$(command -v herdr)" "$BATS_TEST_TMPDIR/real/herdr"
   printf '#!/bin/sh\n' > "$BATS_TEST_TMPDIR/real/codex"; chmod +x "$BATS_TEST_TMPDIR/real/codex"
-  PATH="$BATS_TEST_TMPDIR/real:$PATH" run chief_herdr_server
+  ln -s "$STANDIN_BIN/claude" "$BATS_TEST_TMPDIR/standins/claude"  # no codex stand-in to shadow it
+  STANDIN_BIN="$BATS_TEST_TMPDIR/standins" PATH="$BATS_TEST_TMPDIR/real:$PATH" run chief_herdr_server
   assert_failure
   assert_output --partial "zero-cost guard: 'codex'"
   assert_not_exist "$BATS_TEST_TMPDIR/herdr-dir"

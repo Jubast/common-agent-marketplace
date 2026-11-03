@@ -2,13 +2,14 @@
 # Stand-in agent: a Claude-Code-shaped raw-mode TUI that costs no tokens.
 # Tests run it in a real herdr/Orca pane under the name `claude`; panes inherit
 # the SERVER's env, so config comes from STANDIN_DIR and STANDIN_TURN_SECS.
-# Per worktree <name> it writes $STANDIN_DIR/<name>.pid and logs each turn to
-# <name>.log. Modes, one word per line in $STANDIN_DIR/modes/<name>:
+# Per worktree <name> it writes $STANDIN_DIR/<name>.pid and its argv to
+# <name>.args, and logs each turn to <name>.log. Also installed as `codex` and
+# `copilot` (symlinks). Modes, one word per line in $STANDIN_DIR/modes/<name>:
 #   exit[=N]      exit after N turns (default 1)
 #   never-ready   print a bare shell prompt and never render the TUI
 # While $STANDIN_DIR/hold/<name> exists, a turn stays `working`.
 name=$(basename "$PWD"); dir=${STANDIN_DIR:?}
-echo $$ > "$dir/$name.pid"
+echo $$ > "$dir/$name.pid"; echo "$*" > "$dir/$name.args"
 modes=" $(tr '\n' ' ' < "$dir/modes/$name" 2>/dev/null) "
 hist=(); buf=""; pasted=0; turns=0
 if [[ $modes == *" never-ready "* ]]; then printf '$ '; exec sleep 100000; fi
