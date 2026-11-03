@@ -19,14 +19,17 @@ plugins/<new-plugin-name>/
 1. Create `plugins/<new-plugin-name>/.claude-plugin/plugin.json` — `name`
    (kebab-case, matches the directory), `description`, `version`, `author`
    (the marketplace owner unless the plugin has a different author),
-   `license`. A new plugin starts at its initial `version`; don't bump it
-   afterwards in the PR.
+   `license`. A new plugin sets its initial `version` in `plugin.json`
+   and the same value in its `marketplace.json` entry. Don't touch
+   `metadata.version`.
 2. Add the plugin's skill(s) and/or agent(s), following the conventions
    below.
 3. Write `plugins/<new-plugin-name>/README.md` describing the plugin.
 4. Add an entry to `.claude-plugin/marketplace.json`'s `plugins` array —
    this single file is read by both Claude Code and Copilot CLI, see
-   "Claude Code / Copilot CLI compatibility" below.
+   "Claude Code / Copilot CLI compatibility" below. The plugin is not in
+   a tagged release until a maintainer bumps `metadata.version`, because
+   the tag workflow only tags when that value changes.
 5. Add the new plugin to the root `README.md`'s "Available plugins" list.
 6. Validate every manifest parses: `python3 -m json.tool <path>`.
 
