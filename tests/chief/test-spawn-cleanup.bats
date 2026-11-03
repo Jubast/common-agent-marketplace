@@ -66,6 +66,19 @@ assert_rolled_back() {  # <id>
   assert_rolled_back t-fail
 }
 
+@test "a backend_spawn that returns malformed output after a real spawn is rolled back" {
+  # a plugin copy whose herdr adapter drops the endpoint line of a real backend_spawn
+  cp -r "$REPO_ROOT/plugins/chief" "$WORK/plugin-copy"
+  cat >> "$WORK/plugin-copy/bin/lib/backends/herdr.sh" <<'PATCH'
+eval "$(declare -f backend_spawn | sed '1s/backend_spawn/_real_backend_spawn/')"
+backend_spawn() { _real_backend_spawn "$@" | head -n1; }
+PATCH
+  run "$WORK/plugin-copy/bin/chief-spawn.sh" t-malformed "$WORK/project" --mode builder --branch feat/t-malformed --intent x
+  assert_failure
+  assert_output --partial "backend_spawn returned malformed output"
+  assert_rolled_back t-malformed
+}
+
 @test "an interrupted spawn's status=spawning stub: blocked in crew-state, surfaced by watch, cleaned by teardown --abandon" {
   mkdir -p "$CHIEF_HOME/tasks/t-stub"
   printf 'project=%s\nmode=builder\nbranch=chief/t-stub\nworktree=%s\nstatus=spawning\n' \

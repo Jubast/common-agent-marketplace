@@ -1,19 +1,17 @@
 # Chief plugin tests
 
-Functional/integration tests of Chief's own bash scripts. The `*.bats` files
-run against a real herdr with a zero-cost stand-in agent (see "Real herdr with
-a stand-in agent" below); the remaining legacy `*.sh` files are being converted
-and mostly run against the `mock` backend (`plugins/chief/bin/lib/backends/mock.sh`, a
-throwaway background process standing in for a real terminal session) - no
-`claude` CLI, zero tokens, safe anywhere. `test-backend-orca-mock.sh` is
-also zero-cost: it unit-tests `backends/orca.sh` against a fake `orca`
-CLI stub. `fixtures/herdr/` holds screens captured from a live herdr and
-Claude Code, the reference for the stand-in agent, so herdr's rendering quirks - the
-trust dialog, the `[Pasted text #N +M lines]` placeholder, the bare shell line
-before the TUI renders - are real, not hand-written. `manual/test-backend-herdr-real.sh`,
-`test-backend-orca.sh`, `test-backend-copilot.sh` and
-`test-backend-copilot-brief.sh` are the exceptions: each
-opts into a real herdr/orca install and a real agent turn - see below.
+Functional/integration tests of Chief's own bash scripts.
+
+- **`*.bats`** run against a real herdr with a zero-cost stand-in agent (see
+  "Real herdr with a stand-in agent" below). `fixtures/herdr/` holds screens
+  captured from a live herdr and Claude Code, the reference for the stand-in.
+- **`test-backend-orca-mock.sh`** is zero-cost: it unit-tests `backends/orca.sh`
+  against a fake `orca` CLI stub (until the Orca tests move to a real Orca).
+- **`test-leak-check.sh`** covers `run-tests.sh`'s mock-worker leak check.
+- **`test-backend-orca.sh`, `test-backend-copilot.sh`,
+  `test-backend-copilot-brief.sh` and `manual/test-backend-herdr-real.sh`** are
+  the exceptions: each opts into a real orca/herdr/copilot install and a real
+  agent turn - see below.
 
 ## Real herdr with a stand-in agent (`*.bats`)
 
@@ -78,7 +76,10 @@ JSON output (skipped gracefully if absent).
 | `test-setup.bats` | `chief-setup.sh`: backend config, idempotent gitignore, no-git-repo case |
 | `test-hooks.bats` | `session-start.sh` and `stop-watch-arm.sh`'s own bash logic across fresh/configured/in-flight/builder-worktree scenarios |
 | `test-lifecycle.bats` | The full happy path: backlog → spawn → simulated work → crew-state → teardown-refuses-before-merge → merge → teardown-succeeds |
-| `test-spawn-cleanup.bats` | `chief-spawn.sh`'s required `--branch` (nothing left behind when missing), rollback on a failed/malformed `backend_spawn` (`backend_spawn_cleanup`, no orphaned worktree/branch/meta) an interrupted spawn's `status=spawning` stub (crew-state, watch, teardown), and the atomic spawn lock, on a real herdr, failed by the stand-in's `never-ready` mode and by `herdr_fault` (a wrapper around the real herdr that fails one named call) |
+| `test-brief.bats` | `brief.sh`'s `chief_brief_strip_section`: a checkpoint section is stripped to EOF or to the next heading, repeats collapse to one, an absent section is a no-op |
+| `test-spawn.bats` | `chief-spawn.sh` on a real herdr: brief rendering with embedded newlines and sed-delimiter characters, pre-trust, agent selection (`--agent`, `--model`, `--args`, config pools and `command=`), the agent and launch lines, every pre-backend failure leaving nothing behind, invalid ids |
+| `test-teardown.bats` | `chief-teardown.sh` on a real herdr: a researcher or brainstormer discards unconditionally, a builder needs a landed branch or `--abandon` (merge and squash checks), the remote branch is always kept, the reviewer cascade, un-trusting the worktree |
+| `test-spawn-cleanup.bats` | `chief-spawn.sh`'s required `--branch` (nothing left behind when missing), rollback on a failed or malformed `backend_spawn` (`backend_spawn_cleanup`, no orphaned worktree/branch/meta) an interrupted spawn's `status=spawning` stub (crew-state, watch, teardown), and the atomic spawn lock, on a real herdr, failed by the stand-in's `never-ready` mode and by `herdr_fault` (a wrapper around the real herdr that fails one named call) |
 | `test-project-workspace.bats` | The spawn/teardown flow on a real herdr: origin sync before the worktree exists, and no `.chief` ever created inside a project (default `CHIEF_HOME` from a project or its worktree) |
 | `test-agent.bats` / `test-agent-claude.bats` / `test-agent-adapters.bats` | The agent loader (per-task adapter from meta, command override, unknown agent), the claude adapter (contract, pre-trust in `.claude.json`), and the codex/copilot adapters (flags, model flag, CLI check, herdr's start args) |
 | `test-agent-select.bats` | `.chief/config/agents`: every strategy (round-robin persistence and parallel safety, weighted with an injected random), per-role pools, `peek`, comments, malformed config |
