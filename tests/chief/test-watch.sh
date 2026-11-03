@@ -174,4 +174,32 @@ printf 'notify-baseline=state: done · shipped [mode: builder] [agent: claude]\n
 out=$(watch_rv); rc=$?
 assert_eq "$rc:$out" "124:" "old-format baseline: the stored [agent: ...] tag still matches"
 
+# --- a literal " [mode: " inside the detail is not a cut point ---
+assert_success "spawn: builder for the literal-tag scenario" -- \
+  timeout 10 "$BIN/chief-spawn.sh" lt-1 "$WORK/project" --mode builder --branch feat/lt-1 --intent "literal"
+echo "done: fixed [mode: x] parser" >> "$CHIEF_HOME/tasks/lt-1/status"
+watch_lt() { CHIEF_POLL=1 timeout 3 "$BIN/chief-watch.sh"; }
+assert_contains "$(watch_lt)" "lt-1: state: done" "literal tag: first delivery"
+out=$(watch_lt); rc=$?
+assert_eq "$rc:$out" "124:" "literal tag: unchanged state stays silent across polls"
+printf 'reviewer=lt-1-review\n' >> "$CHIEF_HOME/tasks/lt-1/meta"
+out=$(watch_lt); rc=$?
+assert_eq "$rc:$out" "124:" "literal tag: only the trailing tags changed stays silent"
+echo "done: fixed [mode: x] parser, round 2" >> "$CHIEF_HOME/tasks/lt-1/status"
+assert_contains "$(watch_lt)" "round 2" "literal tag: a changed tail after the literal text still delivers"
+
+# --- chief_notify_line is idempotent ---
+. "$BIN/lib/meta.sh"
+for x in "state: done · shipped" \
+         "state: done · shipped [mode: builder]" \
+         "state: done · shipped [mode: builder] [agent: claude] [reviewer: r-1]" \
+         "state: stale · x, no turn activity for 250s [mode: builder] [for: a]" \
+         "state: done · fixed [mode: x] parser [mode: builder] [agent: claude]" \
+         ""; do
+  once=$(chief_notify_line "$x"); twice=$(chief_notify_line "$once")
+  assert_eq "$twice" "$once" "idempotent: '$x'"
+done
+assert_eq "$(chief_notify_line "state: done · fixed [mode: x] parser [mode: builder] [agent: claude]")" \
+  "state: done · fixed [mode: x] parser" "literal tag in the detail is kept, the real tags are cut"
+
 harness_summary
