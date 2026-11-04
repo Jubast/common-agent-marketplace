@@ -197,14 +197,16 @@ _chief_herdr_prompt() {
 backend_spawn() {
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
   local worktree="$WORKTREES/$id"
-  local json pane_id
+  local json pane_id had
   chief_agent_use "$id" || return 1
   agent_prepare "$worktree"
+  had=$(_chief_herdr_primary_workspaces "$project_dir") || had=unknown  # unknown: never recorded
   json=$(herdr worktree create --cwd "$project_dir" --branch "$branch" --path "$worktree" \
            --label "$id" --trust-repository --no-focus 2>&1) \
     || { echo "chief-backend-herdr: 'herdr worktree create' failed: $json" >&2; return 1; }
   pane_id=$(printf '%s' "$json" | jq -r '.result.root_pane.pane_id // empty')
   [ -n "$pane_id" ] || { echo "chief-backend-herdr: could not read pane id from: $json" >&2; return 1; }
+  _chief_herdr_record_owned "$project_dir" "$had"
 
   _chief_herdr_start_agent "$id" "$pane_id" "$worktree" || return 1
 
@@ -274,23 +276,59 @@ _chief_herdr_project_in_use() {
   return 1
 }
 
-# _chief_herdr_close_project_workspace <project-dir> - closes the workspace
-# whose checkout is exactly <project-dir>, never the Chief home's own.
+# Primary project workspaces Chief itself created are recorded one per line
+# ("<workspace id>\t<checkout path>") in $STATE/herdr-owned-workspaces; only
+# those are ever closed at teardown, never one the operator opened.
+_chief_herdr_owned() { printf '%s' "$STATE/herdr-owned-workspaces"; }
+
+# _chief_herdr_primary_workspaces <project-dir> -> "<id>\t<checkout path>" of
+# each non-linked workspace whose checkout is exactly <project-dir>; non-zero
+# when the listing failed or is not a workspace list (unknown, not "none")
+_chief_herdr_primary_workspaces() {
+  local out
+  out=$(herdr workspace list 2>/dev/null) || return 1
+  printf '%s' "$out" | jq -e '.result.workspaces | type == "array"' >/dev/null 2>&1 || return 1
+  printf '%s' "$out" \
+    | jq -r --arg a "$1" --arg b "$(realpath -m "$1")" \
+        '.result.workspaces[] | select(.worktree.checkout_path as $p | $p != null and ($p == $a or $p == $b) and .worktree.is_linked_worktree != true) | [.workspace_id, .worktree.checkout_path] | @tsv'
+}
+
+# _chief_herdr_record_owned <project-dir> <had-before> - after a worktree create:
+# records the project's primary workspace as Chief's when none existed before
+_chief_herdr_record_owned() {
+  local line
+  [ -z "$2" ] || return 0
+  line=$(_chief_herdr_primary_workspaces "$1" | head -1)
+  [ -z "$line" ] || printf '%s\n' "$line" >> "$(_chief_herdr_owned)"
+}
+
+# _chief_herdr_close_project_workspace <project-dir> - closes the primary
+# workspace Chief created for <project-dir>, if it is still that workspace
+# (same id and checkout), is not the one this session runs in, and holds
+# exactly one tab and one pane. Never the Chief home's own.
 _chief_herdr_close_project_workspace() {
-  local project=$1 real home
+  local project=$1 real home w path f err
   real=$(realpath -m "$project"); home=$(realpath -m "$CHIEF_HOME")
   [ "$real" != "$home" ] && [ "$real" != "$(dirname "$home")" ] || return 0
-  herdr workspace list 2>/dev/null \
-    | jq -r --arg a "$project" --arg b "$real" \
-        '.result.workspaces[]? | select(.worktree.checkout_path as $p | $p != null and ($p == $a or $p == $b)) | .workspace_id' \
-    | while read -r w; do
-        herdr workspace close "$w" >/dev/null 2>&1 \
-          || echo "chief-backend-herdr: could not close project workspace $w ($project)" >&2
-      done || true
+  f=$(_chief_herdr_owned); [ -f "$f" ] || return 0
+  while IFS=$'\t' read -r w path; do
+    [ -n "$w" ] && [ "$(realpath -m "$path")" = "$real" ] || continue
+    [ "$w" != "${HERDR_WORKSPACE_ID:-}" ] || continue
+    herdr workspace list 2>/dev/null | jq -e --arg w "$w" --arg p "$path" \
+      '.result.workspaces[]? | select(.workspace_id == $w and .worktree.checkout_path == $p and .tab_count == 1 and .pane_count == 1)' >/dev/null || continue
+    if err=$(herdr workspace close "$w" 2>&1); then
+      { grep -vxF -- "$w"$'\t'"$path" "$f" || true; } > "$f.tmp" && mv "$f.tmp" "$f"
+    elif [[ $err == *workspace_group_close_required* ]]; then
+      echo "chief-backend-herdr: project workspace $w ($project) is still in use (workspace_group_close_required); left open" >&2
+    else
+      echo "chief-backend-herdr: could not close project workspace $w ($project): $err" >&2
+    fi
+  done < "$f"
 }
 
 # backend_teardown <id> <project-dir> <worktree> - releases the agent's trust
-# and closes the project's primary workspace once no other live task uses it.
+# and closes the project's primary workspace, if Chief created it, once no
+# other live task uses it.
 backend_teardown() {
   chief_agent_release "$1" "$3"
   _chief_herdr_project_in_use "$1" "$2" || _chief_herdr_close_project_workspace "$2"

@@ -25,6 +25,10 @@ export CHIEF_HERDR_SUBMIT_TIMEOUT_MS=2000 CHIEF_HERDR_START_WAIT=2 CHIEF_HERDR_P
 #                         keys.screen replaces it after any `send-keys ... enter`
 #   get.json              `agent get` reply; wait.rc  `agent wait` exit code
 #   workspaces.json       `workspace list` reply (default: none)
+#   created.json         becomes workspaces.json once `worktree create` ran
+#   list.N.rc            makes the N-th `workspace list` fail with that exit code
+#   list.N.empty         makes the N-th `workspace list` print nothing, exit 0
+#   close.out/close.rc    `workspace close` output and exit code (default: none, 0)
 # Every `agent` call must target a valid agent name or a pane id, else invalid_agent_name.
 cat > "$WORK/bin/herdr" <<'FAKE_HERDR'
 #!/usr/bin/env bash
@@ -38,10 +42,13 @@ reply() {  # <stem> <n>: <stem>.<n>.json else <stem>.json; exit code from the ma
 case "$1 $2" in
   "worktree create") d=; b=; while [ $# -gt 0 ]; do case "$1" in --cwd) c=$2;; --branch) b=$2;; --path) d=$2;; esac; shift; done
                      git -C "$c" worktree add -q -b "$b" "$d" >/dev/null 2>&1
+                     [ -f "$FAKE/created.json" ] && cp "$FAKE/created.json" "$FAKE/workspaces.json"
                      echo '{"result":{"root_pane":{"pane_id":"w9:p1"}}}' ;;
   "worktree open")   echo '{"result":{"root_pane":{"pane_id":"w9:p1"}}}' ;;
-  "workspace list")  cat "$FAKE/workspaces.json" 2>/dev/null || echo '{"result":{"workspaces":[]}}' ;;
-  "workspace close") ;;
+  "workspace list")  n=$(bump list); [ -f "$FAKE/list.$n.rc" ] && { echo "boom" >&2; exit "$(cat "$FAKE/list.$n.rc")"; }
+                     [ -f "$FAKE/list.$n.empty" ] && exit 0
+                     cat "$FAKE/workspaces.json" 2>/dev/null || echo '{"result":{"workspaces":[]}}' ;;
+  "workspace close") cat "$FAKE/close.out" 2>/dev/null; exit "$(cat "$FAKE/close.rc" 2>/dev/null || echo 0)" ;;
   "agent start")     n=$(bump start); if [ -f "$FAKE/start.json" ] || [ -f "$FAKE/start.$n.json" ]; then reply start $n; exit $?; fi
                      echo '{"result":{"agent":{"agent_status":"idle","interactive_ready":true}}}' ;;
   "agent prompt")    n=$(bump prompt); [ -f "$FAKE/prompt.$n.screen" ] && cp "$FAKE/prompt.$n.screen" "$FAKE/screen"; reply prompt $n; exit $? ;;
@@ -269,12 +276,13 @@ echo "[teardown] the project's primary workspace closes with its last live task"
 rm -rf "$CHIEF_HOME/tasks"; mkdir -p "$CHIEF_HOME/tasks"
 PW="$WORK/proj"
 home_ws() { jq -n --arg proj "$PW" --arg home "$(dirname "$CHIEF_HOME")" '{result:{workspaces:[
-  {workspace_id:"w0",label:"proj",worktree:{checkout_path:$proj,is_linked_worktree:false}},
+  {workspace_id:"w0",label:"proj",tab_count:1,pane_count:1,worktree:{checkout_path:$proj,is_linked_worktree:false}},
   {workspace_id:"w7",label:"home",worktree:{checkout_path:$home,is_linked_worktree:false}},
   {workspace_id:"w8",label:"proj-sub",worktree:{checkout_path:($proj + "/sub"),is_linked_worktree:false}}]}}' > "$FAKE/workspaces.json"; }
+OWNED="$STATE/herdr-owned-workspaces"; own() { printf 'w0\t%s\n' "${1:-$PW}" > "$OWNED"; }
 for t in t1 t2; do chief_meta_set $t project "$PW"; chief_meta_set $t status working; chief_meta_set $t agent claude; done
 chief_meta_set o1 project "$WORK/other"; chief_meta_set o1 status working
-reset; home_ws
+reset; home_ws; own
 backend_teardown t1 "$PW" "$CHIEF_HOME/worktrees/t1"
 assert_eq "$(closed_workspaces)" "" "another live task of the project -> nothing closed"
 chief_meta_set t2 status torn-down
@@ -282,12 +290,63 @@ backend_teardown t1 "$PW" "$CHIEF_HOME/worktrees/t1"
 assert_eq "$(closed_workspaces)" "w0 " "last live task (the rest torn down, other projects ignored) -> only the project's workspace closes"
 ln -sfn "$PW" "$WORK/proj-link"
 chief_meta_set t2 project "$WORK/proj-link"; chief_meta_set t2 status working
-reset; home_ws
+reset; home_ws; own
 backend_teardown t1 "$PW" "$CHIEF_HOME/worktrees/t1"
 assert_eq "$(closed_workspaces)" "" "a live task naming the project via a symlink -> nothing closed"
 chief_meta_set t2 status torn-down
-reset; home_ws
+reset; home_ws; own "$(dirname "$CHIEF_HOME")"
 backend_teardown t1 "$(dirname "$CHIEF_HOME")" "$CHIEF_HOME/worktrees/t1"
 assert_eq "$(closed_workspaces)" "" "a project dir that is the Chief home's workspace -> never closed"
+
+echo "[teardown] only a primary workspace Chief created, and still idle, is closed"
+reset; home_ws; rm -f "$OWNED"
+backend_teardown t1 "$PW" "$CHIEF_HOME/worktrees/t1"
+assert_eq "$(closed_workspaces)" "" "an operator-created primary (no record) -> never closed"
+reset; home_ws; own
+backend_teardown t1 "$PW" "$CHIEF_HOME/worktrees/t1"
+assert_eq "$(closed_workspaces)" "w0 " "a Chief-created primary -> closed"
+assert_eq "$(cat "$OWNED")" "" "...and its record dropped"
+reset; home_ws; own "$PW/elsewhere"
+backend_teardown t1 "$PW" "$CHIEF_HOME/worktrees/t1"
+assert_eq "$(closed_workspaces)" "" "a recorded checkout that no longer matches -> not closed"
+reset; home_ws; own
+HERDR_WORKSPACE_ID=w0 backend_teardown t1 "$PW" "$CHIEF_HOME/worktrees/t1"
+assert_eq "$(closed_workspaces)" "" "the workspace this session runs in (\$HERDR_WORKSPACE_ID) -> not closed"
+for shape in '"tab_count":2,"pane_count":2' '"tab_count":1,"pane_count":2'; do
+  reset; home_ws; own
+  jq --argjson x "{$shape}" '.result.workspaces[0] += $x' "$FAKE/workspaces.json" > "$FAKE/w.tmp" && mv "$FAKE/w.tmp" "$FAKE/workspaces.json"
+  backend_teardown t1 "$PW" "$CHIEF_HOME/worktrees/t1"
+  assert_eq "$(closed_workspaces)" "" "a workspace with more than one tab/pane ($shape) -> not closed"
+done
+reset; home_ws; own; echo 1 > "$FAKE/close.rc"; echo '{"error":{"code":"internal","message":"boom"}}' > "$FAKE/close.out"
+err=$(backend_teardown t1 "$PW" "$CHIEF_HOME/worktrees/t1" 2>&1)
+assert_contains "$err" "could not close project workspace w0" "a failed close -> warns..."
+assert_contains "$err" "boom" "...with herdr's reason"
+echo '{"error":{"code":"workspace_group_close_required","message":"close the group"}}' > "$FAKE/close.out"
+err=$(backend_teardown t1 "$PW" "$CHIEF_HOME/worktrees/t1" 2>&1)
+assert_contains "$err" "still in use" "workspace_group_close_required -> reported as still in use"
+assert_eq "$(cat "$OWNED")" "$(printf 'w0\t%s' "$PW")" "...and the record kept"
+
+echo "[spawn] the project's primary workspace is recorded only when Chief caused it"
+GP="$WORK/gp"; git init -q "$GP" && git -C "$GP" -c user.email=a@b -c user.name=n commit -q --allow-empty -m i
+gp_ws() { jq -n --arg p "$GP" '{result:{workspaces:[{workspace_id:"w4",label:"gp",tab_count:1,pane_count:1,worktree:{checkout_path:$p,is_linked_worktree:false}}]}}' > "$FAKE/workspaces.json"; }
+spawn_gp() { chief_meta_set "$1" agent claude; cp "$FX/screen-ready.txt" "$FAKE/screen"; echo "$WORKING" > "$FAKE/prompt.json"
+  backend_spawn "$1" "$GP" <(echo brief) "feature/$1" >/dev/null 2>&1; }
+reset; rm -f "$OWNED"; spawn_gp s1
+assert_eq "$(cat "$OWNED" 2>/dev/null)" "" "no primary listed after the spawn -> nothing recorded"
+reset; rm -f "$OWNED"; gp_ws; mv "$FAKE/workspaces.json" "$FAKE/created.json"; spawn_gp s3
+assert_eq "$(cat "$OWNED" 2>/dev/null)" "$(printf 'w4\t%s' "$GP")" "no primary before, one after the first spawn -> recorded as Chief's"
+reset; rm -f "$OWNED"; gp_ws; spawn_gp s2
+assert_eq "$(cat "$OWNED" 2>/dev/null)" "" "a primary that existed before the first spawn -> not recorded"
+reset; rm -f "$OWNED"; gp_ws; echo 1 > "$FAKE/list.1.rc"; spawn_gp s4
+assert_eq "$(cat "$OWNED" 2>/dev/null)" "" "the pre-spawn listing failed, a later one shows the operator's primary -> nothing recorded"
+chief_meta_set s4 project "$GP"; chief_meta_set s4 status working
+backend_teardown s4 "$GP" "$CHIEF_HOME/worktrees/s4" 2>/dev/null
+assert_eq "$(closed_workspaces)" "" "...and teardown does not close the operator's workspace"
+reset; rm -f "$OWNED"; gp_ws; : > "$FAKE/list.1.empty"; spawn_gp s5
+assert_eq "$(cat "$OWNED" 2>/dev/null)" "" "the pre-spawn listing was empty with status 0 -> nothing recorded"
+chief_meta_set s5 project "$GP"; chief_meta_set s5 status working
+backend_teardown s5 "$GP" "$CHIEF_HOME/worktrees/s5" 2>/dev/null
+assert_eq "$(closed_workspaces)" "" "...and teardown does not close the operator's workspace"
 
 harness_summary
