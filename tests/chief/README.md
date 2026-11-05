@@ -5,13 +5,12 @@ Functional/integration tests of Chief's own bash scripts.
 - **`*.bats`** run against a real herdr with a zero-cost stand-in agent (see
   "Real herdr with a stand-in agent" below). `fixtures/herdr/` holds screens
   captured from a live herdr and Claude Code, the reference for the stand-in.
-- **`test-backend-orca-mock.sh`** is zero-cost: it unit-tests `backends/orca.sh`
-  against a fake `orca` CLI stub (until the Orca tests move to a real Orca).
+- **`test-backend-orca.bats`** (tag `orca`) runs `backends/orca.sh` against a
+  real headless Orca with the same stand-in agent; see "Real headless Orca".
 - **`test-leak-check.sh`** covers `run-tests.sh`'s mock-worker leak check.
-- **`test-backend-orca.sh`, `test-backend-copilot.sh`,
-  `test-backend-copilot-brief.sh` and `manual/test-backend-herdr-real.sh`** are
-  the exceptions: each opts into a real orca/herdr/copilot install and a real
-  agent turn - see below.
+- **`test-backend-copilot.sh`, `test-backend-copilot-brief.sh` and
+  `manual/test-backend-herdr-real.sh`** are the exceptions: each opts into a
+  real herdr/copilot install and a real agent turn - see below.
 
 ## Real herdr with a stand-in agent (`*.bats`)
 
@@ -31,6 +30,21 @@ bare `sleep`. Never source `lib/harness.sh` in a `.bats` file.
 `tests/chief/ci/install-herdr.sh` installs the pinned herdr into
 `tests/.cache/bin`, which the suite prefers over the herdr on `PATH`.
 
+## Real headless Orca (`test-backend-orca.bats`)
+
+One `orca-ide serve` per file (`lib/orca.bash`: Xvfb, own `HOME`/`XDG_CONFIG_HOME`,
+port 0, scrubbed env), so its tests run serially; `teardown_file` kills the
+server, Xvfb, Orca's pty daemon and the stand-ins by working directory. Orca
+adds the login shell's `PATH` to its panes, so the stand-ins go first through
+the isolated `HOME`'s `.bashrc`, and a test checks in a pane that `claude`,
+`codex` and `copilot` resolve to them. Orca cannot see a stand-in's hooks, so
+each prompt it sends takes ~8 s; the file stays small (~5 min). It needs
+`tests/chief/ci/install-orca.sh` (or `orca-ide` on `PATH`) and Xvfb plus the
+Electron libraries listed in `.github/workflows/tests.yml`; without them the
+file skips, unless `CHIEF_TEST_REQUIRE_BACKENDS=1` (set by the CI job) makes
+that a failure. CI runs it as `chief-orca` (`run-tests.sh --only-orca`); the
+herdr job runs `--no-orca`.
+
 ## Cleanup
 
 Tests that use the mock backend set their cleanup with `harness_trap` (`lib/harness.sh`): on EXIT/INT/TERM/HUP it kills the `chief-mock-*` workers the test started (found via the pid log `mock.sh` appends to, never by name), then runs the test's own cleanup. `mock.sh` also logs each worker pid to `run-tests.sh`'s run-wide `CHIEF_MOCK_RUN_LOG` at spawn time; the runner fails if any logged worker is still alive after the sweep. Workers from other runs are never in that log, so they are ignored.
@@ -45,7 +59,7 @@ bash tests/chief/test-lifecycle.sh  # a single legacy .sh file
 `*.bats` files run on [bats-core](https://github.com/bats-core/bats-core) pinned
 in `tests/package.json` (bats 1.14.0, bats-assert, bats-support, bats-file;
 `run-tests.sh` runs `npm ci` on first use, so Node and npm are needed). Options:
-`run-tests.sh [--jobs N] [--junit DIR] [bats args...]`. `--jobs` needs GNU
+`run-tests.sh [--jobs N] [--junit DIR] [--no-orca | --only-orca] [bats args...]`. `--jobs` needs GNU
 `parallel` (required locally; without it the run is serial and slow); `--junit`
 writes `DIR/report.xml`. Tests tagged `manual` are skipped. A single bats file:
 
@@ -92,20 +106,17 @@ JSON output (skipped gracefully if absent).
 | `manual/test-backend-herdr-real.sh` | The same adapter against a REAL herdr and a real (trivial) claude turn, for real Claude rendering the stand-in only imitates. **Not zero-cost** - opt in with `CHIEF_TEST_HERDR=1`; skips cleanly otherwise. Not run by `run-tests.sh`. |
 | `test-backend-copilot.sh` | The copilot adapter against the REAL Copilot CLI, on its own isolated herdr server: ready text vs. the real idle footer, the folder-trust dialog and banner screens, the paste placeholder and input marker, then a real `chief-spawn.sh --agent copilot --mode researcher` on a throwaway repo through a status line, a report and teardown. **Not zero-cost** - opt in with `CHIEF_TEST_COPILOT=1`; skips cleanly otherwise. See below. |
 | `test-backend-copilot-brief.sh` | Issue #90 against the REAL Copilot CLI (same isolation as `test-backend-copilot.sh`): real `chief-spawn.sh --agent copilot` spawns with a brief-sized prompt must send one `herdr agent prompt` and produce one `user.message` in Copilot's `events.jsonl`; fails if no attempt hit herdr's `agent_prompt_stalled`. **Not zero-cost** - opt in with `CHIEF_TEST_COPILOT_BRIEF=1`; skips cleanly otherwise. See below. |
-| `test-backend-orca-mock.sh` | `backends/orca.sh`'s argument-building and JSON-parsing against a fake `orca` CLI stub: spawn via `worktree create` + `terminal create --command` + `terminal send` (repo registration, parent-worktree nesting, pre-trust, ready-screen check, rollback on every failure), `backend_spawn_cleanup` rollback, pane read, busy, send, kill, `backend_teardown`, relaunch, and the real `chief-spawn`/`send`/`control`/`teardown` scripts end to end on the orca backend (herdr-parity flow). Zero cost. |
-| `test-backend-orca.sh` | `backends/orca.sh` against a REAL live Orca instance and real (trivial) claude turns, on a scratch repo: spawn (incl. repo registration and parent-worktree nesting), pane read, busy, send, kill, relaunch, `backend_teardown`, `backend_spawn_cleanup`, then the real `chief-spawn`/`send`/`control` (interrupt, relaunch)/`crew-state`/`teardown` scripts end to end. **Not zero-cost** - opt in with `CHIEF_TEST_ORCA=1`; skips cleanly otherwise. See below. |
+| `test-backend-orca.bats` | `backends/orca.sh` against a real headless Orca and the stand-in agent: spawn (repo registration, nesting under the main worktree, pre-trust, launch args), the registration, worktree-create and never-ready failures with their rollback, a lost or unsubmitted prompt, busy/send/kill/relaunch, `backend_spawn_cleanup`, teardown, and the real lifecycle scripts (spawn, send, interrupt, relaunch, teardown, brainstormer attach hint, rollback) |
 
-## The herdr, orca and copilot backend tests are different from the rest
+## The herdr and copilot backend tests that use real agents
 
-`manual/test-backend-herdr-real.sh` and `test-backend-orca.sh` aren't free: each needs
-its real backend reachable (`herdr` + a headless `herdr server`, or `orca`
-talking to a live Orca runtime) plus `claude` on PATH, and spends a small
-number of real tokens per claude turn it starts. Both skip by default
-(even under `run-tests.sh`) unless you opt in:
+`manual/test-backend-herdr-real.sh` isn't free: it needs `herdr` + a headless
+`herdr server` plus `claude` on PATH, and spends a small number of real tokens
+per claude turn it starts. It skips by default (even under `run-tests.sh`)
+unless you opt in:
 
 ```bash
 CHIEF_TEST_HERDR=1 bash tests/chief/manual/test-backend-herdr-real.sh
-CHIEF_TEST_ORCA=1  bash tests/chief/test-backend-orca.sh
 ```
 
 `backends/herdr.sh` is verified against a live herdr 0.9.1 install -
@@ -114,18 +125,6 @@ Code's first-run "trust this folder?" dialog, and `herdr agent prompt
 --wait` reporting `agent_prompt_stalled` for distinct situations (text
 delivered but Enter didn't register, text never delivered, TUI not yet
 rendered) that `_chief_herdr_recover` tells apart from the screen.
-
-`backends/orca.sh` runs on a throwaway scratch repo like herdr's: `backend_spawn`
-registers it with Orca (`orca repo add`) and tasks nest under its main
-worktree. Spawn, relaunch, teardown, spawn rollback and the real lifecycle scripts are all exercised live.
-The test snapshots Orca before the run (repos, every repo's worktrees,
-terminals, projects, project setups, `~/orca/workspaces`) and asserts the same
-snapshot afterwards, plus no mention of the scratch repo in `orca-data.json`
-and no `/tmp/orca-claude-statusline-last-*` file left for its panes. Cleanup
-runs on EXIT/INT/TERM/HUP, is idempotent, and touches only the scratch repo it
-registered itself (via `orca worktree rm` / `orca project setup-delete`; never
-by editing `orca-data.json`) and the claude transcript/session dirs of its own
-worktrees.
 
 ### The copilot test
 

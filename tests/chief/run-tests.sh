@@ -4,30 +4,33 @@
 # These are functional/integration tests of Chief's own bash scripts. The
 # *.bats files run on a real herdr with a zero-cost stand-in agent; the legacy
 # *.sh files mostly run against the `mock` backend (no `claude` CLI, zero tokens).
-# test-backend-orca-mock.sh is also zero-cost - it unit-tests
-# backends/orca.sh against a fake `orca` CLI. test-backend-herdr.sh,
-# test-backend-orca.sh, test-backend-copilot.sh and
-# test-backend-copilot-brief.sh are the exceptions: each
-# opts into a real herdr/orca install and a real agent turn, skipped by
-# default - see this directory's README.md. Skill-BEHAVIOR tests (does Claude actually follow
+# test-backend-orca.bats runs on a real headless Orca (tag orca).
+# test-backend-copilot.sh and test-backend-copilot-brief.sh are the
+# exceptions: each opts into a real copilot install and a real agent turn,
+# skipped by default - see this directory's README.md. Skill-BEHAVIOR tests (does Claude actually follow
 # using-chief/dispatch/setup correctly) live in tests/claude-code/
 # instead.
 #
 # Also runs every test-*.bats through the npm-pinned bats in tests/ (installed
 # on first use):
-#   run-tests.sh [--jobs N] [--junit DIR] [bats args...]
+#   run-tests.sh [--jobs N] [--junit DIR] [--no-orca | --only-orca] [bats args...]
 # --jobs needs GNU parallel (else the run is serial); --junit writes
-# DIR/report.xml; anything else goes to bats.
+# DIR/report.xml; --no-orca / --only-orca split the herdr and Orca CI jobs
+# (--only-orca also skips the legacy files); anything else goes to bats.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JOBS=4
 JUNIT=""
+TAGS='!manual'
+ONLY_ORCA=0
 BATS_ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --jobs) JOBS=$2; shift 2 ;;
     --junit) JUNIT=$2; shift 2 ;;
+    --no-orca) TAGS='!manual,!orca'; shift ;;
+    --only-orca) TAGS='orca,!manual'; ONLY_ORCA=1; shift ;;
     *) BATS_ARGS+=("$1"); shift ;;
   esac
 done
@@ -48,7 +51,7 @@ total_files=0
 failed_files=0
 
 for f in "$SCRIPT_DIR"/test-*.sh; do
-  [ -e "$f" ] || continue
+  [ -e "$f" ] && [ "$ONLY_ORCA" -eq 0 ] || continue
   total_files=$((total_files + 1))
   echo "--- $(basename "$f") ---"
   if ! bash "$f"; then
@@ -65,7 +68,7 @@ if [ -e "${bats_files[0]}" ]; then
     npm --prefix "$TESTS_DIR" ci --no-audit --no-fund >/dev/null || exit 1
   fi
   export BATS_LIB_PATH="$TESTS_DIR/node_modules"
-  bats_cmd=("$BATS" --filter-tags '!manual')
+  bats_cmd=("$BATS" --filter-tags "$TAGS")
   if command -v parallel >/dev/null; then
     bats_cmd+=(-j "$JOBS")
   else
