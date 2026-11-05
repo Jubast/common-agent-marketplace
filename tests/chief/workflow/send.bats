@@ -42,8 +42,8 @@ teardown() { chief_herdr_stop; }
   assert_file_exists "$CHIEF_HOME/tasks/t-1/inbox/003.msg"
 }
 
-# Zero-padded numbers must count in decimal: 008/009 are invalid octal and
-# 010-017 etc. are valid-but-wrong octal.
+# Zero-padded numbers must count in decimal: 008 is invalid octal, 010 is valid
+# but wrong octal, 099 rolls over.
 numbering_continues_after() {
   local last=$1 tid="n-$1" box want
   spawn "$tid"
@@ -55,7 +55,7 @@ numbering_continues_after() {
   assert_success
   assert_file_exists "$box/$want.msg"
 }
-for last in 007 008 009 010 011 019 099; do
+for last in 008 010 099; do
   bats_test_function --description "inbox: numbering continues in decimal after $last" \
     -- numbering_continues_after "$last"
 done

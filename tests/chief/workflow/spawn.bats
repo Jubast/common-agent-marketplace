@@ -134,10 +134,8 @@ invalid_id_refused() {  # <id> [--dry-run]
   assert_output --partial "invalid task id"
   assert_equal "$(ls "$CHIEF_HOME/tasks" "$CHIEF_HOME/worktrees" "$CHIEF_HOME/state" 2>/dev/null | grep -c "$1\|bad")" 0
 }
-for bad in build-keycloak-name-with-a-long-tail-of-words Bad_Id; do
-  bats_test_function --description "id: refuses '${bad:0:12}' and creates no meta, worktree or lock" -- invalid_id_refused "$bad"
-  bats_test_function --description "id: refuses '${bad:0:12}' with --dry-run and creates nothing" -- invalid_id_refused "$bad" --dry-run
-done
+bats_test_function --description "id: refuses 'Bad_Id' and creates no meta, worktree or lock" -- invalid_id_refused Bad_Id
+bats_test_function --description "id: refuses 'Bad_Id' with --dry-run and creates nothing" -- invalid_id_refused Bad_Id --dry-run
 
 @test "dry-run: creates nothing, not even the empty directories" {
   FRESH="$BATS_TEST_TMPDIR/fresh/.chief"

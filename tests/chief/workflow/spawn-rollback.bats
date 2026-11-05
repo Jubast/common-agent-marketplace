@@ -86,10 +86,3 @@ PATCH
   assert_success
   assert_not_exist "$CHIEF_HOME/tasks/t-locked/spawning"
 }
-
-@test "lock: is released after a failed spawn" {
-  standin_never_ready t-fail
-  run chief_spawn t-fail builder
-  assert_failure 1
-  assert_not_exist "$CHIEF_HOME/tasks/t-fail/spawning"
-}

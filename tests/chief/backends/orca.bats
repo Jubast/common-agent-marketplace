@@ -133,14 +133,6 @@ rolled_back() {
   assert_regex "$stderr" "orca worktree create"
 }
 
-@test "spawn: an agent that never shows its screen fails and rolls everything back" {
-  standin_mode "$ID" never-ready
-  run --separate-stderr backend_spawn "$ID" "$P" "$BRIEF" "chief/$ID"
-  assert_failure 1
-  assert_regex "$stderr" "agent not ready"
-  rolled_back
-}
-
 @test "spawn: a prompt that never landed is resent once" {
   standin_mode "$ID" drop=1
   spawned
@@ -311,12 +303,13 @@ rolled_back() {
   assert_regex "$(chief_meta_get "$LID" attach)" "^in Orca, open worktree $LID"
 }
 
-@test "lifecycle: an agent that never shows its screen rolls the whole spawn back" {
+@test "spawn: an agent that never shows its screen fails and rolls everything back" {
   ID=$LID
   standin_mode "$LID" never-ready
   run timeout 120 "$BIN/chief-spawn.sh" "$LID" "$P" --mode builder --branch "feat/$LID" --intent test --spec test
-  assert_failure
-  assert_not_exist "$HOME/orca/workspaces/$(basename "$P")/$LID"
+  assert_failure 1
+  assert_output --partial "agent not ready"
+  rolled_back
   assert_equal "$(branch_count "feat/$LID")" 0
   assert_not_exist "$CHIEF_HOME/tasks/$LID/meta"
   assert_equal "$(child_count)" 0

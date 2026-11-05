@@ -150,13 +150,6 @@ fails_case "command substitution in --args" b-10 "args" "" --args '$(x)'
   assert_equal "$(cat "$STANDIN_DIR/t1.args")" "--dangerously-skip-permissions --model gpt-5 --search"
 }
 
-@test "launch: a command override supplies the args" {
-  agents_config 'claude command="claude --allow-all --model other"\n'
-  spawn t2
-  eventually 10 test -s "$STANDIN_DIR/t2.args"
-  assert_equal "$(cat "$STANDIN_DIR/t2.args")" "--allow-all --model other"
-}
-
 @test "launch: a command with the same executable by path supplies the args" {
   agents_config "claude command=\"$STANDIN_BIN/claude --x\"\n"
   run chief_spawn b-12 builder

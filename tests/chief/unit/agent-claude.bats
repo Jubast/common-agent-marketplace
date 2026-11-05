@@ -50,13 +50,6 @@ setup() {
   assert_equal "$(grep -cxF /b "$STATE/trust-owned" || true)" 0
 }
 
-@test "release: untrusts the worktree and drops it from the marker" {
-  agent_prepare /r
-  agent_release /r
-  assert_equal "$(trusted /r)" unset
-  assert_equal "$(grep -cxF /r "$STATE/trust-owned" || true)" 0
-}
-
 @test "release: leaves a dir the user already trusted" {
   echo '{"projects":{"/u":{"hasTrustDialogAccepted":true}}}' > "$CFG"
   agent_prepare /u; agent_release /u

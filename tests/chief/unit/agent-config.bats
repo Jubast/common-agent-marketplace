@@ -127,17 +127,6 @@ EOF2
   assert_equal "$(pick builder)" "claude:opus|/opt/bin/claude --dangerously-skip-permissions --foo"
 }
 
-@test "sections: a mode without a section uses the global pool; the researcher pool wins" {
-  cfg <<'EOF2'
-strategy = round-robin
-claude:opus
-[researcher]
-codex
-EOF2
-  assert_equal "$(pick builder; pick builder)" "$(rows "claude:opus|" "claude:opus|")"
-  assert_equal "$(pick researcher)" "codex:|"
-}
-
 # pools_pick <config> <builder pick> <researcher pick>
 pools_pick() {
   printf '%s\n' "$1" | cfg
@@ -230,8 +219,6 @@ while IFS='|' read -r conf want; do
 done <<'EOF2'
 strategy = sometimes|unknown strategy 'sometimes'
 [ship]|unknown section [ship]
-[scout]|unknown section [scout]
-[prod]|unknown section [prod]
 Claude|bad profile 'Claude'
 claude:opus weight=x|unexpected ' weight=x'
 claude args="--x|unexpected

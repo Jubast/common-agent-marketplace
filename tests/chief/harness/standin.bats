@@ -1,4 +1,5 @@
-# The stand-in agent's modes and the helpers that drive them.
+# The stand-in agent's turn, hold and exit modes and the helpers that drive them;
+# never-ready is exercised through the spawn rollback tests.
 
 setup() {
   load ../lib/common
@@ -32,11 +33,4 @@ pid_dead() { ! kill -0 "$(cat "$STANDIN_DIR/$1.pid")" 2>/dev/null; }
   standin_mode t-1 exit
   spawn t-1
   eventually 10 pid_dead t-1
-}
-
-@test "never-ready: makes the spawn fail and roll back" {
-  standin_never_ready t-1
-  CHIEF_HERDR_START_WAIT=3 run spawn t-1
-  assert_failure
-  assert_not_exist "$CHIEF_HOME/worktrees/t-1"
 }
