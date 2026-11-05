@@ -7,5 +7,8 @@
     "bats-assert": "2.2.4",
     "bats-support": "0.3.0",
     "bats-file": "https://github.com/bats-core/bats-file/archive/refs/tags/v0.4.0.tar.gz"
+  },
+  "overrides": {
+    "bats-support": "0.3.0"
   }
 }
