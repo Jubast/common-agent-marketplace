@@ -1,5 +1,0 @@
-                                                                      ● high · /effort
-────────────────────
-❯ Try "edit <filepath> to..."
-────────────────────
-  ⏵⏵ bypass permissions on (shift+tab to cycle)
