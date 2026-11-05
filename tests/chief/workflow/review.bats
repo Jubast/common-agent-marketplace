@@ -188,8 +188,22 @@ round_two() {
   assert_equal "$("$BL" show b-9-rv)" ""
   assert_not_exist "$TASKS/b-9-rv"
   assert_equal "$(chief_meta_get b-9 reviewer 2>/dev/null || true)" ""
-  assert_exist "$TASKS/b-9/evidence/b-9-rv-spawn-screen.1.txt"
-  assert_exist "$TASKS/b-9/evidence/b-9-rv-spawn-screen.2.txt"
+  assert_output --partial "spawn screens kept in $TASKS/b-9/evidence/ as b-9-rv-*-spawn-screen.*.txt"
+  refute_output --partial "screens in $TASKS/b-9-rv/evidence"
+  assert_equal "$(ls "$TASKS"/b-9/evidence/b-9-rv-*-spawn-screen.*.txt | wc -l)" 2
+  assert_not_exist "$TASKS/b-9-rv"
+}
+
+@test "round 1: a second failed review keeps the first one's screens" {
+  chief_done_builder b-9
+  standin_mode b-9-rv drop=2
+  run "$RV" b-9
+  assert_failure 1
+  FIRST=$(ls "$TASKS"/b-9/evidence/b-9-rv-*-spawn-screen.*.txt)
+  run "$RV" b-9
+  assert_failure 1
+  assert_equal "$(ls "$TASKS"/b-9/evidence/b-9-rv-*-spawn-screen.*.txt | wc -l)" 4
+  for f in $FIRST; do assert_exist "$f"; done
 }
 
 @test "manual: a reviewer spawned by hand on an arbitrary branch has no builder link" {
