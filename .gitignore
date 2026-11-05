@@ -9,8 +9,11 @@ Thumbs.db
 .idea/
 *.swp
 
-# Node (in case tooling is added later)
+# Node (tests/ tooling)
 node_modules/
+
+# test reports
+out/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

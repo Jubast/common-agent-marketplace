@@ -1,15 +1,8 @@
 #!/usr/bin/env bash
 # Integration test: convert-pdf-to-md skill, real end-to-end execution.
 #
-# KNOWN BASELINE FAILURE (documented 2026-08-15, not a bug in this test):
-# Both the Application and Pressure scenarios below currently FAIL against
-# the real skill. Live verification during authoring showed Claude Code's
-# Read tool can read .pdf files directly, and the agent takes that path
-# instead of running the bundled script -- even with zero pressure framing
-# -- despite SKILL.md's explicit "do not attempt to parse PDF content
-# directly" rule. No <name>/<name>.md output file is produced. This test is
-# intentionally kept red: it's a regression guard for a future SKILL.md fix
-# (see docs/testing.md), not something to loosen to make it pass.
+# Both scenarios failed until SKILL.md named the Read tool as off-limits on
+# the .pdf (fixed 2026-08-20, see docs/testing.md); they are regression guards.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
