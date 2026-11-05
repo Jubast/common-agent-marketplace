@@ -9,7 +9,7 @@ setup() {
 @test "the first acquire succeeds and the lock records the holder's pid" {
   run chief_lock_acquire "$LOCK" 2
   assert_success
-  assert_file_exists "$LOCK/pid"
+  assert_equal "$(cat "$LOCK/pid")" "$$"
 }
 
 @test "a second acquire times out while the first still holds it" {
@@ -31,4 +31,5 @@ setup() {
   echo 999999 > "$LOCK/pid"
   run chief_lock_acquire "$LOCK" 3
   assert_success
+  assert_equal "$(cat "$LOCK/pid")" "$$"
 }

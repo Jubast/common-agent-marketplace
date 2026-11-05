@@ -69,7 +69,7 @@ aged() { touch -d "@$(($(date +%s) - $2))" "$CHIEF_HOME/tasks/$1/turn-ended"; }
   echo "done: wrote report.md" >> "$CHIEF_HOME/tasks/t-2/status"
   state t-2; assert_output --partial "[mode: researcher]"
   task_meta t-3 researcher
-  mkdir -p "$CHIEF_HOME/tasks/t-3"; aged t-3 500
+  aged t-3 500
   state t-3; assert_output --partial "state: stale"
 }
 

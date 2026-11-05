@@ -28,19 +28,19 @@ setup() {
 
 @test "hold sets status and note together, and is a no-op on meta without a meta record" {
   "$BL" add t-1 "a"
-  run "$BL" hold t-1 "blocked on captain - which limiter lib?"; assert_success
+  run "$BL" hold t-1 "blocked on the operator - which limiter lib?"; assert_success
   run "$BL" show t-1
   assert_output --partial "[held]"
-  assert_output --partial "note: blocked on captain"
+  assert_output --partial "note: blocked on the operator"
   assert_equal "$(chief_meta_get t-1 status 2>/dev/null || true)" ""
 }
 
 @test "note overwrites the existing note, not appends" {
-  "$BL" add t-1 "a"; "$BL" hold t-1 "blocked on captain - which limiter lib?"
+  "$BL" add t-1 "a"; "$BL" hold t-1 "blocked on the operator - which limiter lib?"
   run "$BL" note t-1 "operator said: token-bucket"; assert_success
   run cat "$BACKLOG"
   assert_output --partial "note: operator said: token-bucket"
-  refute_output --partial "blocked on captain"
+  refute_output --partial "blocked on the operator"
   assert_equal "$(grep -c '^note:' "$BACKLOG")" 1
 }
 

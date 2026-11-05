@@ -78,7 +78,7 @@ Requires `git`, `bash`, `jq`, `herdr` (v0.9.3) and `node`/`npm`; the Orca file a
 | `test-send.bats` | `chief-send.sh` on a real herdr: durable inbox numbering, handled-file awareness, key sends, the doorbell line |
 | `test-watch.bats` | `chief-watch.sh` on a real herdr: notify-once per state change (done, resumed, brainstormer, stale, agent and reviewer tags), one watcher per home, and `chief_notify_line` |
 | `test-zero-cost.bats` | The zero-cost guard refuses a server PATH holding a real agent CLI |
-| `test-standin.bats` | The stand-in agent's modes (`hold`, `exit`, `never-ready`, kill) on a real herdr |
+| `test-standin.bats` | The stand-in agent's modes (`hold`, `exit`, `never-ready`) on a real herdr |
 | `test-control.bats` | `chief-control.sh`: interrupt (agent keeps running), exit, relaunch with checkpoint note |
 | `test-setup.bats` | `chief-setup.sh`: backend config, idempotent gitignore, no-git-repo case |
 | `test-hooks.bats` | `session-start.sh` and `stop-watch-arm.sh`'s own bash logic across fresh/configured/in-flight/builder-worktree scenarios |

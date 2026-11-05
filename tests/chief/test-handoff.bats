@@ -149,7 +149,6 @@ snap() { ls -A "$STATE" "$TASKS" | sort | md5sum; }
   refused "--to <role> is required" "$PROMOTE" r-9 --branch feat/p --intent x
   refused "--mode is set by chief-promote.sh" "$PROMOTE" r-9 --to builder --mode researcher --branch feat/p --intent x
   refused "--from is set by chief-promote.sh" "$PROMOTE" r-9 --to builder --from r-8 --branch feat/p --intent x
-  "$BIN/chief-backlog.sh" add nb-8 "build it" >/dev/null
   refused "r-9-nope is not in the backlog" "$PROMOTE" r-9 --to builder --as r-9-nope --branch feat/p-n --intent x
   assert_not_exist "$TASKS/r-9-nope/meta"
   assert_equal "$(meta r-9 status)" working

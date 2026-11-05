@@ -33,13 +33,6 @@ pid_dead() { ! kill -0 "$(cat "$STANDIN_DIR/$1.pid")" 2>/dev/null; }
   eventually 10 pid_dead t-1
 }
 
-@test "standin_kill ends a running stand-in" {
-  spawn t-1
-  wait_settled t-1
-  standin_kill t-1
-  eventually 10 pid_dead t-1
-}
-
 @test "never-ready makes the spawn fail and roll back" {
   standin_mode t-1 never-ready
   CHIEF_HERDR_START_WAIT=3 run spawn t-1

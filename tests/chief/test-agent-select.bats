@@ -14,7 +14,6 @@ pick() { chief_agent_select "$1" && echo "$SEL_AGENT:$SEL_MODEL|$SEL_COMMAND"; }
 cfg() { cat > "$CFG"; }
 w() { CHIEF_AGENT_RANDOM=$1 pick builder; }
 rows() { printf '%s\n' "$@"; }
-no_cursors() { rm -f "$STATE"/agent-cursor-*; }
 
 @test "no config, or a config with no pool: claude, default model" {
   assert_equal "$(pick builder)" "claude:|"
@@ -235,7 +234,8 @@ config_error() {  # <config> <expected-fragment>
   assert_output --partial "$2"
 }
 while IFS='|' read -r conf want; do
-  bats_test_function --description "error: $want" -- config_error "$conf" "$want"
+  name=$(printf '%s' "$conf" | tr -c 'A-Za-z0-9 =:.[]_-' _)  # the name is eval'd by bats
+  bats_test_function --description "config error: $name" -- config_error "$conf" "$want"
 done <<'EOF2'
 strategy = sometimes|unknown strategy 'sometimes'
 [ship]|unknown section [ship]

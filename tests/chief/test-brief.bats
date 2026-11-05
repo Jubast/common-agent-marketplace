@@ -9,9 +9,7 @@ setup() {
 @test "strips a checkpoint section that runs to EOF and leaves the rest untouched" {
   printf '%s\n' "# Task" "original intent" "" "# Relaunch checkpoint (T1)" "first progress note" > "$BRIEF"
   chief_brief_strip_section "$BRIEF" "# Relaunch checkpoint"
-  assert_equal "$(grep -c '^# Relaunch checkpoint' "$BRIEF")" 0
-  run cat "$BRIEF"
-  assert_output --partial "original intent"
+  assert_equal "$(cat "$BRIEF")" "$(printf '%s\n' "# Task" "original intent")"
 }
 
 @test "a repeat strip+append collapses to a single section, not a stack" {
@@ -19,25 +17,20 @@ setup() {
     "" "# Relaunch checkpoint (T2)" "second progress note" > "$BRIEF"
   chief_brief_strip_section "$BRIEF" "# Relaunch checkpoint"
   printf '\n# Relaunch checkpoint (T3)\nthird progress note\n' >> "$BRIEF"
-  assert_equal "$(grep -c '^# Relaunch checkpoint' "$BRIEF")" 1
-  run cat "$BRIEF"
-  assert_output --partial "third progress note"
-  refute_output --partial "first progress note"
-  refute_output --partial "second progress note"
+  assert_equal "$(cat "$BRIEF")" "$(printf '%s\n' "# Task" "original intent" "" "" "# Relaunch checkpoint (T3)" "third progress note")"
 }
 
 @test "strips a checkpoint section followed by another top-level heading, keeping it" {
   printf '%s\n' "# Task" "original intent" "" "# Relaunch checkpoint (T1)" "progress note" \
-    "" "# Promoted to a ship task (T2)" "ship notice" > "$BRIEF"
+    "" "# Promoted to a builder (T2)" "promotion notice" > "$BRIEF"
   chief_brief_strip_section "$BRIEF" "# Relaunch checkpoint"
-  run cat "$BRIEF"
-  refute_output --partial "progress note"
-  assert_output --partial "ship notice"
+  assert_equal "$(cat "$BRIEF")" "$(printf '%s\n' "# Task" "original intent" "" "# Promoted to a builder (T2)" "promotion notice")"
 }
 
 @test "a no-op strip when the section is absent leaves the file unchanged" {
   printf '%s\n' "# Task" "original intent" > "$BRIEF"
+  cp "$BRIEF" "$BRIEF.orig"
   chief_brief_strip_section "$BRIEF" "# Relaunch checkpoint"
-  run cat "$BRIEF"
-  assert_output --partial "original intent"
+  run diff "$BRIEF.orig" "$BRIEF"
+  assert_success
 }
