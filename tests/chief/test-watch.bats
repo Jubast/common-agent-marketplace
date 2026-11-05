@@ -11,19 +11,12 @@ setup() {
 
 teardown() { chief_herdr_stop; }
 
-# watch_silent - the watcher keeps waiting: no output, killed by timeout (124)
-watch_silent() {
-  run env CHIEF_POLL=0.5 timeout 2 "$BIN/chief-watch.sh"
-  assert_equal "$status:$output" "124:"
-}
-watch_once() { run env CHIEF_POLL=1 timeout 10 "$BIN/chief-watch.sh"; }
-
 @test "a done task is surfaced once, then silent, then not in flight after hold" {
   chief_project
   "$BIN/chief-backlog.sh" add t-1 "Add hello.txt" >/dev/null
   spawn t-1
   ( cd "$CHIEF_HOME/worktrees/t-1" && echo hello > hello.txt && git add hello.txt \
-      && git -c user.email=t@t -c user.name=t commit -q -m "add hello.txt" )
+      && git commit -q -m "add hello.txt" )
   echo "done: added hello.txt" >> "$CHIEF_HOME/tasks/t-1/status"
 
   watch_once
@@ -32,7 +25,6 @@ watch_once() { run env CHIEF_POLL=1 timeout 10 "$BIN/chief-watch.sh"; }
 
   "$BIN/chief-backlog.sh" hold t-1 "reported" >/dev/null
   watch_once
-  refute_output --partial "t-1: state: done"
   assert_output "nothing in flight"
 }
 

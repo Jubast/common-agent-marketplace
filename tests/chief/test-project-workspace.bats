@@ -5,7 +5,7 @@ setup() {
   load lib/common
   chief_common_setup
   W="$BATS_TEST_TMPDIR"
-  GIT=(git -c user.email=t@t -c user.name=t)
+  GIT=(git)
   # A workspace repo with a project checkout nested inside (as projects/<repo>),
   # whose origin is ahead of the local checkout.
   mkdir -p "$W/ws/projects" && git -C "$W/ws" init -q -b main
@@ -43,5 +43,4 @@ spawn_task() { timeout 90 "$BIN/chief-spawn.sh" "$1" "$P" --mode builder --branc
     assert_success
     assert_not_exist "$dir/.chief"
   done
-  "$BIN/chief-teardown.sh" b-1 --abandon >/dev/null 2>&1
 }

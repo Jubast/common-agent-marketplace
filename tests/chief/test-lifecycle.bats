@@ -28,7 +28,7 @@ teardown() { chief_herdr_stop; }
   assert_output --partial "report \`working"  # re-announce working after resuming from a terminal status
 
   ( cd "$CHIEF_HOME/worktrees/t-1" && echo hello > hello.txt && git add hello.txt \
-      && git -c user.email=t@t -c user.name=t commit -q -m "add hello.txt" )
+      && git commit -q -m "add hello.txt" )
   echo "done: added hello.txt" >> "$CHIEF_HOME/tasks/t-1/status"
   run "$BIN/task/chief-crew-state.sh" t-1
   assert_output --partial "state: done"

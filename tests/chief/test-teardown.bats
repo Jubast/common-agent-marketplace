@@ -8,7 +8,7 @@ setup() {
   load lib/common
   chief_common_setup
   chief_project
-  GC=(git -c user.email=t@t -c user.name=t)
+  GC=(git)
   BL="$BIN/chief-backlog.sh"
   TD="$BIN/chief-teardown.sh"
 }

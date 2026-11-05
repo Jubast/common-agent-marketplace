@@ -33,6 +33,7 @@ open_pane() {
 # started_agent - t1's agent started and ready, by the adapter
 started_agent() { open_pane t1; _chief_herdr_start_agent t1 "$PANE" "$WT" >/dev/null 2>&1; }
 turn_count() { standin_turns t1 | grep -c 'turn:' || true; }
+turns_are() { [ "$(turn_count)" -eq "$1" ]; }
 fault_hits() { cat "$HERDR_FAULTS.$1" 2>/dev/null || echo 0; }
 workspace_labels() { herdr workspace list | jq -r '.result.workspaces[].label' | sort | paste -sd' '; }
 
@@ -198,7 +199,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   started_agent
   run _chief_herdr_prompt t1 "$SHORT"
   assert_success
-  eventually 10 test "$(turn_count)" = 1
+  eventually 10 turns_are 1
   assert_equal "$(standin_keys t1)" ""
 }
 

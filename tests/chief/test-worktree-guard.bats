@@ -8,7 +8,7 @@ setup() {
   W="$BATS_TEST_TMPDIR"
   mkdir -p "$W/main" && cd "$W/main"
   git init -q -b main
-  git -c user.email=t@t -c user.name=t commit --allow-empty -q -m init
+  git commit --allow-empty -q -m init
   git worktree add -q -b feature "$W/linked"
 }
 

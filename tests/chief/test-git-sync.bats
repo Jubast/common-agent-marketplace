@@ -8,7 +8,7 @@ setup() {
   W="$BATS_TEST_TMPDIR"
 }
 
-commit() { git -C "$1" -c user.email=t@t -c user.name=t commit --allow-empty -q -m "$2"; }
+commit() { git -C "$1" commit --allow-empty -q -m "$2"; }
 
 # project_with_origin - $W/project on main, tracking $W/origin.git, with
 # origin advanced by a second clone ($W/other) since the last fetch.

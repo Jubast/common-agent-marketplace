@@ -27,7 +27,7 @@ setup() {
   P="$WORK/proj$BATS_TEST_NUMBER"
   mkdir -p "$P"
   git -C "$P" init -q -b master
-  git -C "$P" -c user.email=t@t -c user.name=t commit --allow-empty -q -m init
+  git -C "$P" commit --allow-empty -q -m init
   . "$BIN/lib/paths.sh"; . "$BIN/lib/meta.sh"; . "$BIN/lib/agents/agent.sh"
   chief_ensure_dirs
   . "$BIN/lib/backends/orca.sh"
@@ -47,6 +47,7 @@ listed() {  # <worktree> - Orca still lists it
 }
 terminals() { orca terminal list --worktree "path:$1" --json 2>/dev/null | jq -r '[.result.terminals[]?] | length'; }
 turn_count() { standin_turns "$1" | grep -c 'turn:' || true; }
+turns_are() { [ "$(turn_count "$1")" -eq "$2" ]; }
 trusted() { jq -r --arg p "$1" '.projects[$p].hasTrustDialogAccepted // "unset"' "$CLAUDE_CONFIG_DIR/.claude.json"; }
 branch_count() { git -C "$P" branch --list "$1" | wc -l | tr -d ' '; }
 idle() { ! backend_busy "$ID"; }
@@ -172,7 +173,7 @@ rolled_back() {
   backend_send "$ID" Escape
   eventually 10 got_esc
   backend_send "$ID" "hello there"
-  eventually 20 test "$(turn_count "$ID")" -eq 2
+  eventually 20 turns_are "$ID" 2
   assert_equal "$(standin_turns "$ID" | tail -n1)" "turn: hello there"
   backend_send "$ID" C-c
   eventually 10 dead
@@ -269,13 +270,14 @@ rolled_back() {
   EP=$(chief_meta_get "$LID" endpoint)
   assert_regex "$EP" '^orca:term_'
   assert_equal "$(chief_meta_get "$LID" status)" working
+  assert_equal "$(chief_meta_get "$LID" attach)" ""  # only a brainstormer has one
   assert_equal "$(git -C "$WT" rev-parse --abbrev-ref HEAD)" "feat/$LID"
   assert_equal "$(child_count)" 1
   eventually 20 idle
 
   run timeout 60 "$BIN/task/chief-send.sh" "$LID" "please continue"
   assert_success
-  eventually 20 test "$(turn_count "$LID")" -eq 2
+  eventually 20 turns_are "$LID" 2
   assert_regex "$(standin_turns "$LID" | tail -n1)" "chief: instruction waiting"
 
   run "$BIN/task/chief-control.sh" "$LID" interrupt
@@ -298,7 +300,7 @@ rolled_back() {
   assert_equal "$(branch_count "feat/$LID")" 0
 }
 
-@test "lifecycle: a brainstormer records the Orca attach hint, a builder none" {
+@test "lifecycle: a brainstormer records the Orca attach hint" {
   ID=$LID
   run timeout 120 "$BIN/chief-spawn.sh" "$LID" "$P" --mode brainstormer --branch "feat/$LID" --intent test
   assert_success

@@ -1,6 +1,21 @@
 # common.bash - shared setup for Chief's .bats files: a real herdr per test,
 # running the zero-cost stand-in agent (fixtures/standin/), never a paid CLI.
 # `load lib/common` from setup(); call chief_common_setup, then chief_project.
+# chief_isolate - runs when this file is loaded: nothing from the caller's
+# environment (an operator's herdr, a Chief worker's CHIEF_*, a git identity)
+# reaches a test. Per-test paths need BATS_TEST_TMPDIR, so setup_file skips them.
+chief_isolate() {
+  local v
+  for v in $(compgen -e | grep -E '^(HERDR_|CHIEF_)' | grep -v '^CHIEF_TEST_'); do unset "$v"; done
+  unset CLAUDE_PROJECT_DIR
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
+         GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+  [ -n "${BATS_TEST_TMPDIR:-}" ] || return 0
+  export HERDR_SOCKET_PATH="$BATS_TEST_TMPDIR/none.sock"  # never the operator's herdr
+  export CLAUDE_CONFIG_DIR="$BATS_TEST_TMPDIR/claude-config"
+}
+chief_isolate
+
 TEST_DIR="$(cd "$(dirname "${BATS_TEST_FILENAME}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 BIN="$REPO_ROOT/plugins/chief/bin"
@@ -22,14 +37,11 @@ chief_zero_cost_guard() {
   done
 }
 
-# chief_common_setup - per-test dirs, own CLAUDE_CONFIG_DIR, stand-ins first on
-# PATH, and none of the outer herdr's HERDR_* variables.
+# chief_common_setup - per-test dirs and stand-ins first on PATH (the
+# environment was isolated when this file was loaded).
 chief_common_setup() {
-  local v
-  for v in $(compgen -e | grep '^HERDR_'); do unset "$v"; done
-  export HERDR_SOCKET_PATH="$BATS_TEST_TMPDIR/none.sock"  # never the operator's herdr
   WORK="$BATS_TEST_TMPDIR/work"
-  export CLAUDE_CONFIG_DIR="$BATS_TEST_TMPDIR/claude-config" STANDIN_DIR="$BATS_TEST_TMPDIR/standin"
+  export STANDIN_DIR="$BATS_TEST_TMPDIR/standin"
   mkdir -p "$WORK" "$CLAUDE_CONFIG_DIR" "$STANDIN_DIR/modes" "$STANDIN_DIR/hold"
   PATH="$STANDIN_BIN:$PATH"
 }
@@ -79,7 +91,7 @@ chief_herdr_stop() {
 chief_project() {
   mkdir -p "$WORK/project"
   git -C "$WORK/project" init -q -b master
-  git -C "$WORK/project" -c user.email=t@t -c user.name=t commit --allow-empty -q -m init
+  git -C "$WORK/project" commit --allow-empty -q -m init
   export CHIEF_HOME="$WORK/.chief" CHIEF_BACKEND=herdr
   chief_herdr_server
 }
@@ -99,6 +111,13 @@ herdr_fault() {
   printf '%s|%s|%s|%s|%s\n' "$@" >> "$HERDR_FAULTS"
 }
 
+# watch_silent - the watcher keeps waiting: no output, killed by timeout (124)
+watch_silent() {
+  run env CHIEF_POLL=0.5 timeout 2 "$BIN/chief-watch.sh"
+  assert_equal "$status:$output" "124:"
+}
+watch_once() { run env CHIEF_POLL=1 timeout 10 "$BIN/chief-watch.sh"; }
+
 # standin_turns <id> - every turn the stand-in in that task's worktree received.
 standin_turns() { cat "$STANDIN_DIR/$1.log" 2>/dev/null; }
 # standin_keys <id> - the lone special keys (esc) the stand-in received.
@@ -112,8 +131,6 @@ standin_release() { rm -f "$STANDIN_DIR/hold/$1"; }
 standin_type() {
   herdr pane send-text "$(sed -n 's/^endpoint=herdr://p' "$CHIEF_HOME/tasks/$1/meta")" "$2" >/dev/null
 }
-# standin_kill <id> - the stand-in dies, as a crashed agent would.
-standin_kill() { kill "$(cat "$STANDIN_DIR/$1.pid")"; }
 
 # wait_settled <id> - waits for the agent's current turn (the brief) to finish.
 wait_settled() {
@@ -123,6 +140,8 @@ wait_settled() {
 
 # eventually <secs> <cmd...> - retries <cmd> until it passes; real backends
 # deliver mid-task sends and finish turns asynchronously. Never use a bare sleep.
+# <cmd> must be a function or command: "$(...)" in its arguments expands once,
+# before the first try, and a late change never passes.
 eventually() {
   local secs=$1 i; shift
   for i in $(seq 1 $((secs * 4))); do "$@" >/dev/null 2>&1 && return 0; sleep 0.25; done

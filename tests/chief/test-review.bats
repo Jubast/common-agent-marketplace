@@ -19,7 +19,7 @@ teardown() { chief_herdr_stop; }
 
 commit() {  # <id> <file>: commit a file in the builder's worktree, print the sha
   ( cd "$CHIEF_HOME/worktrees/$1" && echo "$2" > "$2" && git add "$2" \
-    && git -c user.email=t@t -c user.name=t commit -q -m "add $2" && git rev-parse HEAD )
+    && git commit -q -m "add $2" && git rev-parse HEAD )
 }
 newb() {  # <id> [file]: a spawned builder with one commit and a done line carrying its sha
   "$BL" add "$1" "T $1" >/dev/null
@@ -28,8 +28,6 @@ newb() {  # <id> [file]: a spawned builder with one commit and a done line carry
   echo "done: $(git -C "$CHIEF_HOME/worktrees/$1" rev-parse --short HEAD) ok" >> "$TASKS/$1/status"
 }
 review() { timeout 90 "$RV" "$@" 2>&1; }
-watch_out() { CHIEF_POLL=1 timeout 3 "$BIN/chief-watch.sh"; }
-quiet() { run watch_out; assert_equal "$status:$output" "124:"; }
 rwork() { echo "working: reviewing" >> "$TASKS/$1/status"; touch "$TASKS/$1/turn-ended"; }  # a reviewer mid-review
 rdone() { echo "done: round $2 PASS @x" >> "$TASKS/$1/status"; }  # <reviewer> <round>
 
@@ -110,13 +108,13 @@ rdone() { echo "done: round $2 PASS @x" >> "$TASKS/$1/status"; }  # <reviewer> <
 
   wait_settled b-1-rv
   "$BL" hold b-1 "reported" >/dev/null
-  quiet   # the re-armed reviewer's working line does not wake Chief
+  watch_silent   # the re-armed reviewer's working line does not wake Chief
   echo "done: round 2 PASS @${SHA2:0:7}" >> "$TASKS/b-1-rv/status"
-  run watch_out
+  watch_once
   assert_output --partial "b-1-rv: state: done · round 2 PASS @${SHA2:0:7}"
   "$BL" hold b-1-rv "round 2 PASS, idle" >/dev/null
   "$BL" status b-1-rv in-flight >/dev/null
-  quiet   # a done identical to the baseline is suppressed
+  watch_silent   # a done identical to the baseline is suppressed
   "$BL" hold b-1-rv "idle" >/dev/null
 
   run "$BIN/chief-teardown.sh" b-1
@@ -187,11 +185,11 @@ rdone() { echo "done: round $2 PASS @x" >> "$TASKS/$1/status"; }  # <reviewer> <
   assert_equal "$(chief_meta_get b-4-rv-2 for)" b-4
   rwork b-4-rv-1; rwork b-4-rv-2
   rdone b-4-rv-1 1
-  quiet   # the first done stays quiet while a sibling works
+  watch_silent   # the first done stays quiet while a sibling works
   rdone b-4-rv-2 1
-  run watch_out
+  watch_once
   assert_output --partial "b-4-rv-2: state: done"   # the last done wakes Chief
-  quiet
+  watch_silent
 
   S4=$(commit b-4 b4b.txt); echo "done: ${S4:0:7} fixed" >> "$TASKS/b-4/status"
   run review b-4
@@ -199,27 +197,27 @@ rdone() { echo "done: round $2 PASS @x" >> "$TASKS/$1/status"; }  # <reviewer> <
   assert_output --partial "review: b-4-rv-1, b-4-rv-2 round 2 of b-4"
   [[ $(cat "$TASKS/b-4-rv-2/inbox/001.msg") == *"Pinned SHA: $S4"* ]]
   wait_settled b-4-rv-1; wait_settled b-4-rv-2
-  quiet
+  watch_silent
   rdone b-4-rv-1 2; rdone b-4-rv-2 2
-  run watch_out
+  watch_once
   assert_output --partial "state: done · round 2"   # both done in the same poll: one wake
-  quiet
+  watch_silent
 
   S4=$(commit b-4 b4c.txt); echo "done: ${S4:0:7} again" >> "$TASKS/b-4/status"
   review b-4 >/dev/null; "$BL" hold b-4 reported >/dev/null
   wait_settled b-4-rv-1; wait_settled b-4-rv-2
   echo "failed: could not run checks" >> "$TASKS/b-4-rv-1/status"
-  run watch_out
+  watch_once
   assert_output --partial "b-4-rv-1: state: failed"   # a failed sibling wakes at once
   rdone b-4-rv-2 3
-  run watch_out
+  watch_once
   assert_output --partial "b-4-rv-2: state: done"      # and does not hold the other back
 
   S4=$(commit b-4 b4d.txt); echo "done: ${S4:0:7} more" >> "$TASKS/b-4/status"
   review b-4 >/dev/null; "$BL" hold b-4 reported >/dev/null
   "$BIN/chief-teardown.sh" b-4-rv-1 --abandon >/dev/null 2>&1
   rdone b-4-rv-2 4
-  run watch_out
+  watch_once
   assert_output --partial "b-4-rv-2: state: done"      # a torn-down sibling is skipped
   S4=$(commit b-4 b4e.txt); echo "done: ${S4:0:7} last" >> "$TASKS/b-4/status"
   run review b-4
