@@ -31,7 +31,7 @@ if [ "${CHIEF_TEST_COPILOT:-0}" != "1" ]; then
   echo "  (skipped - opt in with CHIEF_TEST_COPILOT=1; spends real Copilot requests and needs herdr)"
   exit 0
 fi
-. "$TEST_DIR/lib/copilot-isolation.sh"
+. "$TEST_DIR/lib/isolation.sh"
 
 
 REPO="$ISO/repo"; PROBE="$ISO/probe-repo"

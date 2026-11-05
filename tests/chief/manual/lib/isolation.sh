@@ -1,28 +1,33 @@
 #!/usr/bin/env bash
-# copilot-isolation.sh - sourced by the opt-in real-Copilot tests, after the
-# harness and their own opt-in check: prerequisites, a scrubbed environment
-# with its own HOME/XDG dirs and herdr server, and the isolation guard.
-# Leaves $ISO, $LOGIN_SRC and $HERDR_SOCKET_PATH set; the caller's cleanup
-# must not outlive $ISO (harness_trap below already removes it).
-for cli in herdr copilot jq ss; do
+# isolation.sh - sourced by the opt-in real-agent tests, after the harness and
+# their own opt-in check: prerequisites, a scrubbed environment with its own
+# HOME/XDG dirs and herdr server, and the isolation guard. Set ISO_CLIS first
+# (default "herdr copilot jq ss"). Leaves $ISO, $REAL_HOME, $REAL_CLAUDE_DIR,
+# $LOGIN_SRC (copilot) and $HERDR_SOCKET_PATH set; the caller's cleanup must not
+# outlive $ISO (harness_trap below already removes it). The scrub keeps
+# ANTHROPIC_API_KEY and CLAUDE_CODE_OAUTH_TOKEN, a real claude's only way in.
+ISO_CLIS=${ISO_CLIS:-herdr copilot jq ss}
+for cli in $ISO_CLIS; do
   command -v "$cli" >/dev/null 2>&1 || { echo "  (skipped - $cli not on PATH)"; exit 0; }
 done
-LOGIN_SRC="${COPILOT_HOME:-$HOME/.copilot}/config.json"
-grep -q '"authTokens"' "$LOGIN_SRC" 2>/dev/null \
-  || { echo "  (skipped - no copilot login at $LOGIN_SRC)"; exit 0; }
+REAL_HOME=$HOME REAL_CLAUDE_DIR=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+case " $ISO_CLIS " in *" copilot "*)
+  LOGIN_SRC="${COPILOT_HOME:-$HOME/.copilot}/config.json"
+  grep -q '"authTokens"' "$LOGIN_SRC" 2>/dev/null \
+    || { echo "  (skipped - no copilot login at $LOGIN_SRC)"; exit 0; } ;;
+esac
 
 # Every socket the caller's environment or defaults could reach.
 FORBIDDEN_SOCKS=(
   "${HERDR_SOCKET_PATH:-}" "${HERDR_CLIENT_SOCKET_PATH:-}"
   "$HOME/.config/herdr/herdr.sock" "$HOME/.config/herdr/herdr-client.sock"
   "${XDG_CONFIG_HOME:-$HOME/.config}/herdr/herdr.sock"
-  /home/vscode/.config/herdr/herdr.sock
 )
 ISO=$(mktemp -d)
 
 # Scrubbed environment: only what the tools need, own HOME and XDG dirs, own socket.
 for v in $(compgen -e); do
-  case $v in PATH|TERM|LANG|LC_*|USER|LOGNAME|SHELL|TMPDIR|PWD|OLDPWD|SHLVL|_|CHIEF_TEST_COPILOT*) ;; *) unset "$v" ;; esac
+  case $v in PATH|TERM|LANG|LC_*|USER|LOGNAME|SHELL|TMPDIR|PWD|OLDPWD|SHLVL|_|CHIEF_TEST_COPILOT*|CHIEF_TEST_HERDR*|ANTHROPIC_API_KEY|CLAUDE_CODE_OAUTH_TOKEN) ;; *) unset "$v" ;; esac
 done
 export HOME="$ISO/home" XDG_CONFIG_HOME="$ISO/xdg-config" XDG_RUNTIME_DIR="$ISO/xdg-run" XDG_DATA_HOME="$ISO/xdg-data"
 export HERDR_SOCKET_PATH="$ISO/xdg-run/herdr.sock"
@@ -64,7 +69,7 @@ isolation_guard() {
   done
   [ ! -e "$sock" ] || abort "socket already exists"
 
-  default_owner=$(sock_owner /home/vscode/.config/herdr/herdr.sock)
+  default_owner=$(sock_owner "$REAL_HOME/.config/herdr/herdr.sock")
   before=$(pgrep -f 'herdr server' || true)
   nohup herdr server >"$ISO/server.log" 2>&1 < /dev/null &
   SERVER_PID=$!
@@ -87,7 +92,7 @@ isolation_guard() {
 
 isolation_guard
 
-if [ "${CHIEF_TEST_COPILOT_GUARD_ONLY:-0}" = "1" ]; then
-  echo "  (guard only - copilot not run)"
+if [ "${CHIEF_TEST_COPILOT_GUARD_ONLY:-0}" = "1" ] || [ "${CHIEF_TEST_HERDR_GUARD_ONLY:-0}" = "1" ]; then
+  echo "  (guard only - no agent run)"
   exit 0
 fi

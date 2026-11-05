@@ -14,7 +14,7 @@
 # none stalled: a run that never reached the recovery proves nothing.
 #
 # Skips cleanly without the opt-in or the tools; isolation as in
-# test-backend-copilot.sh (lib/copilot-isolation.sh).
+# test-backend-copilot.sh (lib/isolation.sh).
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,7 +30,7 @@ if [ "${CHIEF_TEST_COPILOT_BRIEF:-0}" != "1" ]; then
 fi
 ATTEMPTS="${CHIEF_TEST_COPILOT_BRIEF_ATTEMPTS:-3}"
 REAL_HERDR=$(command -v herdr 2>/dev/null || true)
-. "$TEST_DIR/lib/copilot-isolation.sh"
+. "$TEST_DIR/lib/isolation.sh"
 
 REPO="$ISO/repo"
 mkdir -p "$REPO"
