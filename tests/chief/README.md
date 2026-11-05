@@ -4,9 +4,7 @@ Functional/integration tests of Chief's own bash scripts.
 
 - **`*.bats`** run against a real herdr (see "Real herdr with a stand-in
   agent" below), or, tagged `orca`, a real headless Orca (see "Real headless
-  Orca"), always with a zero-cost stand-in agent. `fixtures/herdr/` holds
-  screens captured from a live herdr and Claude Code, the reference for the
-  stand-in.
+  Orca"), always with a zero-cost stand-in agent.
 - **`manual/`** holds the opt-in tests that run real herdr and agent CLIs and
   spend real tokens: `test-backend-herdr-real.sh`, `test-backend-copilot.sh`
   and `test-backend-copilot-brief.sh` (see below). They use the small assertion
@@ -56,15 +54,14 @@ alongside the herdr files; on a small machine use `--no-orca`, then `--only-orca
 in `tests/package.json` (bats 1.14.0, bats-assert, bats-support, bats-file;
 `run-tests.sh` runs `npm ci` on first use, so Node and npm are needed). Options:
 `run-tests.sh [--jobs N] [--junit DIR] [--no-orca | --only-orca] [bats args...]`. `--jobs` needs GNU
-`parallel` (required locally; without it the run is serial and slow); `--junit`
-writes `DIR/report.xml`. Tests tagged `manual` are skipped. A single bats file:
+`parallel` (without it the run warns and goes serial, slowly); `--junit` writes
+`DIR/report.xml`. A single bats file:
 
 ```bash
 BATS_LIB_PATH=$PWD/tests/node_modules tests/node_modules/.bin/bats tests/chief/test-lock.bats
 ```
 
-Requires `git` and `bash`; `python3` is used where available to validate
-JSON output (skipped gracefully if absent).
+Requires `git`, `bash`, `jq`, `herdr` (v0.9.3) and `node`/`npm`; the Orca file also needs Orca.
 
 ## What's covered
 
@@ -107,14 +104,13 @@ JSON output (skipped gracefully if absent).
 
 `manual/test-backend-herdr-real.sh` isn't free: it needs `herdr` + a headless
 `herdr server` plus `claude` on PATH, and spends a small number of real tokens
-per claude turn it starts. It skips by default (even under `run-tests.sh`)
-unless you opt in:
+per claude turn it starts. `run-tests.sh` never runs it. Opt in:
 
 ```bash
 CHIEF_TEST_HERDR=1 bash tests/chief/manual/test-backend-herdr-real.sh
 ```
 
-`backends/herdr.sh` is verified against a live herdr 0.9.1 install -
+`backends/herdr.sh` is verified against a herdr 0.9.3 install -
 see its header for the real CLI shape and two confirmed quirks: Claude
 Code's first-run "trust this folder?" dialog, and `herdr agent prompt
 --wait` reporting `agent_prompt_stalled` for distinct situations (text

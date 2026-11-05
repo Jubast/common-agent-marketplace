@@ -6,7 +6,7 @@
 # NOT zero-cost: one trivial research turn (the spawned worker's brief).
 # Opt in explicitly:
 #
-#   CHIEF_TEST_COPILOT=1 bash tests/chief/test-backend-copilot.sh
+#   CHIEF_TEST_COPILOT=1 bash tests/chief/manual/test-backend-copilot.sh
 #
 # Skips cleanly (exit 0) without the opt-in, herdr, copilot, jq, ss or a copilot
 # login (~/.copilot/config.json, or $COPILOT_HOME/config.json).

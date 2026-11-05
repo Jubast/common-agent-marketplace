@@ -11,8 +11,8 @@
 #
 #   CHIEF_TEST_HERDR=1 bash tests/chief/manual/test-backend-herdr-real.sh
 #
-# Skips cleanly (exit 0) if herdr isn't installed or the opt-in isn't set,
-# so it's safe for run-tests.sh's default sweep and outside the devcontainer.
+# Skips cleanly (exit 0) if herdr isn't installed or the opt-in isn't set.
+# run-tests.sh never runs it.
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

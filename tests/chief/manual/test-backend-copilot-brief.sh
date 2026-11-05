@@ -6,7 +6,7 @@
 #
 # NOT zero-cost: one trivial research turn per attempt. Opt in explicitly:
 #
-#   CHIEF_TEST_COPILOT_BRIEF=1 bash tests/chief/test-backend-copilot-brief.sh
+#   CHIEF_TEST_COPILOT_BRIEF=1 bash tests/chief/manual/test-backend-copilot-brief.sh
 #
 # The failure needs herdr's 5 s `agent_prompt_stalled` while copilot already
 # took the brief, a race that herdr's status lag hits on some runs only. So it
