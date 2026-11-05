@@ -6,6 +6,7 @@ setup() {
   load ../lib/common
   chief_common_setup
   chief_project
+  chief_herdr_server
   CS="$BIN/task/chief-crew-state.sh"
 }
 
@@ -21,12 +22,12 @@ task_meta() {
 state() { run "$CS" "$1"; }
 aged() { touch -d "@$(($(date +%s) - $2))" "$CHIEF_HOME/tasks/$1/turn-ended"; }
 
-@test "refuses an unknown task id" {
+@test "crew-state: refuses an unknown task id" {
   run "$CS" nope
-  assert_failure
+  assert_failure 1
 }
 
-@test "a busy agent reads as working, an idle one by its turn-ended marker, mode and agent tags included" {
+@test "liveness: working while busy, then stale or working by the turn-ended marker" {
   standin_hold t-1
   spawn t-1
   state t-1
@@ -50,7 +51,7 @@ aged() { touch -d "@$(($(date +%s) - $2))" "$CHIEF_HOME/tasks/$1/turn-ended"; }
   assert_output --partial "state: stale"          # past the threshold
 }
 
-@test "status lines are authoritative regardless of liveness, and carry their detail" {
+@test "status line: decides the state whatever the liveness, and carries its detail" {
   task_meta t-1 builder
   echo "blocked: need operator input on limiter lib" >> "$CHIEF_HOME/tasks/t-1/status"
   state t-1; assert_output --partial "state: blocked · need operator input"
@@ -64,7 +65,7 @@ aged() { touch -d "@$(($(date +%s) - $2))" "$CHIEF_HOME/tasks/$1/turn-ended"; }
   assert_output --partial "[mode: builder]"
 }
 
-@test "a researcher task reports its own mode; an idle one is stale" {
+@test "mode: a researcher reports it, and an idle one is stale" {
   task_meta t-2 researcher
   echo "done: wrote report.md" >> "$CHIEF_HOME/tasks/t-2/status"
   state t-2; assert_output --partial "[mode: researcher]"

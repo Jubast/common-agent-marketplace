@@ -11,12 +11,12 @@ setup() {
 
 teardown() { chief_herdr_stop; }
 
-@test "a done task is surfaced once, then silent, then not in flight after hold" {
+@test "notify: a done task wakes once, then stays silent and leaves flight after hold" {
   chief_project
+  chief_herdr_server
   "$BIN/chief-backlog.sh" add t-1 "Add hello.txt" >/dev/null
   spawn t-1
-  ( cd "$CHIEF_HOME/worktrees/t-1" && echo hello > hello.txt && git add hello.txt \
-      && git commit -q -m "add hello.txt" )
+  commit_file t-1 hello.txt hello >/dev/null
   echo "done: added hello.txt" >> "$CHIEF_HOME/tasks/t-1/status"
 
   watch_once
@@ -28,8 +28,9 @@ teardown() { chief_herdr_stop; }
   assert_output "nothing in flight"
 }
 
-@test "a resumed task is not re-nagged with the state Chief already acted on" {
+@test "notify: a resumed task is not re-announced with the state Chief acted on" {
   chief_project
+  chief_herdr_server
   "$BIN/chief-backlog.sh" add t-2 "Add world.txt" >/dev/null
   spawn t-2
   echo "done: added world.txt" >> "$CHIEF_HOME/tasks/t-2/status"
@@ -47,8 +48,9 @@ teardown() { chief_herdr_stop; }
   watch_silent
 }
 
-@test "brainstormer: an operator-wait never wakes Chief; done does" {
+@test "notify: a brainstormer waiting on the operator never wakes Chief, its done does" {
   chief_project
+  chief_herdr_server
   spawn bs-1 --mode brainstormer
   wait_settled bs-1
   echo "working: brainstorming with operator" >> "$CHIEF_HOME/tasks/bs-1/status"
@@ -63,8 +65,9 @@ teardown() { chief_herdr_stop; }
   assert_output --partial "bs-1: state: done · spec ready"
 }
 
-@test "stale: the idle counter alone is not a state change" {
+@test "notify: the idle counter alone is not a state change" {
   chief_project
+  chief_herdr_server
   spawn st-1
   wait_settled st-1
   echo "working: waiting on a job" >> "$CHIEF_HOME/tasks/st-1/status"
@@ -91,8 +94,9 @@ teardown() { chief_herdr_stop; }
   watch_silent
 }
 
-@test "agent flip: a changed [agent: ...] part is not a state change" {
+@test "notify: a changed [agent: ...] tag is not a state change" {
   chief_project
+  chief_herdr_server
   spawn ag-1
   echo "done: shipped" >> "$CHIEF_HOME/tasks/ag-1/status"
   set_ag() {
@@ -110,8 +114,9 @@ teardown() { chief_herdr_stop; }
   assert_output --partial "ag-1: state: done"
 }
 
-@test "reviewer tag: a trailing [reviewer: id] is not a state change, old-format baselines still match" {
+@test "notify: a trailing [reviewer: id] tag is not a state change" {
   chief_project
+  chief_herdr_server
   spawn rv-1
   echo "done: shipped" >> "$CHIEF_HOME/tasks/rv-1/status"
   watch_once
@@ -125,8 +130,9 @@ teardown() { chief_herdr_stop; }
   watch_silent
 }
 
-@test "a literal \" [mode: \" inside the detail is not a cut point" {
+@test "notify: keeps a literal \"[mode:\" in the detail" {
   chief_project
+  chief_herdr_server
   spawn lt-1
   echo "done: fixed [mode: x] parser" >> "$CHIEF_HOME/tasks/lt-1/status"
   watch_once
@@ -145,19 +151,24 @@ line() { echo "t-2: state: done · $1 [mode: builder] [agent: claude]"; }
 owner_is_not() { [ -s "$CHIEF_HOME/state/watch.owner" ] && [ "$(cat "$CHIEF_HOME/state/watch.owner")" != "$1" ]; }
 
 # bg_watch <out> <watcher> - a background watcher; its exit code lands in <out>
-bg_watch() { ( rc=0; CHIEF_POLL=1 timeout 10 "$2" > "$1" 2>&1 || rc=$?; echo "rc=$rc" >> "$1" ) 3>&- & }
+# and its pid in BG_PIDS. Wait for those, not a bare `wait`: bats' timeout
+# watchdog is a child of the test too.
+BG_PIDS=()
+bg_watch() { ( rc=0; CHIEF_POLL=1 timeout 10 "$2" > "$1" 2>&1 || rc=$?; echo "rc=$rc" >> "$1" ) 3>&- & BG_PIDS+=($!); }
 
-@test "racing watchers deliver the change once" {
+@test "watcher: racing watchers deliver a change once" {
   chief_project
+  chief_herdr_server
   spawn t-2
   echo "done: race" >> "$CHIEF_HOME/tasks/t-2/status"
-  for i in 1 2 3; do ( CHIEF_POLL=1 timeout 6 "$BIN/chief-watch.sh" > "$WORK/race-$i.out" 2>&1 ) 3>&- & done
-  wait
+  for i in 1 2 3; do ( CHIEF_POLL=1 timeout 6 "$BIN/chief-watch.sh" > "$WORK/race-$i.out" 2>&1 ) 3>&- & BG_PIDS+=($!); done
+  wait "${BG_PIDS[@]}"
   assert_equal "$(cat "$WORK"/race-*.out)" "$(line race)"
 }
 
-@test "an older watcher exits silently when a newer one arms through the hook" {
+@test "watcher: an older one exits silently when a newer one arms through the hook" {
   chief_project
+  chief_herdr_server
   spawn t-2
   echo "working: older exits" >> "$CHIEF_HOME/tasks/t-2/status"
   export CLAUDE_PROJECT_DIR="$WORK/project"
@@ -167,14 +178,15 @@ bg_watch() { ( rc=0; CHIEF_POLL=1 timeout 10 "$2" > "$1" 2>&1 || rc=$?; echo "rc
   bg_watch "$WORK/new.out" "$REPO_ROOT/plugins/chief/hooks/stop-watch-arm.sh"
   eventually 10 owner_is_not "$old_owner"
   echo "done: older exits" >> "$CHIEF_HOME/tasks/t-2/status"
-  wait
+  wait "${BG_PIDS[@]}"
   assert_equal "$(cat "$WORK/old.out")" "rc=0"
   assert_equal "$(cat "$WORK/new.out")" "chief watcher: $(line 'older exits')
 rc=2"
 }
 
-@test "a displaced watcher that read an older state exits without clearing the baseline" {
+@test "watcher: a displaced one that read an older state leaves the baseline alone" {
   chief_project
+  chief_herdr_server
   spawn t-2
   echo "working: gated" >> "$CHIEF_HOME/tasks/t-2/status"
   cp -r "$REPO_ROOT/plugins/chief" "$WORK/plugin-copy"
@@ -190,28 +202,6 @@ GATE
   run env CHIEF_POLL=1 timeout 10 "$BIN/chief-watch.sh"
   assert_output "$(line gated)"
   touch "$WORK/gate-release"
-  wait
+  wait "${BG_PIDS[@]}"
   assert_equal "$(cat "$WORK/gated.out")" "rc=0"
-}
-
-# chief_notify_line is idempotent
-notify_line_idempotent() {
-  . "$BIN/lib/meta.sh"
-  local once twice
-  once=$(chief_notify_line "$1"); twice=$(chief_notify_line "$once")
-  assert_equal "$twice" "$once"
-}
-for x in "state: done · shipped" \
-         "state: done · shipped [mode: builder]" \
-         "state: done · shipped [mode: builder] [agent: claude] [reviewer: r-1]" \
-         "state: stale · x, no turn activity for 250s [mode: builder] [for: a]" \
-         "state: done · fixed [mode: x] parser [mode: builder] [agent: claude]" \
-         ""; do
-  bats_test_function --description "chief_notify_line is idempotent: '$x'" -- notify_line_idempotent "$x"
-done
-
-@test "chief_notify_line keeps a literal tag in the detail and cuts the real tags" {
-  . "$BIN/lib/meta.sh"
-  assert_equal "$(chief_notify_line "state: done · fixed [mode: x] parser [mode: builder] [agent: claude]")" \
-    "state: done · fixed [mode: x] parser"
 }

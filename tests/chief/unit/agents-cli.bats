@@ -10,13 +10,13 @@ setup() {
 
 squeezed() { "$AGENTS" | tr -s ' '; }
 
-@test "no config: one line per role, claude default flagged" {
+@test "no config: prints one line per role with claude flagged as the default" {
   run squeezed
   assert_equal "${#lines[@]}" 4
   assert_output --partial "builder: claude (no pool configured)"
 }
 
-@test "a role's own pool, its own marker-free line, and global fallbacks" {
+@test "pools: a role's own pool has no marker, the others show the global fallback" {
   printf 'claude:opus\n[builder]\ncodex:gpt-5\n[reviewer]\ncopilot\n' > "$CFG"
   run squeezed
   assert_output --partial "builder: codex:gpt-5"
@@ -26,7 +26,7 @@ squeezed() { "$AGENTS" | tr -s ' '; }
   assert_output --partial "brainstormer: claude:opus (global fallback)"
 }
 
-@test "round-robin: read-only, the cursor does not move" {
+@test "round-robin: reads without moving the cursor" {
   printf 'strategy = round-robin\n[builder]\ncodex:gpt-5\nclaude:sonnet\n' > "$CFG"
   "$AGENTS" >/dev/null; "$AGENTS" >/dev/null
   run squeezed
@@ -34,14 +34,14 @@ squeezed() { "$AGENTS" | tr -s ' '; }
   assert_not_exist "$CHIEF_HOME/state/agent-cursor-builder"
 }
 
-@test "weighted: the pool is listed" {
+@test "weighted: lists the pool with its weights" {
   printf 'strategy = weighted\n[builder]\ncodex:gpt-5 weight=2\nclaude:sonnet\n' > "$CFG"
   run squeezed
   assert_output --partial "builder: weighted pool: codex:gpt-5 (2), claude:sonnet (1)"
 }
 
-@test "a bad config fails loudly" {
+@test "bad config: fails" {
   printf '[prod]\n' > "$CFG"
   run "$AGENTS"
-  assert_failure
+  assert_failure 1
 }

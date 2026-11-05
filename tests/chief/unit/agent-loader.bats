@@ -1,31 +1,39 @@
-# agents/agent.sh loader: per-task adapter from meta, command override, unknown agent.
+# agents/agent.sh loader: per-task adapter from meta, the launch command of every
+# adapter, command override, unknown agent.
 
 setup() {
   load ../lib/common
   export CHIEF_HOME="$BATS_TEST_TMPDIR/.chief"
-  . "$CHIEF_BIN/lib/paths.sh"
+  . "$BIN/lib/paths.sh"
   chief_ensure_dirs
-  . "$CHIEF_BIN/lib/meta.sh"
-  . "$CHIEF_BIN/lib/agents/agent.sh"
+  . "$BIN/lib/meta.sh"
+  . "$BIN/lib/agents/agent.sh"
 }
 
-@test "use: a task with no recorded agent is refused" {
+@test "use: refuses a task with no recorded agent" {
   run chief_agent_use none
   assert_failure 1
 }
 
-@test "use: the model reaches the adapter; no model, no model flag" {
-  chief_meta_set t1 agent claude
-  chief_meta_set t1 model opus
-  chief_agent_use t1
-  assert_equal "$(chief_agent_command)" "claude --dangerously-skip-permissions --model opus"
-  chief_meta_set t2 agent claude
-  chief_meta_set t2 model ""
-  chief_agent_use t2
-  assert_equal "$(chief_agent_command)" "claude --dangerously-skip-permissions"
+# The launch command of each adapter with no model or args, a model, args, or both.
+launch_command() {  # <agent> <model> <args> <expected>
+  chief_meta_set t9 agent "$1"
+  chief_meta_set t9 model "$2"
+  chief_meta_set t9 args "$3"
+  chief_agent_use t9
+  assert_equal "$(chief_agent_command)" "$4"
 }
+for row in "claude|claude --dangerously-skip-permissions" \
+           "codex|codex --dangerously-bypass-approvals-and-sandbox" \
+           "copilot|copilot --allow-all"; do
+  a=${row%%|*} base=${row#*|}
+  bats_test_function --description "command: $a with no model or args" -- launch_command "$a" "" "" "$base"
+  bats_test_function --description "command: $a with a model" -- launch_command "$a" big "" "$base --model big"
+  bats_test_function --description "command: $a with args" -- launch_command "$a" "" "--search" "$base --search"
+  bats_test_function --description "command: $a with a model and args" -- launch_command "$a" big "--search" "$base --model big --search"
+done
 
-@test "command override replaces the launch command, and the next task does not inherit it" {
+@test "command: an override replaces the launch command and is not inherited" {
   chief_meta_set t1 agent claude
   chief_meta_set t1 model opus
   chief_meta_set t3 agent claude
@@ -36,7 +44,7 @@ setup() {
   assert_equal "$(chief_agent_command)" "claude --dangerously-skip-permissions --model opus"
 }
 
-@test "args are appended after the unattended and model flags, and not inherited" {
+@test "args: appended after the unattended and model flags, not inherited" {
   chief_meta_set t1 agent claude
   chief_meta_set t1 model opus
   chief_meta_set t5 agent claude
@@ -54,18 +62,18 @@ setup() {
   assert_output --partial "unknown agent 'nope' (available: claude"
 }
 
-@test "load: a name with a slash is refused" {
+@test "load: refuses a name with a slash" {
   chief_meta_set bad agent ../claude
   run chief_agent_use bad
   assert_output --partial "unknown agent '../claude'"
 }
 
-@test "load: the loader file is not an adapter" {
+@test "load: refuses the loader file itself" {
   chief_meta_set bad agent agent
   run chief_agent_use bad
   assert_output --partial "unknown agent 'agent'"
 }
 
-@test "list: only adapters" {
+@test "list: names only the adapters" {
   assert_equal "$(chief_agent_list | paste -sd' ' -)" "claude codex copilot"
 }

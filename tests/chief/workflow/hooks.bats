@@ -18,13 +18,13 @@ context() { jq -r '.hookSpecificOutput.additionalContext'; }
 configured_project() {
   mkdir -p "$WORK/configured/project" && cd "$WORK/configured/project" && git init -q -b master
   git commit --allow-empty -q -m init
-  export CHIEF_HOME="$WORK/configured/project/.chief" CHIEF_BACKEND=herdr
+  PROJECT="$WORK/configured/project"
+  export CHIEF_HOME="$PROJECT/.chief" CHIEF_BACKEND=herdr
   chief_herdr_server
-  "$BIN/chief-setup.sh" --backend orca >/dev/null
+  "$BIN/chief-setup.sh" --backend orca >/dev/null  # config says orca, CHIEF_BACKEND runs herdr: the digest reads the config
 }
-spawn_in() { timeout 90 "$BIN/chief-spawn.sh" "$1" "$WORK/configured/project" --mode "${2:-builder}" --branch "feat/$1" --intent "test" --spec "test" >/dev/null; }
 
-@test "a fresh project: valid JSON identity, flagged as not configured; the arm hook lets the turn end" {
+@test "session-start: a fresh project gets valid JSON flagged as not configured" {
   mkdir -p "$WORK/fresh" && cd "$WORK/fresh" && git init -q
   run "$SS"
   assert_success
@@ -35,22 +35,22 @@ spawn_in() { timeout 90 "$BIN/chief-spawn.sh" "$1" "$WORK/configured/project" --
   assert_success
 }
 
-@test "a configured project reports its backend, no agents and an empty backlog" {
+@test "session-start: a configured project reports backend, no agents, empty backlog" {
   configured_project
   ctx=$("$SS" | context)
   [[ $ctx == *"backend: orca"* && $ctx == *"agents: not configured, workers run claude"* && $ctx == *"(empty)"* ]]
   [[ $ctx != *"NOT CONFIGURED YET"* ]]
 }
 
-@test "in-flight tasks show status, mode, agent and a brainstormer's attach hint; the arm hook rewakes on a terminal state" {
+@test "session-start: in-flight tasks show status, mode, agent and attach hint" {
   configured_project
   "$BIN/chief-backlog.sh" add t-1 "test task" >/dev/null
-  spawn_in t-1
+  spawn t-1
   echo "done: finished" >> "$CHIEF_HOME/tasks/t-1/status"
   ctx=$("$SS" | context)
   [[ $ctx == *"t-1: done: finished [mode: builder]"* && $ctx == *"[agent: claude]"* ]]
 
-  spawn_in bs-1 brainstormer
+  spawn bs-1 --mode brainstormer
   ctx=$("$SS" | context)
   [[ $ctx == *"[mode: brainstormer] [agent: claude] [attach: herdr workspace focus "* ]]
   [[ $ctx != *"[mode: builder] [agent: claude] [attach:"* ]]
@@ -60,9 +60,9 @@ spawn_in() { timeout 90 "$BIN/chief-spawn.sh" "$1" "$WORK/configured/project" --
   assert_output --partial "t-1"
 }
 
-@test "inside a builder's own worktree the hooks stand down" {
+@test "worktree: both hooks stand down inside a builder's own worktree" {
   configured_project
-  spawn_in t-1
+  spawn t-1
   echo "done: finished" >> "$CHIEF_HOME/tasks/t-1/status"
   cd "$CHIEF_HOME/worktrees/t-1"
   run "$SS"
@@ -73,9 +73,9 @@ spawn_in() { timeout 90 "$BIN/chief-spawn.sh" "$1" "$WORK/configured/project" --
   assert_success
 }
 
-@test "the primary session still arms after its cwd drifts into a worktree, resolving the home from the launch dir" {
+@test "stop-watch-arm: still arms after its cwd drifts into a worktree" {
   configured_project
-  spawn_in t-2
+  spawn t-2
   echo "done: finished" >> "$CHIEF_HOME/tasks/t-2/status"
   cd "$CHIEF_HOME/worktrees/t-2"
   CLAUDE_PROJECT_DIR="$WORK/configured/project" run "$ARM"
@@ -83,7 +83,7 @@ spawn_in() { timeout 90 "$BIN/chief-spawn.sh" "$1" "$WORK/configured/project" --
   assert_output --partial "t-2"
 
   git -C "$WORK/configured/project" worktree add -q -b ext "$WORK/ext"
-  spawn_in t-3
+  spawn t-3
   echo "done: finished" >> "$CHIEF_HOME/tasks/t-3/status"
   cd "$WORK/ext"
   CHIEF_HOME= CLAUDE_PROJECT_DIR="$WORK/configured/project" run "$ARM"

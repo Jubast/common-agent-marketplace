@@ -4,41 +4,28 @@
 
 setup() {
   load ../lib/common
-  . "$CHIEF_BIN/lib/git-sync.sh"
+  . "$BIN/lib/git-sync.sh"
   W="$BATS_TEST_TMPDIR"
 }
 
 commit() { git -C "$1" commit --allow-empty -q -m "$2"; }
 
-# project_with_origin - $W/project on main, tracking $W/origin.git, with
-# origin advanced by a second clone ($W/other) since the last fetch.
-project_with_origin() {
-  git init -q --bare -b main "$W/origin.git"
-  git init -q -b main "$W/project"
-  commit "$W/project" init
-  git -C "$W/project" remote add origin "$W/origin.git"
-  git -C "$W/project" push -q origin main
-  git clone -q "$W/origin.git" "$W/other"
-  commit "$W/other" "advance origin"
-  git -C "$W/other" push -q origin main
-}
-
-@test "never fails the caller when there is no origin remote" {
+@test "sync: succeeds without an origin" {
   git init -q -b main "$W/no-origin"
   commit "$W/no-origin" init
   run chief_sync_default_branch "$W/no-origin"
   assert_success
 }
 
-@test "fast-forwards the local default branch when on it with a clean tree" {
-  project_with_origin
+@test "sync: fast-forwards the default branch when checked out clean" {
+  project_with_origin "$W/project"
   run chief_sync_default_branch "$W/project"
   assert_success
   assert_equal "$(git -C "$W/project" rev-parse main)" "$(git -C "$W/origin.git" rev-parse main)"
 }
 
-@test "leaves main untouched while another branch is checked out" {
-  project_with_origin
+@test "sync: skips the default branch while another branch is checked out" {
+  project_with_origin "$W/project"
   git -C "$W/project" checkout -q -b feature
   before=$(git -C "$W/project" rev-parse main)
   run chief_sync_default_branch "$W/project"
@@ -46,8 +33,8 @@ project_with_origin() {
   assert_equal "$(git -C "$W/project" rev-parse main)" "$before"
 }
 
-@test "leaves main untouched with a dirty working tree" {
-  project_with_origin
+@test "sync: skips the default branch with a dirty tree" {
+  project_with_origin "$W/project"
   echo dirty > "$W/project/dirty.txt"
   before=$(git -C "$W/project" rev-parse main)
   run chief_sync_default_branch "$W/project"
@@ -55,8 +42,8 @@ project_with_origin() {
   assert_equal "$(git -C "$W/project" rev-parse main)" "$before"
 }
 
-@test "never fails when the ff-only merge can't apply (diverged history)" {
-  project_with_origin
+@test "sync: succeeds without merging when the history diverged" {
+  project_with_origin "$W/project"
   commit "$W/project" "local-only work"
   commit "$W/other" "diverging origin work"
   git -C "$W/other" push -q origin main

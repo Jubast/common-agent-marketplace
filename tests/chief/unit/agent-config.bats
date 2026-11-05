@@ -3,9 +3,9 @@
 setup() {
   load ../lib/common
   export CHIEF_HOME="$BATS_TEST_TMPDIR/.chief"
-  . "$CHIEF_BIN/lib/paths.sh"
+  . "$BIN/lib/paths.sh"
   chief_ensure_dirs
-  . "$CHIEF_BIN/lib/agents/agent.sh"
+  . "$BIN/lib/agents/agent.sh"
   CFG="$CONFIG/agents"
 }
 
@@ -15,13 +15,13 @@ cfg() { cat > "$CFG"; }
 w() { CHIEF_AGENT_RANDOM=$1 pick builder; }
 rows() { printf '%s\n' "$@"; }
 
-@test "no config, or a config with no pool: claude, default model" {
+@test "no pool: picks claude with the default model" {
   assert_equal "$(pick builder)" "claude:|"
   cfg <<< "# only comments"
   assert_equal "$(pick builder)" "claude:|"
 }
 
-@test "first: the first entry (strategy omitted), always the same" {
+@test "first: picks the first entry every time" {
   cfg <<'EOF2'
 # the pool
 
@@ -32,7 +32,7 @@ EOF2
   assert_equal "$(pick builder)" "claude:opus|"
 }
 
-@test "round-robin: rotates and wraps, persists its cursor, one cursor per mode" {
+@test "round-robin: rotates, wraps and keeps one persisted cursor per mode" {
   cfg <<'EOF2'
 strategy = round-robin   # rotate
 claude:opus
@@ -47,19 +47,20 @@ EOF2
   assert_equal "$(pick builder)" "claude:opus|"
 }
 
-@test "round-robin: parallel spawns never pick the same entry twice in a row" {
+@test "round-robin: parallel spawns spread over the entries" {
   cfg <<'EOF2'
 strategy = round-robin
 claude:opus
 codex:gpt-5
 copilot
 EOF2
-  for i in 1 2 3 4 5 6; do (chief_agent_select builder; echo "$SEL_AGENT:$SEL_MODEL") 3>&- & done > "$BATS_TEST_TMPDIR/par.out"
-  wait
+  pids=()
+  for i in 1 2 3 4 5 6; do (chief_agent_select builder; echo "$SEL_AGENT:$SEL_MODEL") 3>&- & pids+=($!); done > "$BATS_TEST_TMPDIR/par.out"
+  wait "${pids[@]}"  # not a bare wait: bats' timeout watchdog is a child too
   assert_equal "$(sort "$BATS_TEST_TMPDIR/par.out" | uniq -c | awk '{print $1}' | tr '\n' ' ')" "2 2 2 "
 }
 
-@test "weighted: the injected random walks the weight ranges; weight=0 is never picked; all zero errors" {
+@test "weighted: the random walks the ranges, weight=0 is skipped, all zero fails" {
   cfg <<'EOF2'
 strategy = weighted
 claude:opus   weight=3
@@ -82,7 +83,7 @@ EOF2
   assert_output --partial "every weight in the pool is 0"
 }
 
-@test "random: equal weights, ignoring weight=" {
+@test "random: gives every entry an equal chance and ignores weight=" {
   cfg <<'EOF2'
 strategy = random
 claude weight=100
@@ -91,7 +92,7 @@ EOF2
   assert_equal "$(w 0; w 1; w 2)" "$(rows "claude:|" "codex:|" "claude:|")"
 }
 
-@test "sections: a researcher pool with its own strategy; a builder pool inherits the global one" {
+@test "sections: a pool has its own strategy and the others inherit the global one" {
   cfg <<'EOF2'
 strategy = first
 claude:opus
@@ -106,18 +107,7 @@ EOF2
   assert_equal "$(pick builder)" "codex:gpt-5|"
 }
 
-@test "sections: a mode without a section uses the global pool; the researcher pool wins" {
-  cfg <<'EOF2'
-strategy = round-robin
-claude:opus
-[researcher]
-codex
-EOF2
-  assert_equal "$(pick builder; pick builder)" "$(rows "claude:opus|" "claude:opus|")"
-  assert_equal "$(pick researcher)" "codex:|"
-}
-
-@test "args and command are parsed next to weight in any order, without leaking into the next pick" {
+@test "parse: args and command sit next to weight in any order and do not leak" {
   cfg <<'EOF2'
 claude:opus args="--verbose --add-dir /x" weight=2 command="wrap"
 codex args="--search"
@@ -137,33 +127,34 @@ EOF2
   assert_equal "$(pick builder)" "claude:opus|/opt/bin/claude --dangerously-skip-permissions --foo"
 }
 
-@test "builder-only, researcher-only, both and neither pools" {
+@test "sections: a mode without a section uses the global pool; the researcher pool wins" {
   cfg <<'EOF2'
-claude:opus
-[builder]
-codex:gpt-5
-EOF2
-  assert_equal "$(pick builder; pick researcher)" "$(rows "codex:gpt-5|" "claude:opus|")"
-  cfg <<'EOF2'
+strategy = round-robin
 claude:opus
 [researcher]
-copilot
+codex
 EOF2
-  assert_equal "$(pick builder; pick researcher)" "$(rows "claude:opus|" "copilot:|")"
-  cfg <<'EOF2'
-[builder]
-codex:gpt-5
-[researcher]
-copilot
-EOF2
-  assert_equal "$(pick builder; pick researcher)" "$(rows "codex:gpt-5|" "copilot:|")"
-  cfg <<'EOF2'
-claude:opus
-EOF2
-  assert_equal "$(pick builder; pick researcher)" "$(rows "claude:opus|" "claude:opus|")"
+  assert_equal "$(pick builder; pick builder)" "$(rows "claude:opus|" "claude:opus|")"
+  assert_equal "$(pick researcher)" "codex:|"
 }
 
-@test "peek: shows the next pick without advancing or writing a cursor" {
+# pools_pick <config> <builder pick> <researcher pick>
+pools_pick() {
+  printf '%s\n' "$1" | cfg
+  assert_equal "$(pick builder; pick researcher)" "$(rows "$2" "$3")"
+}
+bats_test_function --description "sections: a builder-only pool leaves the researcher on the global one" \
+  -- pools_pick $'claude:opus\n[builder]\ncodex:gpt-5' "codex:gpt-5|" "claude:opus|"
+bats_test_function --description "sections: a researcher-only pool leaves the builder on the global one" \
+  -- pools_pick $'claude:opus\n[researcher]\ncopilot' "claude:opus|" "copilot:|"
+bats_test_function --description "sections: both pools win over the global one" \
+  -- pools_pick $'claude:opus\n[builder]\ncodex:gpt-5\n[researcher]\ncopilot' "codex:gpt-5|" "copilot:|"
+bats_test_function --description "sections: a global pool alone serves both roles" \
+  -- pools_pick 'claude:opus' "claude:opus|" "claude:opus|"
+bats_test_function --description "sections: section pools alone serve their own roles" \
+  -- pools_pick $'[builder]\ncodex:gpt-5\n[researcher]\ncopilot' "codex:gpt-5|" "copilot:|"
+
+@test "peek: shows the next pick without moving or writing the cursor" {
   cfg <<'EOF2'
 strategy = round-robin
 claude:opus
@@ -178,7 +169,7 @@ EOF2
   assert_equal "$SEL_AGENT" codex
 }
 
-@test "peek and describe: weighted and all pools are listed, the claude default is marked" {
+@test "describe: lists weighted and all pools and marks the claude default" {
   cfg <<'EOF2'
 strategy = weighted
 claude:opus weight=3
@@ -206,7 +197,7 @@ EOF2
   assert_equal "$(chief_agent_describe)" "claude (no pool configured)"
 }
 
-@test "weights are decimal and bounded" {
+@test "weight: is decimal and bounded" {
   cfg <<'EOF2'
 strategy = weighted
 claude weight=08
@@ -221,7 +212,7 @@ EOF2
   assert_equal "$(w 999; w 1000)" "$(rows "claude:|" "codex:|")"
 }
 
-@test "CRLF line endings are ignored" {
+@test "parse: ignores CRLF line endings" {
   printf 'strategy = round-robin\r\nclaude:opus\r\n[researcher]\r\ncodex args="--search"\r\n' > "$CFG"
   assert_equal "$(pick builder; pick researcher)" "$(rows "claude:opus|" "codex:|")"
 }
@@ -255,7 +246,7 @@ claude command="unterminated|unexpected
 claude:$(rm)|bad profile
 EOF2
 
-@test "error: names the file line" {
+@test "config error: names the file line" {
   run bad_config $'claude\ncodex x'
   assert_output --partial "agents:2:"
 }

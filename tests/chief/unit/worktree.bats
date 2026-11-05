@@ -4,7 +4,7 @@
 
 setup() {
   load ../lib/common
-  . "$CHIEF_BIN/lib/worktree.sh"
+  . "$BIN/lib/worktree.sh"
   W="$BATS_TEST_TMPDIR"
   mkdir -p "$W/main" && cd "$W/main"
   git init -q -b main
@@ -12,31 +12,31 @@ setup() {
   git worktree add -q -b feature "$W/linked"
 }
 
-@test "the main checkout is NOT reported as a linked worktree" {
+@test "is_linked_worktree: false for the main checkout" {
   cd "$W/main"
   run chief_is_linked_worktree
   assert_failure 1
 }
 
-@test "a linked worktree IS reported as one" {
+@test "is_linked_worktree: true for a linked worktree" {
   cd "$W/linked"
   run chief_is_linked_worktree
   assert_success
 }
 
-@test "a plain non-git directory is not reported as a linked worktree" {
+@test "is_linked_worktree: false for a non-git directory" {
   cd "$W"
   run chief_is_linked_worktree
   assert_failure 1
 }
 
-@test "an explicit dir argument is judged instead of the cwd" {
+@test "is_linked_worktree: judges an explicit dir, not the cwd" {
   cd "$W/main"
   run chief_is_linked_worktree "$W/linked"
   assert_success
 }
 
-@test "an explicit main-checkout dir is not linked even when the cwd is" {
+@test "is_linked_worktree: false for an explicit main checkout run from a linked cwd" {
   cd "$W/linked"
   run chief_is_linked_worktree "$W/main"
   assert_failure 1

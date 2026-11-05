@@ -1,6 +1,7 @@
 # common.bash - shared setup for Chief's .bats files: a real herdr per test,
 # running the zero-cost stand-in agent (fixtures/standin/), never a paid CLI.
-# `load lib/common` from setup() or setup_file(); call chief_common_setup, then chief_project.
+# `load ../lib/common` from setup() or setup_file(); call chief_common_setup, then
+# chief_project and chief_herdr_server for a test that spawns tasks.
 
 # chief_isolate - runs when this file is loaded: nothing from the caller's
 # environment (an operator's herdr, a Chief worker's CHIEF_*, a git identity)
@@ -20,9 +21,9 @@ chief_isolate
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 BIN="$REPO_ROOT/plugins/chief/bin"
-CHIEF_BIN="$BIN"
 STANDIN_BIN="$TEST_DIR/fixtures/standin"
 
+bats_require_minimum_version 1.5.0  # run -N and --separate-stderr
 bats_load_library bats-support
 bats_load_library bats-assert
 bats_load_library bats-file
@@ -60,6 +61,7 @@ chief_herdr_require() {
 # CLIs are the stand-ins, no network (herdr falls back to its built-in rules).
 chief_herdr_server() {
   local d i server_path
+  chief_herdr_require || return 1
   server_path="$STANDIN_BIN:$(dirname "$(command -v herdr)"):$(dirname "$(command -v jq)"):/usr/bin:/bin"
   chief_zero_cost_guard "$server_path" || return 1
   d=$(mktemp -d "${TMPDIR:-/tmp}/chs.XXXX")  # sun_path caps the socket path at 107 bytes
@@ -97,19 +99,13 @@ chief_herdr_stop() {
   return $rc
 }
 
-# chief_project - a git repo at $WORK/project, CHIEF_HOME and the herdr backend.
+# chief_project - a git repo at $WORK/project (branch main), CHIEF_HOME and the herdr backend.
+# A test that spawns tasks then calls chief_herdr_server.
 chief_project() {
   mkdir -p "$WORK/project"
-  git -C "$WORK/project" init -q -b master
+  git -C "$WORK/project" init -q -b main
   git -C "$WORK/project" commit --allow-empty -q -m init
   export CHIEF_HOME="$WORK/.chief" CHIEF_BACKEND=herdr
-  chief_herdr_server
-}
-
-# spawn <id> [chief-spawn args] - a builder on feat/<id> in $WORK/project.
-spawn() {
-  local id=$1; shift
-  timeout 90 "$BIN/chief-spawn.sh" "$id" "$WORK/project" --mode builder --branch "feat/$id" --intent "test" --spec "test" "$@" >/dev/null
 }
 
 # chief_spawn <id> <role> [chief-spawn flags...] - chief-spawn.sh on feat/<id> in
@@ -120,6 +116,9 @@ chief_spawn() {
   timeout 90 "$BIN/chief-spawn.sh" "$id" "${PROJECT:-$WORK/project}" --mode "$role" \
     --branch "feat/$id" --intent "intent of $id" --spec "spec of $id" "$@"
 }
+# spawn <id> [flags...] - a quiet builder.
+spawn() { local id=$1; shift; chief_spawn "$id" builder "$@" >/dev/null; }
+
 # chief_done_builder <id> [file] - a builder with one commit and a done line
 # carrying its sha, filed in the backlog as "T <id>".
 chief_done_builder() {
@@ -194,7 +193,7 @@ standin_type() {
 
 # wait_settled <id> - waits for the agent's current turn (the brief) to finish.
 wait_settled() {
-  settled() { ! herdr agent get "$1" | jq -e '.result.agent.agent_status == "working"' >/dev/null; }
+  settled() { herdr agent get "$1" | jq -e '.result.agent.agent_status | . == "idle" or . == "done"' >/dev/null; }
   eventually 20 settled "$1"
 }
 

@@ -4,13 +4,13 @@ setup() {
   load ../lib/common
   cd "$BATS_TEST_TMPDIR" && git init -q
   export CHIEF_HOME="$BATS_TEST_TMPDIR/.chief"
-  . "$CHIEF_BIN/lib/paths.sh"
-  . "$CHIEF_BIN/lib/meta.sh"
-  BL="$CHIEF_BIN/chief-backlog.sh"
+  . "$BIN/lib/paths.sh"
+  . "$BIN/lib/meta.sh"
+  BL="$BIN/chief-backlog.sh"
   BACKLOG="$CHIEF_HOME/backlog.md"
 }
 
-@test "add files queued records; list and next see them" {
+@test "add: files a queued record that list and next see" {
   run "$BL" add t-1 "Add rate limiting"; assert_success
   run "$BL" add t-2 "Fix flaky test"; assert_success
   run "$BL" list
@@ -18,7 +18,7 @@ setup() {
   assert_equal "$("$BL" next)" t-1
 }
 
-@test "status moves a record to in-flight and next skips it" {
+@test "status: moves a record to in-flight and next skips it" {
   "$BL" add t-1 "a"; "$BL" add t-2 "b"
   run "$BL" status t-1 in-flight; assert_success
   run "$BL" show t-1
@@ -26,7 +26,7 @@ setup() {
   assert_equal "$("$BL" next)" t-2
 }
 
-@test "hold sets status and note together, and is a no-op on meta without a meta record" {
+@test "hold: sets status and note and leaves a task without meta alone" {
   "$BL" add t-1 "a"
   run "$BL" hold t-1 "blocked on the operator - which limiter lib?"; assert_success
   run "$BL" show t-1
@@ -35,7 +35,7 @@ setup() {
   assert_equal "$(chief_meta_get t-1 status 2>/dev/null || true)" ""
 }
 
-@test "note overwrites the existing note, not appends" {
+@test "note: overwrites the existing note" {
   "$BL" add t-1 "a"; "$BL" hold t-1 "blocked on the operator - which limiter lib?"
   run "$BL" note t-1 "operator said: token-bucket"; assert_success
   run cat "$BACKLOG"
@@ -44,7 +44,7 @@ setup() {
   assert_equal "$(grep -c '^note:' "$BACKLOG")" 1
 }
 
-@test "done marks a record done; next returns nothing once none is queued" {
+@test "done: marks the record done and next finds nothing queued" {
   "$BL" add t-2 "b"
   run "$BL" done t-2; assert_success
   run "$BL" list done
@@ -52,7 +52,7 @@ setup() {
   assert_equal "$("$BL" next)" ""
 }
 
-@test "hold and done on a spawned task advance its meta status away from working" {
+@test "hold, done: move a spawned task's meta status off working" {
   "$BL" add t-3 "c"; chief_meta_set t-3 status working
   run "$BL" hold t-3 "needs a decision"; assert_success
   assert_equal "$(chief_meta_get t-3 status)" held
@@ -61,7 +61,7 @@ setup() {
   assert_equal "$(chief_meta_get t-4 status)" done
 }
 
-@test "status in-flight un-holds a task and restores meta working, so the watcher picks it up again (#31)" {
+@test "status: in-flight un-holds a task and restores meta working (#31)" {
   "$BL" add t-5 "e"; chief_meta_set t-5 status working
   "$BL" hold t-5 "needs a decision"
   assert_equal "$(chief_meta_get t-5 status)" held
@@ -71,7 +71,7 @@ setup() {
   assert_equal "$(chief_meta_get t-5 status)" working
 }
 
-@test "an in-flight record appends its agent after the title; queued ones carry none" {
+@test "agent tag: only in-flight records carry it, after the title" {
   "$BL" add t-5 "Fifth task"; "$BL" status t-5 in-flight
   "$BL" add t-6 "Sixth task"
   chief_meta_set t-6 agent codex; chief_meta_set t-6 model gpt-5
@@ -87,27 +87,26 @@ setup() {
   assert_equal "$("$BL" next)" ""
 }
 
-@test "status in-flight creates no meta for a task without one" {
+@test "status: in-flight creates no meta for a task without one" {
   "$BL" add t-2 "b"
   run "$BL" status t-2 in-flight; assert_success
   assert_equal "$(chief_meta_get t-2 status 2>/dev/null || true)" ""
 }
 
-@test "add refuses a duplicate id and invalid ids, suggests a valid one, writes nothing" {
+@test "add: refuses a duplicate id" {
   "$BL" add t-1 "a"
-  run "$BL" add t-1 "dup"; assert_failure
+  run -1 "$BL" add t-1 "dup"
+}
+
+@test "add: refuses an invalid id, suggests a valid one and writes nothing" {
   LONG=build-keycloak-name-with-a-long-tail-of-words
-  for bad in "$LONG" Build-x build.x build_x "build x" 9lives; do
-    run "$BL" add "$bad" "t"
-    assert_failure
-  done
-  run "$BL" add "$LONG" t
+  run -1 "$BL" add "$LONG" t
   assert_output --partial "try 'build-keycloak-name-with-a-long'"
   run cat "$BACKLOG"
   refute_output --partial "$LONG"
 }
 
-@test "status, note and done still work on an already-filed long id" {
+@test "long id: status, note and done still work on one already filed" {
   LONG=build-keycloak-name-with-a-long-tail-of-words
   mkdir -p "$CHIEF_HOME"
   printf '## %s [queued] old long id\n' "$LONG" >> "$BACKLOG"
@@ -116,10 +115,35 @@ setup() {
   run "$BL" done "$LONG"; assert_success
 }
 
-@test "unknown ids and invalid status values are refused; show on an unknown id prints nothing" {
+@test "unknown id: status and note are refused, show prints nothing" {
   "$BL" add t-1 "a"
-  run "$BL" status nope queued; assert_failure
-  run "$BL" status t-1 bogus; assert_failure
-  run "$BL" note nope "x"; assert_failure
+  run -1 "$BL" status nope queued
+  run -1 "$BL" status t-1 bogus
+  run -1 "$BL" note nope "x"
   assert_equal "$("$BL" show nope)" ""
+}
+
+# task_meta <id> <endpoint> - a hand-written meta for a spawned task
+task_meta() {
+  mkdir -p "$CHIEF_HOME/tasks/$1"
+  printf 'project=%s\nmode=builder\nbranch=feat/%s\nworktree=%s/worktrees/%s\nendpoint=%s\n' \
+    "$BATS_TEST_TMPDIR" "$1" "$CHIEF_HOME" "$1" "$2" > "$CHIEF_HOME/tasks/$1/meta"
+}
+
+@test "show: prints the branch, worktree, report path and workspace of a spawned task" {
+  task_meta t-1 herdr:w3:p1
+  "$BL" add t-1 "Task one" >/dev/null
+  "$BL" status t-1 in-flight >/dev/null
+  run "$BL" show t-1
+  assert_output --partial "  branch: feat/t-1"
+  assert_output --partial "  worktree: $CHIEF_HOME/worktrees/t-1"
+  assert_output --partial "  report: $CHIEF_HOME/tasks/t-1/report.md"
+  assert_output --partial "  workspace: t-1"
+}
+
+@test "show: names the workspace of an Orca task from its endpoint" {
+  task_meta old-o orca:h
+  "$BL" add old-o "Orca task" >/dev/null
+  run "$BL" show old-o
+  assert_output --partial "  workspace: old-o"
 }

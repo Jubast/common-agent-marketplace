@@ -12,6 +12,7 @@ setup() {
   load ../lib/common
   chief_common_setup
   chief_project
+  chief_herdr_server
   export CHIEF_HERDR_START_WAIT=3 CHIEF_HERDR_PROMPT_WAIT=3
   . "$BIN/lib/paths.sh"; . "$BIN/lib/meta.sh"; . "$BIN/lib/agents/agent.sh"
   chief_ensure_dirs
@@ -42,22 +43,22 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 
 # --- start: readiness comes from the screen ---------------------------------
 
-@test "start: a ready screen -> ready" {
+@test "start: succeeds on a ready screen" {
   open_pane t1
   run _chief_herdr_start_agent t1 "$PANE" "$WT"
   assert_success
 }
 
-@test "start: herdr itself giving up on a pane that never renders the TUI is a failed start" {
-  standin_mode t1 never-ready
+@test "start: fails when herdr gives up on a pane that never renders the TUI" {
+  standin_never_ready t1
   open_pane t1
   run _chief_herdr_start_agent t1 "$PANE" "$WT"
   assert_failure 1
   assert_output --partial "'herdr agent start' failed for t1"
 }
 
-@test "start: only the shell line (TUI not rendered) -> not ready after the wait, showing the screen" {
-  standin_mode t1 never-ready
+@test "start: fails with the screen shown when only the shell line renders" {
+  standin_never_ready t1
   herdr_fault "agent start" 1 after 1 '{"error":{"code":"agent_not_ready","message":"agent t1 is not ready"}}'
   open_pane t1
   run _chief_herdr_start_agent t1 "$PANE" "$WT"
@@ -66,21 +67,21 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_output --partial "screen:"
 }
 
-@test "start: a late TUI -> start waits and succeeds" {
+@test "start: waits for a late TUI" {
   standin_mode t1 late=2
   open_pane t1
   CHIEF_HERDR_START_WAIT=10 run _chief_herdr_start_agent t1 "$PANE" "$WT"
   assert_success
 }
 
-@test "start: 'agent start' reporting agent_not_ready does not decide: the screen does" {
+@test "start: lets the screen, not an agent_not_ready reply, decide" {
   herdr_fault "agent start" 1 after 1 '{"error":{"code":"agent_not_ready","message":"agent t1 is blocked during startup"}}'
   open_pane t1
   run _chief_herdr_start_agent t1 "$PANE" "$WT"
   assert_success
 }
 
-@test "start: a pane whose shell is not up yet (agent_pane_busy) is retried, then started" {
+@test "start: retries a pane whose shell is not up yet" {
   herdr_fault "agent start" 1 before 1 '{"error":{"code":"agent_pane_busy","message":"agent target pane is not an available shell"}}'
   open_pane t1
   run _chief_herdr_start_agent t1 "$PANE" "$WT"
@@ -88,7 +89,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(fault_hits 1)" 1
 }
 
-@test "start: a pane that stays busy fails after the wait with herdr's error" {
+@test "start: fails with herdr's error when the pane stays busy" {
   herdr_fault "agent start" 1000 before 1 '{"error":{"code":"agent_pane_busy","message":"not an available shell"}}'
   open_pane t1
   CHIEF_HERDR_START_WAIT=2 run _chief_herdr_start_agent t1 "$PANE" "$WT"
@@ -96,7 +97,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_output --partial "agent_pane_busy"
 }
 
-@test "start: any other 'agent start' failure fails at once with herdr's error" {
+@test "start: fails at once on any other 'agent start' error" {
   herdr_fault "agent start" 1000 before 1 '{"error":{"code":"unknown_kind"}}'
   open_pane t1
   run _chief_herdr_start_agent t1 "$PANE" "$WT"
@@ -105,7 +106,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(fault_hits 1)" 1
 }
 
-@test "start: an agent name over 32 chars is rejected by herdr itself" {
+@test "start: herdr rejects an agent name over 32 characters" {
   open_pane long
   run _chief_herdr_start_agent build-keycloak-name-with-a-long-tail-of-words "$PANE" "$WT"
   assert_failure 1
@@ -115,7 +116,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 
 # --- start: folder-trust dialog ---------------------------------------------
 
-@test "trust: the dialog for Chief's own worktree is accepted with down enter, once, then ready" {
+@test "trust: accepts the dialog for Chief's own worktree once, then is ready" {
   standin_mode t1 trust
   open_pane t1
   run _chief_herdr_start_agent t1 "$PANE" "$WT"
@@ -123,7 +124,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(standin_keys t1)" $'down\nenter'
 }
 
-@test "trust: a dialog that stays after accepting -> not ready, accepted only once, dialog shown" {
+@test "trust: a dialog that stays after accepting fails with one acceptance" {
   standin_mode t1 trust trust-sticky
   open_pane t1
   run _chief_herdr_start_agent t1 "$PANE" "$WT"
@@ -143,7 +144,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 
 # --- prompt: 'blocked' is not 'turn started' --------------------------------
 
-@test "prompt: a reply of blocked -> failure, not retried" {
+@test "prompt: fails without a retry when herdr replies blocked" {
   started_agent
   herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
   run _chief_herdr_prompt t1 "$BRIEF"
@@ -151,14 +152,14 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(fault_hits 1)" 1
 }
 
-@test "prompt: a reply of working -> success, the brief arrived as one turn" {
+@test "prompt: succeeds on a working reply, with the brief as one turn" {
   started_agent
   run _chief_herdr_prompt t1 "$BRIEF"
   assert_success
   assert_equal "$(turn_count)" 1
 }
 
-@test "prompt: herdr rejecting the prompt -> failure with herdr's error" {
+@test "prompt: fails with herdr's error when herdr rejects it" {
   started_agent
   herdr_fault "agent prompt" 100 before 1 '{"error":{"code":"agent_blocked"}}'
   run _chief_herdr_prompt t1 "$BRIEF"
@@ -168,7 +169,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 
 # --- prompt: stall recovery (herdr's own 5 s stall is real) -------------------
 
-@test "stall: the text landed as a placeholder and Enter was lost -> a bare Enter, never a resend" {
+@test "stall: sends a bare Enter, not a resend, when Enter was lost" {
   standin_mode t1 lose-enter=1
   started_agent
   run _chief_herdr_prompt t1 "$BRIEF"
@@ -177,7 +178,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(standin_keys t1)" "enter-lost"
 }
 
-@test "stall: Enter sent but no turn started -> failure, still no resend" {
+@test "stall: fails without a resend when the Enter started no turn" {
   standin_mode t1 lose-enter=2
   started_agent
   run _chief_herdr_prompt t1 "$BRIEF"
@@ -186,7 +187,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(standin_keys t1)" $'enter-lost\nenter-lost'
 }
 
-@test "stall: the raw head of the brief in the input line -> Enter" {
+@test "stall: sends Enter when the raw head of the brief sits in the input line" {
   standin_mode t1 lose-enter=1
   started_agent
   run _chief_herdr_prompt t1 "$SHORT"
@@ -194,7 +195,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(turn_count)" 1
 }
 
-@test "stall: a brief already submitted (text above a fresh empty box) -> wait for the turn, no Enter, no resend" {
+@test "stall: waits for the turn of an already submitted brief" {
   standin_mode t1 slow-work=7
   started_agent
   run _chief_herdr_prompt t1 "$SHORT"
@@ -203,7 +204,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(standin_keys t1)" ""
 }
 
-@test "stall: a brief that never arrived (ready, empty box) -> resent once" {
+@test "stall: resends once when the box is empty" {
   standin_mode t1 drop=1
   started_agent
   run _chief_herdr_prompt t1 "$SHORT"
@@ -212,7 +213,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(standin_keys t1)" "dropped"
 }
 
-@test "stall: stalled again after the resend -> not resent a third time, and says no turn started" {
+@test "stall: stops after one resend and says no turn started" {
   standin_mode t1 drop=2
   started_agent
   run _chief_herdr_prompt t1 "$SHORT"
@@ -221,7 +222,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(standin_keys t1)" $'dropped\ndropped'
 }
 
-@test "stall: a stall at a blocked agent says so" {
+@test "stall: names an unanswered permission prompt at a blocked agent" {
   started_agent
   herdr_fault "agent prompt" 100 before 1 "$STALLED"
   herdr_fault "agent get" 100 before 0 "$BLOCKED"
@@ -232,14 +233,10 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 
 # --- spawn / relaunch --------------------------------------------------------
 
-spawn_researcher() {
-  timeout 120 "$BIN/chief-spawn.sh" "$1" "$WORK/project" --mode researcher --branch "res/$1" --intent x 2>&1
-}
-
-@test "spawn: a 'blocked' reply -> non-zero, no 'spawned:', rolled back, only the task's workspace closed" {
+@test "spawn: a blocked reply fails, rolls back and closes only the task's workspace" {
   herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
-  run spawn_researcher s1
-  assert_failure
+  run chief_spawn s1 researcher
+  assert_failure 1
   refute_output --partial "spawned:"
   assert_not_exist "$CHIEF_HOME/tasks/s1/meta"
   run workspace_labels
@@ -247,41 +244,41 @@ spawn_researcher() {
   assert_output --partial "project"
 }
 
-@test "spawn: a healthy spawn prints 'spawned:' and creates a workspace labeled with the plain id" {
-  run spawn_researcher s2
+@test "spawn: prints 'spawned:' and labels the workspace with the plain id" {
+  run chief_spawn s2 researcher
   assert_success
   assert_output --partial "spawned: s2"
   run workspace_labels
   assert_output --partial "s2"
 }
 
-@test "spawn: a lost pre-trust (the dialog for the new worktree) is accepted and the spawn succeeds" {
+@test "spawn: accepts the dialog of a lost pre-trust" {
   standin_mode s4 trust
-  run spawn_researcher s4
+  run chief_spawn s4 researcher
   assert_success
   assert_output --partial "spawned: s4"
 }
 
 # relaunchable_task - r1 spawned, then killed, as chief-control.sh leaves it
 relaunchable_task() {
-  spawn_researcher r1 >/dev/null
+  spawn r1 --mode researcher
   OLD_ENDPOINT=$(chief_meta_get r1 endpoint)
   chief_agent_use r1 >/dev/null 2>&1
   backend_kill r1
   printf 'brief\n' > "$WORK/brief.md"
 }
 
-@test "relaunch: a 'blocked' reply -> fails, closes the task's workspace, records no new endpoint" {
+@test "relaunch: a blocked reply fails, closes the workspace and records no endpoint" {
   relaunchable_task
   herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
   run backend_relaunch r1 "$WORK/brief.md"
-  assert_failure
+  assert_failure 1
   assert_equal "$(chief_meta_get r1 endpoint)" "$OLD_ENDPOINT"
   run workspace_labels
   refute_output --partial "r1"
 }
 
-@test "relaunch: a started turn -> success, records the endpoint and reopens the workspace by its plain id" {
+@test "relaunch: records a fresh endpoint and reopens the workspace by its plain id" {
   relaunchable_task
   run backend_relaunch r1 "$WORK/brief.md"
   assert_success
@@ -311,19 +308,27 @@ adapter_spawn() {
   chief_meta_set "$id" worktree "$(sed -n 1p <<< "$SPAWN_OUT")"
 }
 
-@test "backend_spawn: worktree and endpoint lines, a primary workspace plus one labeled task workspace, pre-trust, a second task, backend_kill" {
+@test "backend_spawn: prints the worktree and endpoint lines, pre-trusts the worktree" {
   adapter_spawn t-herdr-1
   assert_equal "$(sed -n 1p <<< "$SPAWN_OUT")" "$CHIEF_HOME/worktrees/t-herdr-1"
   [[ $(sed -n 2p <<< "$SPAWN_OUT") == herdr:* ]]
   assert_exist "$CHIEF_HOME/worktrees/t-herdr-1/.git"
+  assert_equal "$(trusted "$CHIEF_HOME/worktrees/t-herdr-1")" true
+}
+
+@test "backend_spawn: adds one task workspace labeled with the id next to the primary" {
+  adapter_spawn t-herdr-1
   PRIMARY=$(primary_ws "$WORK/project")
   [ -n "$PRIMARY" ]
   endpoint=$(chief_meta_get t-herdr-1 endpoint)
   assert_equal "$(ws_label "$(_chief_herdr_workspace_id "${endpoint#herdr:}")")" t-herdr-1
   assert_equal "$(chief_meta_get t-herdr-1 label 2>/dev/null || echo none)" none
   assert_equal "$(linked_count "$WORK/project")" 1
-  assert_equal "$(jq -r --arg p "$CHIEF_HOME/worktrees/t-herdr-1" '.projects[$p].hasTrustDialogAccepted' "$CLAUDE_CONFIG_DIR/.claude.json")" true
+}
 
+@test "backend_kill: closes only its task's workspace" {
+  adapter_spawn t-herdr-1
+  PRIMARY=$(primary_ws "$WORK/project")
   adapter_spawn t-herdr-2
   assert_equal "$(linked_count "$WORK/project")" 2
   assert_equal "$(primary_ws "$WORK/project")" "$PRIMARY"
@@ -332,7 +337,7 @@ adapter_spawn() {
   assert_equal "$(primary_ws "$WORK/project")" "$PRIMARY"
 }
 
-@test "the pane shows the reply and bypass permissions; backend_busy is idle once it is done" {
+@test "backend_busy: is idle once the turn is done and the pane shows the reply" {
   adapter_spawn t-herdr-1
   eventually 20 idle t-herdr-1
   run capture t-herdr-1
@@ -340,7 +345,7 @@ adapter_spawn() {
   assert_output --partial "bypass permissions"
 }
 
-@test "the input-line check misses text never sent and catches our own text while genuinely in flight" {
+@test "input line: misses text never sent and catches our own text in flight" {
   standin_mode t1 lose-enter=1
   started_agent
   box_has() {
@@ -348,30 +353,40 @@ adapter_spawn() {
       | chief_agent_has_text "$(printf '%s' "$1" | tr -s '[:space:]' ' ' | cut -c1-24)"
   }
   run box_has "never sent to this pane xyz123"
-  assert_failure
+  assert_failure 1
   ( herdr agent prompt t1 "in flight text for the box" --wait --until working --until blocked --timeout 30000 >/dev/null 2>&1 ) 3>&- &
+  prompt_pid=$!
   caught=0
   for _ in $(seq 1 100); do box_has "in flight text for the box" && { caught=1; break; }; sleep 0.05; done
-  wait
+  wait "$prompt_pid" || true  # the prompt itself may fail: the stand-in loses its Enter
   assert_equal "$caught" 1
 }
 
-@test "backend_send Escape, backend_kill leaves the worktree and primary workspace, backend_relaunch gives a fresh endpoint" {
+@test "backend_send: delivers Escape" {
   adapter_spawn t-herdr-1
   eventually 20 idle t-herdr-1
-  old=$(chief_meta_get t-herdr-1 endpoint)
-  PRIMARY=$(primary_ws "$WORK/project")
   run backend_send t-herdr-1 Escape
   assert_success
+}
+
+@test "backend_kill: leaves the worktree and the primary workspace" {
+  adapter_spawn t-herdr-1
+  eventually 20 idle t-herdr-1
+  PRIMARY=$(primary_ws "$WORK/project")
   backend_kill t-herdr-1
   assert_exist "$CHIEF_HOME/worktrees/t-herdr-1/.git"
   assert_equal "$(linked_count "$WORK/project")" 0
   assert_equal "$(primary_ws "$WORK/project")" "$PRIMARY"
+}
+
+@test "backend_relaunch: reopens a killed task in a workspace labeled with its id" {
+  adapter_spawn t-herdr-1
+  eventually 20 idle t-herdr-1
+  backend_kill t-herdr-1
   printf '%s\n' "$SHORT" > "$WORK/brief2.md"
   run backend_relaunch t-herdr-1 "$WORK/brief2.md"
   assert_success
   new=$(chief_meta_get t-herdr-1 endpoint)
-  assert_not_equal "$new" "$old"
   assert_equal "$(linked_count "$WORK/project")" 1
   assert_equal "$(ws_label "$(_chief_herdr_workspace_id "${new#herdr:}")")" t-herdr-1
   eventually 20 idle t-herdr-1
@@ -380,3 +395,31 @@ adapter_spawn() {
   backend_kill t-herdr-1
   assert_equal "$(linked_count "$WORK/project")" 0
 }
+
+# --- the workspace name and its cleanup -----------------------------------
+
+# workspaces - "label|checkout-path" per herdr workspace
+workspaces() { herdr workspace list | jq -r '.result.workspaces[] | "\(.label)|\(.worktree.checkout_path // "")"'; }
+
+@test "attach hint: names the plain label" {
+  chief_meta_set fix-58 endpoint herdr:w1:p1
+  assert_equal "$(backend_attach_hint fix-58)" 'herdr workspace focus w1 (workspace "fix-58")'
+}
+
+# cleanup_closes_only <label of the task's workspace>
+cleanup_closes_only() {
+  spawn fix-58
+  spawn fix-580
+  herdr workspace create --cwd "$WORK" --label fix-58 >/dev/null   # a label twin with no worktree
+  [ "$1" = fix-58 ] || herdr workspace rename "$(herdr workspace list | jq -r '.result.workspaces[] | select(.worktree.checkout_path == "'"$WORKTREES/fix-58"'") | .workspace_id')" "$1" >/dev/null
+  _chief_herdr_close_task_workspace fix-58
+  run workspaces
+  refute_line --regexp "\\|$WORKTREES/fix-58\$"
+  assert_line "fix-580|$WORKTREES/fix-580"
+  assert_line "fix-58|"   # the twin survives
+  assert_line "project|$WORK/project"
+}
+for label in "fix-58" "fix-58 · builder · project"; do
+  bats_test_function --description "cleanup: closes only the task's workspace labelled '$label'" \
+    -- cleanup_closes_only "$label"
+done

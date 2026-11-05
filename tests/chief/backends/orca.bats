@@ -6,7 +6,6 @@
 
 # bats file_tags=orca
 BATS_NO_PARALLELIZE_WITHIN_FILE=true
-bats_require_minimum_version 1.5.0
 
 setup_file() {
   load ../lib/common
@@ -16,6 +15,11 @@ setup_file() {
 }
 
 teardown_file() { chief_orca_stop; }
+
+teardown() {  # the next test starts with no stand-in of this one running
+  local i
+  for i in "$ID" "${ID}b" "$LID"; do backend_kill "$i" >/dev/null 2>&1 || true; done
+}
 
 setup() {
   load ../lib/common
@@ -48,7 +52,6 @@ listed() {  # <worktree> - Orca still lists it
 terminals() { orca terminal list --worktree "path:$1" --json 2>/dev/null | jq -r '[.result.terminals[]?] | length'; }
 turn_count() { standin_turns "$1" | grep -c 'turn:' || true; }
 turns_are() { [ "$(turn_count "$1")" -eq "$2" ]; }
-trusted() { jq -r --arg p "$1" '.projects[$p].hasTrustDialogAccepted // "unset"' "$CLAUDE_CONFIG_DIR/.claude.json"; }
 branch_count() { git -C "$P" branch --list "$1" | wc -l | tr -d ' '; }
 idle() { ! backend_busy "$ID"; }
 got_esc() { [ "$(standin_keys "$ID")" = esc ]; }
@@ -65,7 +68,7 @@ spawned() {
 rolled_back() {
   assert_not_exist "$HOME/orca/workspaces/$(basename "$P")/$ID"
   run listed "$HOME/orca/workspaces/$(basename "$P")/$ID"
-  assert_failure
+  assert_failure 1
   assert_equal "$(branch_count "chief/$ID")" 0
   assert_equal "$(trusted "$HOME/orca/workspaces/$(basename "$P")/$ID")" unset
 }
@@ -100,7 +103,7 @@ rolled_back() {
   assert_equal "$(child_count)" 2
   backend_spawn_cleanup "${ID}b" "$P" "chief/${ID}b"
   run listed "$second"
-  assert_failure
+  assert_failure 1
   assert_not_exist "$second"
   assert_equal "$(branch_count "chief/${ID}b")" 0
   assert_equal "$(child_count)" 1
@@ -233,7 +236,7 @@ rolled_back() {
   git -C "$left" branch -m "chief/${ID}c"
   backend_spawn_cleanup "${ID}c" "$P" "chief/${ID}c"
   run listed "$left"
-  assert_failure
+  assert_failure 1
   assert_not_exist "$left"
   assert_equal "$(branch_count "chief/${ID}c")" 0
   assert_exist "$keep/.git"
@@ -255,7 +258,7 @@ rolled_back() {
   backend_kill "$ID"
   backend_teardown "$ID" "$P" "$WT"
   run listed "$WT"
-  assert_failure
+  assert_failure 1
   assert_equal "$(child_count)" 0
   assert_equal "$(trusted "$WT")" unset
 }
@@ -295,7 +298,7 @@ rolled_back() {
   assert_success
   assert_not_exist "$WT"
   run listed "$WT"
-  assert_failure
+  assert_failure 1
   assert_equal "$(child_count)" 0
   assert_equal "$(branch_count "feat/$LID")" 0
 }
