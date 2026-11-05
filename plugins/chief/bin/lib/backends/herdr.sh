@@ -207,11 +207,30 @@ _chief_herdr_recover() {
   done
 }
 
+_chief_herdr_blocked() {  # <id>
+  herdr agent get "$1" 2>/dev/null | jq -e '.result.agent.agent_status == "blocked"' >/dev/null
+}
+
+# _chief_herdr_worker_active <id> <status-lines-before> - the worker is
+# visibly working though herdr never reported the turn: a new line in its
+# status file, or a screen still changing across CHIEF_HERDR_ACTIVITY_WAIT s.
+_chief_herdr_worker_active() {
+  local id=$1 lines=$2 a b
+  grew() { [ "$(wc -l < "$(chief_task_path "$id" status)" 2>/dev/null || echo 0)" -gt "$lines" ]; }
+  grew && return 0
+  a=$(_chief_herdr_screen "$id" detection)
+  sleep "${CHIEF_HERDR_ACTIVITY_WAIT:-2}"
+  b=$(_chief_herdr_screen "$id" detection)
+  grew || [ "$a" != "$b" ]
+}
+
 # _chief_herdr_prompt <id> <text> - submit <text> and wait only for the turn to
 # START, not to finish; one recovery attempt after a stall, no further retry.
+# A stalled worker caught working (_chief_herdr_worker_active) counts as started, before recovery (no resend) and again before giving up.
 # Returns 3 when no turn started (chief-spawn.sh retries the spawn), 1 otherwise.
 _chief_herdr_prompt() {
-  local id=$1 text=$2 rc=0 before
+  local id=$1 text=$2 rc=0 before lines
+  lines=$(wc -l < "$(chief_task_path "$id" status)" 2>/dev/null || echo 0)
   before=$(_chief_herdr_screen "$id" detection)
   _chief_herdr_submit "$id" "$text" || rc=$?
   [ "$rc" != 0 ] || return 0
@@ -220,12 +239,18 @@ _chief_herdr_prompt() {
       echo "chief-backend-herdr: 'herdr agent prompt' failed for $id: $SUBMIT_REPLY" >&2
       return 1
     }
+    # a working worker is never resent the brief or sent Enter
+    if ! _chief_herdr_blocked "$id" && _chief_herdr_worker_active "$id" "$lines"; then
+      return 0
+    fi
     _chief_herdr_recover "$id" "$text" "$before" && return 0
   fi
   # A permission/approval prompt nobody is present to answer is not a wedged
   # terminal - `agent get`'s state is `blocked` only for the former.
-  if herdr agent get "$id" 2>/dev/null | jq -e '.result.agent.agent_status == "blocked"' >/dev/null; then
+  if _chief_herdr_blocked "$id"; then
     echo "chief-backend-herdr: prompt for $id stalled at an unanswered permission/approval prompt - no one is present to answer it" >&2
+  elif _chief_herdr_worker_active "$id" "$lines"; then
+    return 0  # progress appeared while recovery waited
   else
     echo "chief-backend-herdr: no turn started for $id after the prompt" >&2
     return 3
