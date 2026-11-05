@@ -17,7 +17,7 @@ chief_isolate() {
 }
 chief_isolate
 
-TEST_DIR="$(cd "$(dirname "${BATS_TEST_FILENAME}")" && pwd)"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 BIN="$REPO_ROOT/plugins/chief/bin"
 CHIEF_BIN="$BIN"

@@ -30,7 +30,7 @@ Loading `lib/common` strips `HERDR_*`, `CHIEF_*` (except `CHIEF_TEST_*`) and
 `tests/chief/ci/install-herdr.sh` installs the pinned herdr into
 `tests/.cache/bin`, which the suite prefers over the herdr on `PATH`.
 
-## Real headless Orca (`test-backend-orca.bats`)
+## Real headless Orca (`backends/orca.bats`)
 
 One `orca-ide serve` per file (`lib/orca.bash`: Xvfb, own `HOME`/`XDG_CONFIG_HOME`,
 port 0, scrubbed env), so its tests run serially; `teardown_file` kills the
@@ -60,7 +60,7 @@ in `tests/package.json` (bats 1.14.0, bats-assert, bats-support, bats-file;
 `DIR/report.xml`. A single bats file:
 
 ```bash
-BATS_LIB_PATH=$PWD/tests/node_modules tests/node_modules/.bin/bats tests/chief/test-lock.bats
+BATS_LIB_PATH=$PWD/tests/node_modules tests/node_modules/.bin/bats tests/chief/unit/lock.bats
 ```
 
 Requires `git`, `bash`, `jq`, `herdr` (v0.9.3) and `node`/`npm`; the Orca file also needs Orca.
@@ -69,38 +69,38 @@ Requires `git`, `bash`, `jq`, `herdr` (v0.9.3) and `node`/`npm`; the Orca file a
 
 | File | Covers |
 |---|---|
-| `test-static.bats` | Every script parses (`bash -n`), every JSON file is valid, executable bits are correct |
-| `test-meta.bats` | `meta.sh` key=value read/write helpers, and the task folder resolver and archive |
-| `test-lock.bats` | `lock.sh` mutex: acquire/release/timeout/stale-lock reclaim |
-| `test-backlog.bats` | `chief-backlog.sh`: add/status/note/hold/done/list/next/show, error cases, and that `status <id> in-flight` restores a held/spawned task's meta status back to `working` |
-| `test-git-sync.bats` | `git-sync.sh`'s `chief_sync_default_branch`: fast-forwards the default branch from origin only when checked out on it with a clean tree, otherwise skips - and never fails its caller, including with no origin remote or a diverged history |
-| `test-worktree-guard.bats` | `chief_is_linked_worktree` - main checkout vs. a linked worktree vs. a non-git dir |
-| `test-crew-state.bats` | `chief-crew-state.sh`'s state classification across all six states, plus a brainstormer's awaiting-operator idle rule (never stale) and attach hint |
-| `test-naming.bats` | Where-lines (`backlog show`), herdr's workspace label and its cleanup against a real herdr, task id checks and composition |
-| `test-send.bats` | `chief-send.sh` on a real herdr: durable inbox numbering, handled-file awareness, key sends, the doorbell line |
-| `test-watch.bats` | `chief-watch.sh` on a real herdr: notify-once per state change (done, resumed, brainstormer, stale, agent and reviewer tags), one watcher per home, and `chief_notify_line` |
-| `test-zero-cost.bats` | The zero-cost guard refuses a server PATH holding a real agent CLI |
-| `test-standin.bats` | The stand-in agent's modes (`hold`, `exit`, `never-ready`) on a real herdr |
-| `test-control.bats` | `chief-control.sh`: interrupt (agent keeps running), exit, relaunch with checkpoint note |
-| `test-setup.bats` | `chief-setup.sh`: backend config, idempotent gitignore, no-git-repo case |
-| `test-hooks.bats` | `session-start.sh` and `stop-watch-arm.sh`'s own bash logic across fresh/configured/in-flight/builder-worktree scenarios |
-| `test-lifecycle.bats` | The full happy path: backlog → spawn → simulated work → crew-state → teardown-refuses-before-merge → merge → teardown-succeeds |
-| `test-brief.bats` | `brief.sh`'s `chief_brief_strip_section`: a checkpoint section is stripped to EOF or to the next heading, repeats collapse to one, an absent section is a no-op |
-| `test-spawn.bats` | `chief-spawn.sh` on a real herdr: brief rendering with embedded newlines and sed-delimiter characters, pre-trust, agent selection (`--agent`, `--model`, `--args`, config pools and `command=`), the agent and launch lines, every pre-backend failure leaving nothing behind, invalid ids |
-| `test-teardown.bats` | `chief-teardown.sh` on a real herdr: a researcher or brainstormer discards unconditionally, a builder needs a landed branch or `--abandon` (merge and squash checks), the remote branch is always kept, the reviewer cascade, un-trusting the worktree |
-| `test-spawn-cleanup.bats` | `chief-spawn.sh`'s required `--branch` (nothing left behind when missing), rollback on a failed or malformed `backend_spawn` (`backend_spawn_cleanup`, no orphaned worktree/branch/meta) an interrupted spawn's `status=spawning` stub (crew-state, watch, teardown), and the atomic spawn lock, on a real herdr, failed by the stand-in's `never-ready` mode and by `herdr_fault` (a wrapper around the real herdr that fails one named call) |
-| `test-project-workspace.bats` | The spawn/teardown flow on a real herdr: origin sync before the worktree exists, and no `.chief` ever created inside a project (default `CHIEF_HOME` from a project or its worktree) |
-| `test-agent.bats` / `test-agent-claude.bats` / `test-agent-adapters.bats` | The agent loader (per-task adapter from meta, command override, unknown agent), the claude adapter (contract, pre-trust in `.claude.json`), and the codex/copilot adapters (flags, model flag, CLI check, herdr's start args) |
-| `test-agent-select.bats` | `.chief/config/agents`: every strategy (round-robin persistence and parallel safety, weighted with an injected random), per-role pools, `peek`, comments, malformed config |
-| `test-agents.bats` | `chief-agents.sh`: the effective agent per role, the `(global fallback)` marker, read-only |
-| `test-handoff.bats` | `chief-spawn.sh --from` / `--dry-run` and `chief-promote.sh`: every role pair and rejection, the target role's agent (not the source's), `--agent` carry-over, lineage brief and framing, `from=`, source untouched, `--dry-run` without side effects |
-| `test-brainstormer.bats` | The brainstormer brief (explicit confirmation before `done`, out-of-scope list, no skill dependency, spec skeleton) and lifecycle, and `chief-spawn.sh` printing and recording `attach=` for it only |
-| `test-review.bats` | `chief-review.sh` (round 1 links and pinned SHA, round 2 archive/send/`working:` line/in-flight, every gate, stale or missing SHA, same-SHA refusal), the teardown cascade (done, refused, hand-removed worktree, reviewer alone), the builder/reviewer link in crew-state and the digest, watch (differing reviewer `done` wakes, identical suppressed), and the reviewer brief and builder lifecycle content |
-| `test-backend-herdr.bats` | `backends/herdr.sh` against a real herdr and the stand-in agent: screen-based start readiness (never-rendering pane, late TUI, `agent start` errors from `herdr_fault`), the folder-trust dialog (accepted once for Chief's own worktree, never for another folder), `blocked` is not a started turn, stall recovery (a bare Enter only over landed text, wait for an already-submitted brief, one resend only when the box is empty), `chief-spawn.sh` / `backend_relaunch` failing with rollback unless a turn started, and spawn, busy, send, kill and relaunch end to end. Zero cost. Not covered: copilot's inline brief echo and a TUI not rendered at prompt time. |
+| `unit/static.bats` | Every script parses (`bash -n`), every JSON file is valid, executable bits are correct |
+| `unit/meta.bats` | `meta.sh` key=value read/write helpers, and the task folder resolver and archive |
+| `unit/lock.bats` | `lock.sh` mutex: acquire/release/timeout/stale-lock reclaim |
+| `unit/backlog.bats` | `chief-backlog.sh`: add/status/note/hold/done/list/next/show, error cases, and that `status <id> in-flight` restores a held/spawned task's meta status back to `working` |
+| `unit/git-sync.bats` | `git-sync.sh`'s `chief_sync_default_branch`: fast-forwards the default branch from origin only when checked out on it with a clean tree, otherwise skips - and never fails its caller, including with no origin remote or a diverged history |
+| `unit/worktree.bats` | `chief_is_linked_worktree` - main checkout vs. a linked worktree vs. a non-git dir |
+| `workflow/crew-state.bats` | `chief-crew-state.sh`'s state classification across all six states, plus a brainstormer's awaiting-operator idle rule (never stale) and attach hint |
+| `unit/id.bats` | Where-lines (`backlog show`), herdr's workspace label and its cleanup against a real herdr, task id checks and composition |
+| `workflow/send.bats` | `chief-send.sh` on a real herdr: durable inbox numbering, handled-file awareness, key sends, the doorbell line |
+| `workflow/watch.bats` | `chief-watch.sh` on a real herdr: notify-once per state change (done, resumed, brainstormer, stale, agent and reviewer tags), one watcher per home, and `chief_notify_line` |
+| `harness/zero-cost.bats` | The zero-cost guard refuses a server PATH holding a real agent CLI |
+| `harness/standin.bats` | The stand-in agent's modes (`hold`, `exit`, `never-ready`) on a real herdr |
+| `workflow/control.bats` | `chief-control.sh`: interrupt (agent keeps running), exit, relaunch with checkpoint note |
+| `unit/setup.bats` | `chief-setup.sh`: backend config, idempotent gitignore, no-git-repo case |
+| `workflow/hooks.bats` | `session-start.sh` and `stop-watch-arm.sh`'s own bash logic across fresh/configured/in-flight/builder-worktree scenarios |
+| `workflow/lifecycle.bats` | The full happy path: backlog → spawn → simulated work → crew-state → teardown-refuses-before-merge → merge → teardown-succeeds |
+| `unit/brief.bats` | `brief.sh`'s `chief_brief_strip_section`: a checkpoint section is stripped to EOF or to the next heading, repeats collapse to one, an absent section is a no-op |
+| `workflow/spawn.bats` | `chief-spawn.sh` on a real herdr: brief rendering with embedded newlines and sed-delimiter characters, pre-trust, agent selection (`--agent`, `--model`, `--args`, config pools and `command=`), the agent and launch lines, every pre-backend failure leaving nothing behind, invalid ids |
+| `workflow/teardown.bats` | `chief-teardown.sh` on a real herdr: a researcher or brainstormer discards unconditionally, a builder needs a landed branch or `--abandon` (merge and squash checks), the remote branch is always kept, the reviewer cascade, un-trusting the worktree |
+| `workflow/spawn-rollback.bats` | `chief-spawn.sh`'s required `--branch` (nothing left behind when missing), rollback on a failed or malformed `backend_spawn` (`backend_spawn_cleanup`, no orphaned worktree/branch/meta) an interrupted spawn's `status=spawning` stub (crew-state, watch, teardown), and the atomic spawn lock, on a real herdr, failed by the stand-in's `never-ready` mode and by `herdr_fault` (a wrapper around the real herdr that fails one named call) |
+| `workflow/chief-home.bats` | The spawn/teardown flow on a real herdr: origin sync before the worktree exists, and no `.chief` ever created inside a project (default `CHIEF_HOME` from a project or its worktree) |
+| `unit/agent-loader.bats` / `unit/agent-claude.bats` / `unit/agent-codex-copilot.bats` | The agent loader (per-task adapter from meta, command override, unknown agent), the claude adapter (contract, pre-trust in `.claude.json`), and the codex/copilot adapters (flags, model flag, CLI check, herdr's start args) |
+| `unit/agent-config.bats` | `.chief/config/agents`: every strategy (round-robin persistence and parallel safety, weighted with an injected random), per-role pools, `peek`, comments, malformed config |
+| `unit/agents-cli.bats` | `chief-agents.sh`: the effective agent per role, the `(global fallback)` marker, read-only |
+| `workflow/handoff.bats` | `chief-spawn.sh --from` / `--dry-run` and `chief-promote.sh`: every role pair and rejection, the target role's agent (not the source's), `--agent` carry-over, lineage brief and framing, `from=`, source untouched, `--dry-run` without side effects |
+| `workflow/brainstormer.bats` | The brainstormer brief (explicit confirmation before `done`, out-of-scope list, no skill dependency, spec skeleton) and lifecycle, and `chief-spawn.sh` printing and recording `attach=` for it only |
+| `workflow/review.bats` | `chief-review.sh` (round 1 links and pinned SHA, round 2 archive/send/`working:` line/in-flight, every gate, stale or missing SHA, same-SHA refusal), the teardown cascade (done, refused, hand-removed worktree, reviewer alone), the builder/reviewer link in crew-state and the digest, watch (differing reviewer `done` wakes, identical suppressed), and the reviewer brief and builder lifecycle content |
+| `backends/herdr.bats` | `backends/herdr.sh` against a real herdr and the stand-in agent: screen-based start readiness (never-rendering pane, late TUI, `agent start` errors from `herdr_fault`), the folder-trust dialog (accepted once for Chief's own worktree, never for another folder), `blocked` is not a started turn, stall recovery (a bare Enter only over landed text, wait for an already-submitted brief, one resend only when the box is empty), `chief-spawn.sh` / `backend_relaunch` failing with rollback unless a turn started, and spawn, busy, send, kill and relaunch end to end. Zero cost. Not covered: copilot's inline brief echo and a TUI not rendered at prompt time. |
 | `manual/test-backend-herdr-real.sh` | The same adapter against a REAL herdr and a real (trivial) claude turn, for real Claude rendering the stand-in only imitates. **Not zero-cost** - opt in with `CHIEF_TEST_HERDR=1`; skips cleanly otherwise. Not run by `run-tests.sh`. |
 | `manual/test-backend-copilot.sh` | The copilot adapter against the REAL Copilot CLI, on its own isolated herdr server: ready text vs. the real idle footer, the folder-trust dialog and banner screens, the paste placeholder and input marker, then a real `chief-spawn.sh --agent copilot --mode researcher` on a throwaway repo through a status line, a report and teardown. **Not zero-cost** - opt in with `CHIEF_TEST_COPILOT=1`; skips cleanly otherwise. See below. |
 | `manual/test-backend-copilot-brief.sh` | Issue #90 against the REAL Copilot CLI (same isolation as `test-backend-copilot.sh`): real `chief-spawn.sh --agent copilot` spawns with a brief-sized prompt must send one `herdr agent prompt` and produce one `user.message` in Copilot's `events.jsonl`; fails if no attempt hit herdr's `agent_prompt_stalled`. **Not zero-cost** - opt in with `CHIEF_TEST_COPILOT_BRIEF=1`; skips cleanly otherwise. See below. |
-| `test-backend-orca.bats` | `backends/orca.sh` against a real headless Orca and the stand-in agent: spawn (repo registration, nesting under the main worktree, pre-trust, launch args), the registration, worktree-create and never-ready failures with their rollback, a lost or unsubmitted prompt, busy/send/kill/relaunch, `backend_spawn_cleanup`, teardown, and the real lifecycle scripts (spawn, send, interrupt, relaunch, teardown, brainstormer attach hint, rollback) |
+| `backends/orca.bats` | `backends/orca.sh` against a real headless Orca and the stand-in agent: spawn (repo registration, nesting under the main worktree, pre-trust, launch args), the registration, worktree-create and never-ready failures with their rollback, a lost or unsubmitted prompt, busy/send/kill/relaunch, `backend_spawn_cleanup`, teardown, and the real lifecycle scripts (spawn, send, interrupt, relaunch, teardown, brainstormer attach hint, rollback) |
 
 ## The herdr and copilot backend tests that use real agents
 

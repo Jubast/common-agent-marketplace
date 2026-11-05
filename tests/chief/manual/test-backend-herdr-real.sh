@@ -2,7 +2,7 @@
 # test-backend-herdr-real.sh - MANUAL. exercises herdr.sh's five adapter
 # functions against a REAL herdr install and a real (minimal) claude turn: the
 # check of real Claude Code rendering (placeholder hint, trust dialog, in-flight
-# input line) that the stand-in agent of ../test-backend-herdr.bats can only imitate.
+# input line) that the stand-in agent of ../backends/herdr.bats can only imitate.
 #
 # Unlike the bats suite, this one is NOT zero-cost: it
 # needs `herdr` on PATH, a headless herdr server, and spends a small number
