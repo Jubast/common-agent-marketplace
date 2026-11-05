@@ -109,6 +109,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   run _chief_herdr_start_agent build-keycloak-name-with-a-long-tail-of-words "$PANE" "$WT"
   assert_failure 1
   assert_output --partial "failed"
+  assert_output --partial "invalid_agent_name"
 }
 
 # --- start: folder-trust dialog ---------------------------------------------
