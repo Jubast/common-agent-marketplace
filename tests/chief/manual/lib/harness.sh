@@ -1,43 +1,14 @@
 #!/usr/bin/env bash
-# harness.sh - minimal assertion helpers for Chief's bash tests. No external
-# framework, matching the plugin's own KISS philosophy: every assert prints
-# [PASS]/[FAIL] and updates the two counters a test file reports at the end.
-#
-# A test file sources this, runs asserts, then calls harness_summary at the
-# end and exits with its return value.
+# harness.sh - minimal assertion helpers for the opt-in real-agent tests in
+# tests/chief/manual/ (everything else is bats). Every assert prints
+# [PASS]/[FAIL] and updates the two counters a test file reports at the end;
+# call harness_summary at the end and exit with its return value.
 
-# harness_trap '<cleanup cmd>' - the test's EXIT/INT/TERM/HUP cleanup. Also
-# kills the mock-backend workers (`chief-mock-<id>` sleeps) this test started,
-# found through the pid log mock.sh appends to - never by name.
-harness_reap_mock() {
-  local pid
-  [ -f "${CHIEF_MOCK_PID_LOG:-}" ] || return 0
-  while read -r pid; do
-    case "$(ps -o args= -p "$pid" 2>/dev/null)" in chief-mock-*) kill "$pid" 2>/dev/null ;; esac
-  done < "$CHIEF_MOCK_PID_LOG"
-  # Give slow-to-die workers a moment before the log is dropped.
-  local i
-  for i in 1 2 3 4 5 6 7 8 9 10; do
-    [ -z "$(harness_leaked_mock_pids "$CHIEF_MOCK_PID_LOG")" ] && break
-    sleep 0.1
-  done
-  rm -f "$CHIEF_MOCK_PID_LOG"
-}
-# harness_leaked_mock_pids <log> - pids listed in <log> that are still live
-# chief-mock-* workers. Other runs' workers are never in the log, so ignored.
-harness_leaked_mock_pids() {
-  local pid
-  [ -f "$1" ] || return 0
-  while read -r pid; do
-    case "$(ps -o args= -p "$pid" 2>/dev/null)" in chief-mock-*) echo "$pid" ;; esac
-  done < "$1"
-}
-_harness_exit() { harness_reap_mock; rm -rf "$CLAUDE_CONFIG_DIR" "$HARNESS_BIN"; eval "$HARNESS_CLEANUP"; }
+# harness_trap '<cleanup cmd>' - the test's EXIT/INT/TERM/HUP cleanup, with its
+# own CLAUDE_CONFIG_DIR so pre-trust edits stay off the real ~/.claude.json.
+_harness_exit() { rm -rf "$CLAUDE_CONFIG_DIR" "$HARNESS_BIN"; eval "$HARNESS_CLEANUP"; }
 harness_trap() {
   HARNESS_CLEANUP=$1
-  CHIEF_MOCK_PID_LOG=$(mktemp)
-  export CHIEF_MOCK_PID_LOG
-  # Keep pre-trust edits off the real ~/.claude.json.
   CLAUDE_CONFIG_DIR=$(mktemp -d)
   export CLAUDE_CONFIG_DIR
   # Stand-ins for the agent CLIs chief-spawn.sh requires; a real install wins.
