@@ -21,11 +21,11 @@ that costs no tokens; the server's `PATH` holds only the stand-ins, and
 `chief_zero_cost_guard` aborts if a real `claude`/`codex`/`copilot` could be
 found. Panes inherit the server's environment, not the test's: configure the
 stand-in through files under `$STANDIN_DIR` (`standin_mode`, `standin_hold`),
-never exported variables (modes: `exit`, `never-ready`, `late`, `trust`, `lose-enter`,
-`drop`, `slow-work`, see the header of `fixtures/standin/claude`). Where a real
-herdr reply cannot be provoked, `herdr_fault` swaps one named call's reply
-(`fixtures/faulty/herdr`, a wrapper that otherwise runs the real herdr). Use `eventually` for anything asynchronous, never a
-bare `sleep`.
+never exported variables (modes: `exit`, `never-ready`, `late`, `trust`,
+`lose-enter`, `drop`, `slow-work`; see the header of `fixtures/standin/claude`).
+Where a real herdr reply cannot be provoked, `herdr_fault` swaps one named
+call's reply (`fixtures/faulty/herdr`, a wrapper that otherwise runs the real
+herdr). Use `eventually` for anything asynchronous, never a bare `sleep`.
 
 `tests/chief/ci/install-herdr.sh` installs the pinned herdr into
 `tests/.cache/bin`, which the suite prefers over the herdr on `PATH`.
@@ -43,7 +43,8 @@ each prompt it sends takes ~8 s; the file stays small (~5 min). It needs
 Electron libraries listed in `.github/workflows/tests.yml`; without them the
 file skips, unless `CHIEF_TEST_REQUIRE_BACKENDS=1` (set by the CI job) makes
 that a failure. CI runs it as `chief-orca` (`run-tests.sh --only-orca`); the
-herdr job runs `--no-orca`.
+herdr job runs `--no-orca`. A plain `run-tests.sh --jobs N` runs the Orca file
+alongside the herdr files; on a small machine use `--no-orca`, then `--only-orca`.
 
 ## Running
 
