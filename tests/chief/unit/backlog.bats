@@ -93,6 +93,29 @@ setup() {
   assert_equal "$(chief_meta_get t-2 status 2>/dev/null || true)" ""
 }
 
+@test "drop: removes a queued record only" {
+  "$BL" add t-1 "a"; "$BL" add t-2 "b"; "$BL" status t-2 in-flight
+  run "$BL" drop t-1; assert_success
+  assert_output "dropped: t-1"
+  assert_equal "$("$BL" show t-1)" ""
+  run -1 "$BL" drop t-2
+  assert_output --partial "t-2 is not queued"
+  assert_regex "$("$BL" show t-2)" "in-flight"
+}
+
+@test "drop: keeps a record that went in-flight while it waited for the lock" {
+  "$BL" add t-race "race"
+  mkdir -p "$CHIEF_HOME/state/.backlog.lock"; echo $$ > "$CHIEF_HOME/state/.backlog.lock/pid"
+  "$BL" drop t-race > "$BATS_TEST_TMPDIR/drop.out" 2>&1 & drop=$!
+  eventually 10 pgrep -P $drop sleep  # the drop is waiting on the lock
+  sed -i 's/^## t-race \[queued\]/## t-race [in-flight]/' "$BACKLOG"
+  rm -rf "$CHIEF_HOME/state/.backlog.lock"
+  rc=0; wait $drop || rc=$?
+  assert_equal "$rc" 1
+  assert_regex "$(cat "$BATS_TEST_TMPDIR/drop.out")" "t-race is not queued"
+  assert_regex "$("$BL" show t-race)" "in-flight"
+}
+
 @test "add: refuses a duplicate id" {
   "$BL" add t-1 "a"
   run -1 "$BL" add t-1 "dup"

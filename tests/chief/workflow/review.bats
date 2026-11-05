@@ -179,6 +179,19 @@ round_two() {
   assert_output --partial "review: build-keycloak-name-extra-rv round 2 of $LB"
 }
 
+@test "round 1: a reviewer that never starts a turn leaves nothing queued or linked" {
+  chief_done_builder b-9
+  "$BL" add b-9-rv "queued before" >/dev/null
+  standin_mode b-9-rv drop=2
+  run "$RV" b-9
+  assert_failure 1
+  assert_equal "$("$BL" show b-9-rv)" ""
+  assert_not_exist "$TASKS/b-9-rv"
+  assert_equal "$(chief_meta_get b-9 reviewer 2>/dev/null || true)" ""
+  assert_exist "$TASKS/b-9/evidence/b-9-rv-spawn-screen.1.txt"
+  assert_exist "$TASKS/b-9/evidence/b-9-rv-spawn-screen.2.txt"
+}
+
 @test "manual: a reviewer spawned by hand on an arbitrary branch has no builder link" {
   git -C "$WORK/project" branch feat/other main
   chief_spawn_quiet rv-1 --mode reviewer --branch chore/rv-1 --intent "Review feat/other" --spec "Branch: feat/other"

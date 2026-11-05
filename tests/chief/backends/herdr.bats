@@ -157,11 +157,11 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 
 # --- prompt: 'blocked' is not 'turn started' --------------------------------
 
-@test "prompt: fails without a retry when herdr replies blocked" {
+@test "prompt: returns 3 without a retry when herdr replies blocked" {
   started_agent
   chief_herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
   run _chief_herdr_prompt t1 "$BRIEF"
-  assert_failure 1
+  assert_failure 3
   assert_equal "$(fault_hits 1)" 1
 }
 
@@ -191,11 +191,11 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(standin_keys t1)" "enter-lost"
 }
 
-@test "stall: fails without a resend when the Enter started no turn" {
+@test "stall: returns 3 without a resend when the Enter started no turn" {
   standin_mode t1 lose-enter=2
   started_agent
   run _chief_herdr_prompt t1 "$BRIEF"
-  assert_failure 1
+  assert_failure 3
   assert_equal "$(standin_turn_count t1)" 0
   assert_equal "$(standin_keys t1)" $'enter-lost\nenter-lost'
 }
@@ -226,11 +226,11 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(standin_keys t1)" "dropped"
 }
 
-@test "stall: stops after one resend and says no turn started" {
+@test "stall: stops after one resend and returns 3 saying no turn started" {
   standin_mode t1 drop=2
   started_agent
   run _chief_herdr_prompt t1 "$SHORT"
-  assert_failure 1
+  assert_failure 3
   assert_output --partial "no turn started"
   assert_equal "$(standin_keys t1)" $'dropped\ndropped'
 }
