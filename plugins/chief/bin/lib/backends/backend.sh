@@ -66,11 +66,6 @@ CHIEF_BACKEND="${CHIEF_BACKEND:-herdr}"
 
 case "$CHIEF_BACKEND" in
   herdr|orca) ;;
-  mock)
-    # Dev/test only - a fake terminal (one background process + a log file)
-    # used to exercise chief-spawn/control/crew-state/watch without a real
-    # herdr or Orca install. Never select this in a real project.
-    ;;
   *)
     echo "chief-backend: unsupported backend '$CHIEF_BACKEND' (must be herdr or orca)" >&2
     exit 1
