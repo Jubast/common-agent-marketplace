@@ -127,3 +127,25 @@ PATCH
   run "$BIN/chief-backlog.sh" show t-live
   assert_output --partial "[in-flight]"
 }
+
+@test "retry: a new spawn of the same id keeps earlier screens, renamed with a stamp" {
+  standin_mode t-again drop=2
+  run chief_spawn t-again builder
+  assert_failure 1
+  run chief_spawn t-again builder
+  assert_failure 1
+  E="$CHIEF_HOME/tasks/t-again/evidence"
+  assert_exist "$E/spawn-screen.1.txt"
+  assert_exist "$E/spawn-screen.2.txt"
+  assert_equal "$(ls "$E"/*-spawn-screen.*.txt | wc -l)" 2
+}
+
+@test "retry: the rollback names where the screens are, unless the caller moves them" {
+  standin_mode t-where drop=2
+  run chief_spawn t-where builder
+  assert_failure 1
+  assert_output --partial "(screens in $CHIEF_HOME/tasks/t-where/evidence/)"
+  CHIEF_EVIDENCE_MOVED= run chief_spawn t-where builder
+  assert_failure 1
+  refute_output --partial "screens in"
+}

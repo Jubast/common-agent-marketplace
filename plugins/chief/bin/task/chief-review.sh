@@ -112,13 +112,14 @@ if [ -n "$SPAWN" ]; then
     [ -n "$("$CHIEF_ROOT/bin/chief-backlog.sh" show "$RID")" ] \
       || "$CHIEF_ROOT/bin/chief-backlog.sh" add "$RID" "review of $BID: $title" >/dev/null
     # One reviewer at a time: chief-spawn.sh returns only once the reviewer's first turn started.
-    if ! CHIEF_AGENT_PICK=$([ "$PICK" = 0 ] || echo "$PICK") "$CHIEF_ROOT/bin/chief-spawn.sh" "$RID" "$PROJECT" --mode reviewer --branch "chore/$RID" \
+    if ! CHIEF_EVIDENCE_MOVED= CHIEF_AGENT_PICK=$([ "$PICK" = 0 ] || echo "$PICK") "$CHIEF_ROOT/bin/chief-spawn.sh" "$RID" "$PROJECT" --mode reviewer --branch "chore/$RID" \
       --intent "Review $BID" --spec "$text"; then
       # nothing queued or left behind for the failed one; its evidence moves to the builder
-      for f in "$(chief_task_path "$RID" evidence)"/spawn-screen.*.txt; do
+      kept=""; stamp=$(date -u +%Y%m%dT%H%M%S)-$$
+      for f in "$(chief_task_path "$RID" evidence)"/*spawn-screen.*.txt; do
         [ -f "$f" ] || continue
         mkdir -p "$(chief_task_path "$BID" evidence)"
-        mv "$f" "$(chief_task_path "$BID" evidence)/$RID-${f##*/}"
+        mv "$f" "$(chief_task_path "$BID" evidence)/$RID-$stamp-${f##*/}"; kept=1
       done
       { chief_meta_exists "$RID" || [ -e "$(chief_task_path "$RID" spawning)" ]; } || rm -rf "$(chief_task_dir "$RID")"
       "$CHIEF_ROOT/bin/chief-backlog.sh" drop "$RID" >/dev/null 2>&1 || true  # queued records only
@@ -126,7 +127,7 @@ if [ -n "$SPAWN" ]; then
       chief_meta_set "$BID" reviewer "$LINKED"
       chief_meta_set "$BID" review_round "$OLD_ROUND"
       chief_meta_set "$BID" review_sha "$OLD_SHA"
-      fail "spawning reviewer $RID failed; the reviewers started are discarded, retry the review"
+      fail "spawning reviewer $RID failed; the reviewers started are discarded, retry the review${kept:+; spawn screens kept in $(chief_task_path "$BID" evidence)/ as $RID-*-spawn-screen.*.txt}"
     fi
     chief_meta_set "$RID" for "$BID"
     chief_meta_set "$RID" pick "$PICK"

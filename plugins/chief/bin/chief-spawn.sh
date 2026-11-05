@@ -227,7 +227,11 @@ chief_meta_set "$ID" status spawning
 # backend_spawn prints exactly two lines (worktree path, then endpoint id).
 # Capture both from ONE call - calling it twice would launch the worker twice.
 # rc 3 = the first turn did not start (a slow, loaded host): clean up and try once more.
-rm -f "$(chief_task_path "$ID" evidence)"/spawn-screen.*.txt
+# Screens from an earlier launch are kept, renamed with this launch's stamp so they are never overwritten.
+STAMP=$(date -u +%Y%m%dT%H%M%S)-$$
+for f in "$(chief_task_path "$ID" evidence)"/spawn-screen.*.txt; do
+  [ -f "$f" ] && mv "$f" "${f%/*}/$STAMP-${f##*/}"
+done
 SPAWN_RC=0
 SPAWN_OUTPUT=$(backend_spawn "$ID" "$PROJECT" "$BRIEF" "$BRANCH") || SPAWN_RC=$?
 if [ "$SPAWN_RC" = 3 ]; then
@@ -235,7 +239,8 @@ if [ "$SPAWN_RC" = 3 ]; then
   backend_spawn_cleanup "$ID" "$PROJECT" "$BRANCH" 2>/dev/null || true
   SPAWN_RC=0
   SPAWN_OUTPUT=$(backend_spawn "$ID" "$PROJECT" "$BRIEF" "$BRANCH") || SPAWN_RC=$?
-  [ "$SPAWN_RC" != 3 ] || rollback "no first turn started on either attempt (screens: $(chief_task_path "$ID" evidence)/spawn-screen.{1,2}.txt)"
+  # CHIEF_EVIDENCE_MOVED (set, even empty): the caller moves the screens and reports where they end up.
+  [ "$SPAWN_RC" != 3 ] || rollback "no first turn started on either attempt${CHIEF_EVIDENCE_MOVED- (screens in $(chief_task_path "$ID" evidence)/)}"
 fi
 [ "$SPAWN_RC" = 0 ] || rollback "backend_spawn failed"
 WORKTREE=$(printf '%s\n' "$SPAWN_OUTPUT" | sed -n 1p)
