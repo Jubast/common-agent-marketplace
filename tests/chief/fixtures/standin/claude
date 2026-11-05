@@ -31,6 +31,8 @@ state=ready; lose=0; drop=0; slow=0; lost=0; dropped=0; down=0
 
 stty -icanon -echo 2>/dev/null; printf '\e[?2004h'
 draw() {  # $1: ready|working
+  # Claude Code's terminal title: spinner while working, star when idle
+  [ "$1" = working ] && printf '\e]0;⠂ Claude Code\a' || printf '\e]0;✳ Claude Code\a'
   printf '\e[2J\e[H'
   if [ "$state" = trust ]; then
     printf '%s\n' " Accessing workspace:" " $tpath" " Quick safety check: Is this a project you created or one you trust?" \
@@ -44,9 +46,10 @@ draw() {  # $1: ready|working
   else printf '  ⏵⏵ bypass permissions on (shift+tab to cycle)\n'; fi
 }
 turn() {
-  local text=$buf; [ "$pasted" -gt 0 ] && text="[paste:$pasted lines] $buf"
+  local text=$buf shown=$buf
+  [ "$pasted" -gt 0 ] && { text="[paste:$pasted lines] $buf"; shown="[Pasted text #1 +$pasted lines] $buf"; }
   printf 'turn: %s\n' "$text" >> "$dir/$name.log"
-  hist+=("> ${text:0:60}"); buf=""; pasted=0
+  hist+=("> ${shown:0:60}"); buf=""; pasted=0
   [ "$slow" -eq 0 ] || { draw ready; sleep "$slow"; }
   draw working; sleep "${STANDIN_TURN_SECS:-1}"
   while [ -e "$dir/hold/$name" ]; do sleep 0.2; done

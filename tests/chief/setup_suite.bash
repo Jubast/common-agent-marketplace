@@ -8,17 +8,26 @@ setup_suite() {
 }
 
 # teardown_suite - a server or temp dir still around is a leak (a skipped
-# teardown); kill it and fail. Servers are logged by chief_herdr_server.
+# teardown); kill it and fail. Servers are logged by chief_herdr_server and
+# chief_orca_server.
 teardown_suite() {
   local d standin f leaked=0
-  [ -f "$BATS_SUITE_TMPDIR/servers" ] || return 0
-  while read -r d standin; do
-    [ -d "$d" ] || continue
-    leaked=$((leaked + 1))
-    HERDR_SOCKET_PATH="$d/xr/h.sock" herdr server stop >/dev/null 2>&1
-    kill "$(cat "$d/pid" 2>/dev/null)" 2>/dev/null
-    for f in "$standin"/*.pid; do [ -e "$f" ] && kill "$(cat "$f")" 2>/dev/null; done
-    rm -rf "$d"
-  done < "$BATS_SUITE_TMPDIR/servers"
-  [ "$leaked" -eq 0 ] || { echo "teardown_suite: $leaked herdr server(s) outlived their test" >&2; return 1; }
+  if [ -f "$BATS_SUITE_TMPDIR/orcas" ]; then
+    . "$(dirname "${BASH_SOURCE[0]}")/lib/orca.bash"
+    while read -r d; do
+      [ -d "$d" ] || continue
+      leaked=$((leaked + 1)); _chief_orca_reap "$d"; rm -rf "$d"
+    done < "$BATS_SUITE_TMPDIR/orcas"
+  fi
+  if [ -f "$BATS_SUITE_TMPDIR/servers" ]; then
+    while read -r d standin; do
+      [ -d "$d" ] || continue
+      leaked=$((leaked + 1))
+      HERDR_SOCKET_PATH="$d/xr/h.sock" herdr server stop >/dev/null 2>&1
+      kill "$(cat "$d/pid" 2>/dev/null)" 2>/dev/null
+      for f in "$standin"/*.pid; do [ -e "$f" ] && kill "$(cat "$f")" 2>/dev/null; done
+      rm -rf "$d"
+    done < "$BATS_SUITE_TMPDIR/servers"
+  fi
+  [ "$leaked" -eq 0 ] || { echo "teardown_suite: $leaked server(s) outlived their test" >&2; return 1; }
 }
