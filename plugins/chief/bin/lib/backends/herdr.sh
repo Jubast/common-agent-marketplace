@@ -36,11 +36,14 @@
 # backend_relaunch return 0 only once the first turn was observed started.
 #
 # CHIEF_HERDR_START_WAIT (s) bounds the wait for the agent's ready screen,
+# CHIEF_HERDR_AGENT_START_TIMEOUT_MS how long `herdr agent start` waits for the
+# agent to appear in its pane,
 # CHIEF_HERDR_SUBMIT_TIMEOUT_MS how long the first prompt waits for its turn to
 # START (reach `working`), CHIEF_HERDR_PROMPT_WAIT (s) the stall recovery. None
 # waits for that turn to finish - a first turn on a large task can
 # legitimately run long. backend_send's ordinary mid-task turns don't wait.
 CHIEF_HERDR_START_WAIT="${CHIEF_HERDR_START_WAIT:-60}"
+CHIEF_HERDR_AGENT_START_TIMEOUT_MS="${CHIEF_HERDR_AGENT_START_TIMEOUT_MS:-30000}"
 CHIEF_HERDR_SUBMIT_TIMEOUT_MS="${CHIEF_HERDR_SUBMIT_TIMEOUT_MS:-30000}"
 CHIEF_HERDR_PROMPT_WAIT="${CHIEF_HERDR_PROMPT_WAIT:-20}"
 
@@ -87,7 +90,7 @@ _chief_herdr_start_agent() {
   cmd=$(chief_agent_command)
   [[ $cmd != *' '* ]] || args=${cmd#* }  # herdr runs the agent's own executable: pass the words after the first
   # agent_pane_busy: the pane's shell isn't up yet (slow host); nothing started, so retry
-  until out=$(herdr agent start "$id" --kind "$(agent_name)" --pane "$pane_id" --timeout 30000 \
+  until out=$(herdr agent start "$id" --kind "$(agent_name)" --pane "$pane_id" --timeout "$CHIEF_HERDR_AGENT_START_TIMEOUT_MS" \
                 -- $args 2>&1) || [[ $out == *agent_not_ready* ]]; do
     [[ $out == *agent_pane_busy* ]] && [ "$waited" -lt "$limit" ] || {
       echo "chief-backend-herdr: 'herdr agent start' failed for $id: $out" >&2
