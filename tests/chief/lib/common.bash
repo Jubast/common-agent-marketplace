@@ -47,6 +47,14 @@ chief_common_setup() {
   PATH="$STANDIN_BIN:$PATH"
 }
 
+# chief_herdr_require - skips the test without herdr, unless
+# CHIEF_TEST_REQUIRE_BACKENDS=1 (CI), where that is a failure.
+chief_herdr_require() {
+  command -v herdr > /dev/null && return 0
+  [ "${CHIEF_TEST_REQUIRE_BACKENDS:-}" != 1 ] || { echo "herdr missing but required" >&2; return 1; }
+  skip "herdr not installed (tests/chief/ci/install-herdr.sh)"
+}
+
 # chief_herdr_server - starts this test's own headless herdr. Panes inherit the
 # SERVER's env, so it gets a scrubbed one: own HOME/XDG, a PATH whose only agent
 # CLIs are the stand-ins, no network (herdr falls back to its built-in rules).
@@ -84,6 +92,7 @@ chief_herdr_stop() {
     [ -e "$f" ] || continue
     if kill -0 "$(cat "$f")" 2>/dev/null; then kill "$(cat "$f")"; echo "stand-in $(cat "$f") outlived its server" >&2; rc=1; fi
   done
+  [ -n "${BATS_TEST_COMPLETED:-}" ] || tail -n 20 "$d/server.log" >&2
   rm -rf "$d"
   return $rc
 }
@@ -101,6 +110,53 @@ chief_project() {
 spawn() {
   local id=$1; shift
   timeout 90 "$BIN/chief-spawn.sh" "$id" "$WORK/project" --mode builder --branch "feat/$id" --intent "test" --spec "test" "$@" >/dev/null
+}
+
+# chief_spawn <id> <role> [chief-spawn flags...] - chief-spawn.sh on feat/<id> in
+# ${PROJECT:-$WORK/project}; later flags override the defaults. Output goes to
+# the caller: use `run`, or redirect it.
+chief_spawn() {
+  local id=$1 role=$2; shift 2
+  timeout 90 "$BIN/chief-spawn.sh" "$id" "${PROJECT:-$WORK/project}" --mode "$role" \
+    --branch "feat/$id" --intent "intent of $id" --spec "spec of $id" "$@"
+}
+# chief_done_builder <id> [file] - a builder with one commit and a done line
+# carrying its sha, filed in the backlog as "T <id>".
+chief_done_builder() {
+  "$BIN/chief-backlog.sh" add "$1" "T $1" >/dev/null
+  chief_spawn "$1" builder --intent "T $1" >/dev/null
+  commit_file "$1" "${2:-$1.txt}" >/dev/null
+  echo "done: $(git -C "$CHIEF_HOME/worktrees/$1" rev-parse --short HEAD) ok" >> "$CHIEF_HOME/tasks/$1/status"
+}
+
+# commit_file <id> <file> [content] - commits a file in the task's worktree and
+# prints the new sha.
+commit_file() {
+  ( cd "$CHIEF_HOME/worktrees/$1" && echo "${3:-$2}" > "$2" && git add "$2" \
+    && git commit -q -m "add $2" && git rev-parse HEAD )
+}
+
+# trusted <dir> - the pre-trust flag recorded for <dir> in .claude.json, or "unset".
+trusted() { jq -r --arg p "$1" '.projects[$p].hasTrustDialogAccepted // "unset"' "$CLAUDE_CONFIG_DIR/.claude.json"; }
+
+# chief_add_origin <repo> <branch> - a bare $BATS_TEST_TMPDIR/origin.git ($BARE)
+# as <repo>'s origin, with <branch> pushed.
+chief_add_origin() {
+  BARE="$BATS_TEST_TMPDIR/origin.git"
+  git init -q --bare -b "$2" "$BARE"
+  git -C "$1" remote add origin "$BARE"
+  git -C "$1" push -q origin "$2"
+}
+# project_with_origin <dir> - <dir> on main tracking an origin that a second
+# clone ($BATS_TEST_TMPDIR/other) has advanced by from-origin.txt since.
+project_with_origin() {
+  local other="$BATS_TEST_TMPDIR/other"
+  git init -q -b main "$1"
+  git -C "$1" commit --allow-empty -q -m init
+  chief_add_origin "$1" main
+  git clone -q "$BARE" "$other"
+  echo new > "$other/from-origin.txt"
+  git -C "$other" add . && git -C "$other" commit -q -m "advance origin" && git -C "$other" push -q origin main
 }
 
 # herdr_fault <call> <times> <before|after> <exit code> <stdout> - from now on
@@ -125,6 +181,9 @@ standin_turns() { cat "$STANDIN_DIR/$1.log" 2>/dev/null; }
 standin_keys() { cat "$STANDIN_DIR/$1.keys" 2>/dev/null; }
 # standin_mode <id> <mode>... - modes for the stand-in the next spawn of <id> starts.
 standin_mode() { local id=$1; shift; printf '%s\n' "$@" > "$STANDIN_DIR/modes/$id"; }
+# standin_never_ready <id> - the next spawn of <id> fails: its TUI never renders,
+# and herdr gives up on the pane after 5 s instead of 30.
+standin_never_ready() { standin_mode "$1" never-ready; export CHIEF_HERDR_AGENT_START_TIMEOUT_MS=5000; }
 # standin_hold <id> / standin_release <id> - keep the turn `working` / let it finish.
 standin_hold() { : > "$STANDIN_DIR/hold/$1"; }
 standin_release() { rm -f "$STANDIN_DIR/hold/$1"; }
@@ -147,4 +206,27 @@ eventually() {
   local secs=$1 i; shift
   for i in $(seq 1 $((secs * 4))); do "$@" >/dev/null 2>&1 && return 0; sleep 0.25; done
   "$@"
+}
+
+# assert_contains_all <text> <needle>... - fails naming the first missing needle.
+assert_contains_all() {
+  local text=$1 needle; shift
+  for needle in "$@"; do [[ $text == *"$needle"* ]] || { echo "missing: $needle" >&2; return 1; }; done
+}
+# refute_contains_any <text> <needle>... - fails naming the first needle present.
+refute_contains_any() {
+  local text=$1 needle; shift
+  for needle in "$@"; do [[ $text != *"$needle"* ]] || { echo "unexpected: $needle" >&2; return 1; }; done
+}
+# assert_agent_neutral <text> - the text never names Claude (CLAUDE.md aside).
+assert_agent_neutral() {
+  local text=${1//CLAUDE.md/}
+  [[ ${text,,} != *claude* ]] || { echo "names claude" >&2; return 1; }
+}
+# assert_no_placeholders <text> - no template placeholder is left unfilled.
+assert_no_placeholders() {
+  local ph
+  for ph in TASK SPEC BRANCH REPORT_FILE STATUS_FILE TURN_FILE INBOX_DIR TASK_ID; do
+    [[ $1 != *"{$ph}"* ]] || { echo "unfilled {$ph}" >&2; return 1; }
+  done
 }
