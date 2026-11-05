@@ -24,6 +24,8 @@ never exported variables (modes: `exit`, `never-ready`, `late`, `trust`,
 Where a real herdr reply cannot be provoked, `herdr_fault` swaps one named
 call's reply (`fixtures/faulty/herdr`, a wrapper that otherwise runs the real
 herdr). Use `eventually` for anything asynchronous, never a bare `sleep`.
+Loading `lib/common` strips `HERDR_*`, `CHIEF_*` (except `CHIEF_TEST_*`) and
+`CLAUDE_PROJECT_DIR` from the environment and fixes the git identity.
 
 `tests/chief/ci/install-herdr.sh` installs the pinned herdr into
 `tests/.cache/bin`, which the suite prefers over the herdr on `PATH`.

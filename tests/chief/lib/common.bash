@@ -1,6 +1,7 @@
 # common.bash - shared setup for Chief's .bats files: a real herdr per test,
 # running the zero-cost stand-in agent (fixtures/standin/), never a paid CLI.
-# `load lib/common` from setup(); call chief_common_setup, then chief_project.
+# `load lib/common` from setup() or setup_file(); call chief_common_setup, then chief_project.
+
 # chief_isolate - runs when this file is loaded: nothing from the caller's
 # environment (an operator's herdr, a Chief worker's CHIEF_*, a git identity)
 # reaches a test. Per-test paths need BATS_TEST_TMPDIR, so setup_file skips them.
