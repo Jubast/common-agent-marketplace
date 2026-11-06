@@ -23,15 +23,16 @@ Check the skills available to you (listed by name and description) at the start 
 2. Do only what the intent and spec above ask for. A generalization, cleanup, or extra hardening nobody asked for is a note for later, not something to build now.
 3. Before writing new code, check whether the existing codebase already has something that does this or can be extended to - prefer reusing or extending it over adding a duplicate.
 4. Keep everything you write for this task - code, comments, docs, skills, or anything else you touch - short and concise. State the current thing plainly; a changelog of earlier attempts or a narration of how you got there belongs in the commit message, not the file.
-5. Report status by appending exactly one line at a time:
+5. Write code for its next reader: clear names and plain control flow over clever or micro-optimized code. Trade readability for speed only where the spec asks for it or a measurement shows the need, and mark that code with a `PERF:` comment, in the language's own comment syntax, saying what it gains and why (with the numbers, if measured). Where the project's own conventions (`AGENTS.md`/`CLAUDE.md`, a style guide, lint config) set a different bar or marker, follow them; rule 4 still applies.
+6. Report status by appending exactly one line at a time:
    `echo "{state}: {one short line}" >> {STATUS_FILE}`
    States: `working`, `needs-decision`, `blocked`, `done`, `failed`.
    Report sparingly - only phase changes worth Chief's attention, not step-by-step narration.
    Chief only reads your LAST line. After `done`, `blocked`, `needs-decision`, or `failed`, report `working: resuming` again before acting on a new instruction.
    Whenever you end a turn and are about to wait for input, run `touch {TURN_FILE}` first: it is how Chief tells a quietly idle worker from a stalled one.
-6. Use `needs-decision: {summary of options}` for any choice that belongs to a human (product tradeoffs, destructive actions, ambiguous scope) and then stop until answered.
-7. Use `blocked: {why}` if you hit the same obstacle twice in a row, and stop.
-8. Before reporting `done`: the project's checks pass, the work is committed, and the tree is clean.
+7. Use `needs-decision: {summary of options}` for any choice that belongs to a human (product tradeoffs, destructive actions, ambiguous scope) and then stop until answered.
+8. Use `blocked: {why}` if you hit the same obstacle twice in a row, and stop.
+9. Before reporting `done`: the project's checks pass, the work is committed, and the tree is clean.
 
 # Project docs
 Check this project's root (and `docs/adr/`) for `README.md`, `AGENTS.md` (or `CLAUDE.md`), `ARCHITECTURE.md`, `docs/adr/*.md`, `CONSUMER_GUIDE.md`. For each that exists and this task's change is relevant to, update it proportionately - skip trivial tasks with no durable project-facing change, and prefer a pointer over duplicating detail. Do not create any that are missing unless the intent/spec above explicitly asked for that file; instead, name which of the well-known ones don't exist in your `done` line so Chief and the operator see the gap instead of it passing silently.

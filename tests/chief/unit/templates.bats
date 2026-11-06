@@ -33,6 +33,11 @@ done
     'fix them with new commits (amend only for commit-message findings)' 'This brief wins over any skill'
 }
 
+@test "builder brief: readable code, performance trades marked PERF:, project conventions win" {
+  assert_contains_all "$(brief builder)" 'Write code for its next reader' 'mark that code with a `PERF:` comment' \
+    'set a different bar or marker, follow them; rule 4 still applies'
+}
+
 @test "researcher brief: the report goes to REPORT_FILE and nothing is pushed" {
   assert_contains_all "$(brief researcher)" '{REPORT_FILE}' 'Never push to any remote, never open a PR' 'done: {one-line summary}' \
     'This brief wins over any skill'
@@ -62,6 +67,11 @@ done
       "Project docs addressed" "Doc quality" "Commit conventions"; do
     assert_contains_all "$(brief reviewer)" "**$item.**"
   done
+}
+
+@test "reviewer brief: readability is part of item 2, a missing PERF: comment blocks, nits only suggest" {
+  assert_contains_all "$(brief reviewer)" 'carries a `PERF:` comment' \
+    'one without it is blocking, a taste-level readability nit is a suggestion' 'judge by those; the conciseness rules below still apply'
 }
 
 @test "reviewer brief: fixes the report format, the done lines and the read-only rules" {
