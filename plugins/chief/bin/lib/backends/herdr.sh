@@ -14,6 +14,8 @@
 #
 # Each project has one primary workspace; herdr natively groups each task's
 # linked-worktree workspace (labelled with the plain task id) under it.
+# Chief marks a primary only if its own `worktree create`/`open` created it;
+# teardown closes only a marked, untouched one.
 #
 # The brief lives under $CHIEF_HOME (inside the project's main checkout),
 # never inside the per-task worktree, so telling the agent to go Read it would
@@ -60,6 +62,38 @@ _chief_herdr_close_task_workspace() {
     | jq -r --arg a "$worktree" --arg b "$(realpath -m "$worktree")" \
         '.result.workspaces[]? | select(.worktree.checkout_path as $p | $p != null and ($p == $a or $p == $b)) | .workspace_id' \
     | while read -r w; do herdr workspace close "$w" >/dev/null 2>&1; done || true
+}
+
+# _chief_herdr_record_primary <project-dir> <workspace-list-before> - marks the
+# project's primary workspace as Chief's if it is not in <workspace-list-before>.
+# The mark lives in herdr, so it dies with the workspace and with a restart.
+_chief_herdr_record_primary() {
+  local project=$1 before=$2 w
+  w=$(herdr workspace list 2>/dev/null | jq -r --arg a "$project" --arg b "$(realpath -m "$project")" \
+        '.result.workspaces[]? | select(.worktree.is_linked_worktree == false and (.worktree.checkout_path | . == $a or . == $b)) | .workspace_id' | head -1)
+  [ -n "$w" ] || return 0
+  printf '%s' "$before" | jq -e --arg w "$w" '.result.workspaces | type == "array" and all(.[]; .workspace_id != $w)' >/dev/null || return 0
+  herdr workspace report-metadata "$w" --source chief --token owned=1 >/dev/null 2>&1 || true
+}
+
+# _chief_herdr_close_project_workspace <project-dir> - closes the project's
+# primary only if Chief marked it, it is one idle shell pane, and it is not
+# Chief's own workspace. Never --group. Once touched, the mark is cleared.
+_chief_herdr_close_project_workspace() {
+  local project=$1 w pane err
+  w=$(herdr workspace list 2>/dev/null | jq -r --arg a "$project" --arg b "$(realpath -m "$project")" \
+        '.result.workspaces[]? | select(.tokens.owned == "1" and .worktree.is_linked_worktree == false and (.worktree.checkout_path | . == $a or . == $b)) | .workspace_id' | head -1)
+  [ -n "$w" ] || return 0
+  pane=$(herdr pane list --workspace "$w" 2>/dev/null | jq -r '.result.panes | select(length == 1) | .[0].pane_id')
+  if [ -n "$pane" ] && [ "$w" != "${HERDR_WORKSPACE_ID:-}" ] \
+     && herdr pane process-info --pane "$pane" 2>/dev/null \
+          | jq -e '.result.process_info | .foreground_process_group_id == .shell_pid' >/dev/null; then
+    err=$(herdr workspace close "$w" 2>&1) || case "$err" in
+      *workspace_group_close_required*) return 0 ;;
+      *) echo "chief-backend-herdr: could not close project workspace $w ($project): $err" >&2 ;;
+    esac
+  fi
+  herdr workspace report-metadata "$w" --source chief --clear-token owned >/dev/null 2>&1 || true
 }
 
 _chief_herdr_screen() {  # <id> [source] -> the agent's screen
@@ -200,12 +234,14 @@ _chief_herdr_prompt() {
 backend_spawn() {
   local id=$1 project_dir=$2 brief_path=$3 branch=$4
   local worktree="$WORKTREES/$id"
-  local json pane_id
+  local json pane_id before
   chief_agent_use "$id" || return 1
   agent_prepare "$worktree"
+  before=$(herdr workspace list 2>/dev/null)
   json=$(herdr worktree create --cwd "$project_dir" --branch "$branch" --path "$worktree" \
            --label "$id" --trust-repository --no-focus 2>&1) \
     || { echo "chief-backend-herdr: 'herdr worktree create' failed: $json" >&2; return 1; }
+  _chief_herdr_record_primary "$project_dir" "$before"
   pane_id=$(printf '%s' "$json" | jq -r '.result.root_pane.pane_id // empty')
   [ -n "$pane_id" ] || { echo "chief-backend-herdr: could not read pane id from: $json" >&2; return 1; }
 
@@ -224,6 +260,7 @@ backend_spawn_cleanup() {
   local id=$1 project_dir=$2 branch=$3
   local worktree="$WORKTREES/$id"
   _chief_herdr_close_task_workspace "$id"
+  _chief_herdr_close_project_workspace "$project_dir"
   chief_agent_release "$id" "$worktree"
   git -C "$project_dir" worktree remove --force "$worktree" >/dev/null 2>&1 || rm -rf "$worktree"
   git -C "$project_dir" branch -D "$branch" >/dev/null 2>&1 || true
@@ -262,14 +299,17 @@ backend_kill() {
   herdr workspace close "$(_chief_herdr_workspace_id "$pane_id")" >/dev/null 2>&1 || true
 }
 
-# backend_teardown <id> <project-dir> <worktree> - herdr has nothing to forget.
+# backend_teardown <id> <project-dir> <worktree> - releases the agent's trust
+# and closes the project's primary workspace if Chief created it and herdr
+# has no task workspace left under it.
 backend_teardown() {
   chief_agent_release "$1" "$3"
+  _chief_herdr_close_project_workspace "$2"
 }
 
 backend_relaunch() {
   local id=$1 brief_path=$2
-  local project worktree json pane_id
+  local project worktree json pane_id before
   # Closes the new workspace on any failure below, without repeating the call
   # at every site (a RETURN trap, skipped once `ok` is set). Matters here:
   # chief-control.sh already killed the OLD pane before calling relaunch, and
@@ -285,8 +325,10 @@ backend_relaunch() {
   # --cwd is required here: without it, `herdr worktree open` resolves the
   # repo against ambient server state instead of this specific project -
   # confirmed live to pick up a stale, unrelated repo when omitted.
+  before=$(herdr workspace list 2>/dev/null)
   json=$(herdr worktree open --cwd "$project" --path "$worktree" --label "$id" --trust-repository --no-focus 2>&1) \
     || { echo "chief-backend-herdr: 'herdr worktree open' failed: $json" >&2; return 1; }
+  _chief_herdr_record_primary "$project" "$before"
   pane_id=$(printf '%s' "$json" | jq -r '.result.root_pane.pane_id // empty')
   [ -n "$pane_id" ] || { echo "chief-backend-herdr: could not read pane id from: $json" >&2; return 1; }
 
