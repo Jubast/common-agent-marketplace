@@ -16,6 +16,8 @@ jobs:
   chief-herdr:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      CHIEF_TEST_REQUIRE_BACKENDS: 1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -48,11 +50,10 @@ jobs:
       # set as .devcontainer/orca/Dockerfile in the workspace repo.
       - run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends parallel curl file jq xvfb zlib1g-dev ca-certificates git \
+          sudo apt-get install -y --no-install-recommends curl file jq xvfb zlib1g-dev ca-certificates git \
             libgtk-3-0t64 libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libgbm1 libasound2t64 libxtst6 libcups2t64 \
             libdrm2 libxkbcommon0 libpango-1.0-0 libcairo2 libatspi2.0-0t64 libxcomposite1 libxdamage1 libxfixes3 \
             libxrandr2 libxrender1 libx11-xcb1 libxcb-dri3-0 libxss1
-      - run: tests/chief/ci/install-herdr.sh
       - run: tests/chief/ci/install-orca.sh
       - run: tests/chief/run-tests.sh --jobs 1 --only-orca --junit out
         env:

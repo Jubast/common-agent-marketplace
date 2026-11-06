@@ -37,6 +37,7 @@ if [ ! -x "$BATS" ] || [ "$TESTS_DIR/package-lock.json" -nt "$BATS" ]; then
   npm --prefix "$TESTS_DIR" ci --no-audit --no-fund >/dev/null || exit 1
 fi
 export BATS_LIB_PATH="$TESTS_DIR/node_modules"
+export BATS_TEST_TIMEOUT=300  # the slowest test takes about 45 s; a hang must not last until the job limit
 bats_cmd=("$BATS" -r --setup-suite-file "$SCRIPT_DIR/setup_suite.bash")
 [ -z "$TAGS" ] || bats_cmd+=(--filter-tags "$TAGS")
 if command -v parallel >/dev/null; then
