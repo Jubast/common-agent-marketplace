@@ -246,7 +246,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 
 # --- spawn / relaunch --------------------------------------------------------
 
-@test "spawn: a blocked reply fails, rolls back and closes only the task's workspace" {
+@test "spawn: a blocked reply fails and rolls back, closing the Chief-created workspaces" {
   chief_herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
   run chief_spawn s1 researcher
   assert_failure 1
@@ -254,7 +254,17 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_not_exist "$CHIEF_HOME/tasks/s1/meta"
   run workspace_labels
   refute_output --partial "s1"
-  assert_output --partial "project"
+  refute_output --partial "project"
+}
+
+@test "spawn: a blocked reply keeps a primary workspace the operator opened" {
+  herdr workspace create --cwd "$WORK/project" --label mine --no-focus >/dev/null
+  chief_herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
+  run chief_spawn s1 researcher
+  assert_failure 1
+  run workspace_labels
+  refute_output --partial "s1"
+  assert_output --partial "mine"
 }
 
 @test "spawn: prints 'spawned:' and labels the workspace with the plain id" {
