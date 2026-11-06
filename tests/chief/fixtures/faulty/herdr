@@ -4,6 +4,8 @@
 # `herdr <call> ...` (the first two words) matches a rule while it has hit fewer
 # than <times> times. before: reply with <stdout> and the exit code, without
 # running herdr. after: run the real herdr, then replace its result.
+# $HERDR_CALLS, if set, collects the arguments of every call.
+[ -z "${HERDR_CALLS:-}" ] || printf '%s\n' "$*" >> "$HERDR_CALLS"
 n=0
 while IFS='|' read -r call times when rc out; do
   n=$((n + 1))

@@ -47,6 +47,21 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_success
 }
 
+@test "start: the agent start timeout defaults to 30 s" {
+  assert_equal "$CHIEF_HERDR_AGENT_START_TIMEOUT_MS" 30000
+}
+
+@test "start: passes the agent start timeout to herdr" {
+  export HERDR_CALLS="$BATS_TEST_TMPDIR/calls"
+  chief_herdr_fault "no such call" 0 before 0 ""  # puts the logging wrapper first on PATH
+  CHIEF_HERDR_AGENT_START_TIMEOUT_MS=7000
+  open_pane t1
+  run _chief_herdr_start_agent t1 "$PANE" "$WT"
+  assert_success
+  run grep -c '^agent start t1 .*--timeout 7000' "$HERDR_CALLS"
+  assert_output 1
+}
+
 @test "start: fails when herdr gives up on a pane that never renders the TUI" {
   standin_never_ready t1
   open_pane t1
