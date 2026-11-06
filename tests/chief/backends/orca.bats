@@ -50,12 +50,7 @@ listed() {  # <worktree> - Orca still lists it
   orca worktree list --repo "path:$P" --json 2>/dev/null | jq -e --arg p "$1" '[.result.worktrees[]? | select(.path == $p)] | length > 0' >/dev/null
 }
 terminals() { orca terminal list --worktree "path:$1" --json 2>/dev/null | jq -r '[.result.terminals[]?] | length'; }
-turn_count() { standin_turns "$1" | grep -c 'turn:' || true; }
-turns_are() { [ "$(turn_count "$1")" -eq "$2" ]; }
 branch_count() { git -C "$P" branch --list "$1" | wc -l | tr -d ' '; }
-idle() { ! backend_busy "$ID"; }
-got_esc() { [ "$(standin_keys "$ID")" = esc ]; }
-dead() { ! kill -0 "$(cat "$STANDIN_DIR/$ID.pid")" 2>/dev/null; }
 
 # spawned - backend_spawn as chief-spawn.sh drives it, then records what it records
 spawned() {
@@ -70,7 +65,7 @@ rolled_back() {
   run listed "$HOME/orca/workspaces/$(basename "$P")/$ID"
   assert_failure 1
   assert_equal "$(branch_count "chief/$ID")" 0
-  assert_equal "$(trusted "$HOME/orca/workspaces/$(basename "$P")/$ID")" unset
+  assert_equal "$(chief_trusted "$HOME/orca/workspaces/$(basename "$P")/$ID")" unset
 }
 
 # --- spawn ---------------------------------------------------------------
@@ -84,9 +79,9 @@ rolled_back() {
   assert_regex "$EP" '^orca:term_'
   assert_equal "$(git -C "$WT" rev-parse --abbrev-ref HEAD)" "chief/$ID"
   assert_equal "$(terminals "$WT")" 1
-  assert_equal "$(trusted "$WT")" true
+  assert_equal "$(chief_trusted "$WT")" true
   assert_equal "$(cat "$STANDIN_DIR/$ID.args")" "--dangerously-skip-permissions"
-  assert_equal "$(turn_count "$ID")" 1
+  assert_equal "$(standin_turn_count "$ID")" 1
   assert_output --partial "orca:term_"
   run _chief_orca_screen "${EP#orca:}"
   assert_output --partial "bypass permissions"
@@ -136,14 +131,14 @@ rolled_back() {
 @test "spawn: a prompt that never landed is resent once" {
   standin_mode "$ID" drop=1
   spawned
-  assert_equal "$(turn_count "$ID")" 1
+  assert_equal "$(standin_turn_count "$ID")" 1
   assert_equal "$(standin_keys "$ID")" dropped
 }
 
 @test "spawn: a prompt left in the input line gets a bare Enter, not a resend" {
   standin_mode "$ID" lose-enter=1
   spawned
-  assert_equal "$(turn_count "$ID")" 1
+  assert_equal "$(standin_turn_count "$ID")" 1
   assert_equal "$(standin_keys "$ID")" enter-lost
 }
 
@@ -163,15 +158,15 @@ rolled_back() {
   run backend_busy "$ID"
   assert_success
   standin_release "$ID"
-  eventually 20 idle
+  eventually 20 chief_backend_idle "$ID"
   backend_send "$ID" Enter
   backend_send "$ID" Escape
-  eventually 10 got_esc
+  eventually 10 standin_got_esc "$ID"
   backend_send "$ID" "hello there"
-  eventually 20 turns_are "$ID" 2
+  eventually 20 standin_turns_are "$ID" 2
   assert_equal "$(standin_turns "$ID" | tail -n1)" "turn: hello there"
   backend_send "$ID" C-c
-  eventually 10 dead
+  eventually 10 chief_pid_dead "$(cat "$STANDIN_DIR/$ID.pid")"
 }
 
 @test "kill: closes every terminal, keeps the worktree; falls back to the tab with no worktree; no endpoint is a no-op" {
@@ -197,12 +192,12 @@ rolled_back() {
   spawned
   backend_kill "$ID"
   chief_agent_release "$ID" "$WT"
-  assert_equal "$(trusted "$WT")" unset
+  assert_equal "$(chief_trusted "$WT")" unset
   backend_relaunch "$ID" "$BRIEF"
-  assert_equal "$(trusted "$WT")" true
+  assert_equal "$(chief_trusted "$WT")" true
   assert_not_equal "$(chief_meta_get "$ID" endpoint)" "$EP"
   assert_equal "$(terminals "$WT")" 1
-  assert_equal "$(turn_count "$ID")" 2
+  assert_equal "$(standin_turn_count "$ID")" 2
   run git -C "$P" worktree list
   assert_output --partial "$WT"
 }
@@ -252,7 +247,7 @@ rolled_back() {
   run listed "$WT"
   assert_failure 1
   assert_equal "$(child_count)" 0
-  assert_equal "$(trusted "$WT")" unset
+  assert_equal "$(chief_trusted "$WT")" unset
 }
 
 # --- the real lifecycle scripts ------------------------------------------
@@ -268,23 +263,23 @@ rolled_back() {
   assert_equal "$(chief_meta_get "$LID" attach)" ""  # only a brainstormer has one
   assert_equal "$(git -C "$WT" rev-parse --abbrev-ref HEAD)" "feat/$LID"
   assert_equal "$(child_count)" 1
-  eventually 20 idle
+  eventually 20 chief_backend_idle "$ID"
 
   run timeout 60 "$BIN/task/chief-send.sh" "$LID" "please continue"
   assert_success
-  eventually 20 turns_are "$LID" 2
+  eventually 20 standin_turns_are "$LID" 2
   assert_regex "$(standin_turns "$LID" | tail -n1)" "chief: instruction waiting"
 
   run "$BIN/task/chief-control.sh" "$LID" interrupt
   assert_success
-  eventually 10 got_esc
+  eventually 10 standin_got_esc "$ID"
   assert_equal "$(chief_meta_get "$LID" endpoint)" "$EP"
 
   run timeout 120 "$BIN/task/chief-control.sh" "$LID" relaunch --note "halfway"
   assert_success
   assert_not_equal "$(chief_meta_get "$LID" endpoint)" "$EP"
   assert_equal "$(terminals "$WT")" 1
-  assert_equal "$(turn_count "$LID")" 3
+  assert_equal "$(standin_turn_count "$LID")" 3
 
   run "$BIN/chief-teardown.sh" "$LID" --abandon
   assert_success

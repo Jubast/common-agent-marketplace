@@ -29,7 +29,7 @@ spawn_mode() {  # <id> <mode> <branch>: filed in the backlog, then spawned
 }
 spawn_pushed() {  # <id> <mode> <branch>
   spawn_mode "$1" "$2" "$3"
-  commit_file "$1" "$1.txt" "$1" >/dev/null
+  chief_commit_file "$1" "$1.txt" "$1" >/dev/null
   git -C "$CHIEF_HOME/worktrees/$1" push -q origin "$3"
   run git -C "$BARE" branch --list "$3"
   assert_output --partial "$3"
@@ -38,7 +38,7 @@ spawn_pushed() {  # <id> <mode> <branch>
 @test "researcher: tears down unconditionally and archives its report" {
   spawn_mode s-1 researcher feat/s-1
   echo "findings: use an LRU cache" > "$CHIEF_HOME/tasks/s-1/report.md"
-  commit_file s-1 scratch.txt scratch
+  chief_commit_file s-1 scratch.txt scratch
   echo "done: wrote report.md" >> "$CHIEF_HOME/tasks/s-1/status"
   run td s-1
   assert_success
@@ -53,7 +53,7 @@ spawn_pushed() {  # <id> <mode> <branch>
 
 @test "builder: is refused without --abandon, even after done" {
   spawn_mode b-1 builder feat/b-1
-  commit_file b-1 hello.txt hello
+  chief_commit_file b-1 hello.txt hello
   echo "done: added hello.txt" >> "$CHIEF_HOME/tasks/b-1/status"
   run td b-1
   assert_failure 1
@@ -69,7 +69,7 @@ spawn_pushed() {  # <id> <mode> <branch>
 
 @test "builder: a landed one tears down without --abandon" {
   spawn_mode b-2 builder feat/b-2
-  commit_file b-2 world.txt world
+  chief_commit_file b-2 world.txt world
   git -C "$WORK/project" merge --ff-only feat/b-2 >/dev/null
   run td b-2
   assert_success
@@ -77,7 +77,7 @@ spawn_pushed() {  # <id> <mode> <branch>
 
 @test "builder: a squash-merged one lands, an unmerged one is refused" {
   spawn_mode b-3 builder feat/b-3
-  commit_file b-3 moon.txt moon
+  chief_commit_file b-3 moon.txt moon
   run td b-3
   assert_failure 1
   assert_exist "$CHIEF_HOME/worktrees/b-3"
@@ -92,7 +92,7 @@ spawn_pushed() {  # <id> <mode> <branch>
 
 @test "builder: a squash-merged one reworked on the default branch needs --abandon" {
   spawn_mode b-5 builder feat/b-5
-  commit_file b-5 star.txt star
+  chief_commit_file b-5 star.txt star
   git -C "$WORK/project" merge --squash feat/b-5 >/dev/null
   git -C "$WORK/project" commit -q -m "squash feat/b-5"
   echo "bright star" > "$WORK/project/star.txt"
@@ -141,7 +141,7 @@ spawn_pushed() {  # <id> <mode> <branch>
 }
 
 @test "brainstormer: discards like a researcher, and a re-run on the archive completes" {
-  spawn bs-1 --mode brainstormer
+  chief_spawn_quiet bs-1 --mode brainstormer
   run td bs-1
   assert_success
   run td bs-1
@@ -150,10 +150,10 @@ spawn_pushed() {  # <id> <mode> <branch>
 }
 
 @test "pre-trust: released with the task's worktree" {
-  spawn p-1 --mode researcher
-  assert_equal "$(trusted "$CHIEF_HOME/worktrees/p-1")" true
+  chief_spawn_quiet p-1 --mode researcher
+  assert_equal "$(chief_trusted "$CHIEF_HOME/worktrees/p-1")" true
   td p-1 >/dev/null
-  assert_equal "$(trusted "$CHIEF_HOME/worktrees/p-1")" unset
+  assert_equal "$(chief_trusted "$CHIEF_HOME/worktrees/p-1")" unset
 }
 
 @test "cascade: a landed builder takes its reviewer with it" {

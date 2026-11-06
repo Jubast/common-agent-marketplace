@@ -19,7 +19,7 @@ assert_rolled_back() {  # <id>
   assert_not_exist "$CHIEF_HOME/tasks/$1/spawning"
   run git -C "$WORK/project" branch --list
   refute_output --partial "feat/$1"
-  assert_equal "$(trusted "$CHIEF_HOME/worktrees/$1")" unset
+  assert_equal "$(chief_trusted "$CHIEF_HOME/worktrees/$1")" unset
   assert_equal "$(grep -c "$1" "$CHIEF_HOME/state/trust-owned" 2>/dev/null || true)" 0
   run herdr workspace list
   refute_output --partial "\"$1\""
@@ -33,7 +33,7 @@ assert_rolled_back() {  # <id>
 }
 
 @test "rollback: a failing 'herdr agent start' undoes everything too" {
-  herdr_fault "agent start" 1000 before 1 '{"error":{"code":"internal","message":"boom"}}'
+  chief_herdr_fault "agent start" 1000 before 1 '{"error":{"code":"internal","message":"boom"}}'
   run chief_spawn t-fail builder
   assert_failure 1
   assert_output --partial "'herdr agent start' failed for t-fail"
@@ -59,7 +59,7 @@ PATCH
     "$WORK/project" "$CHIEF_HOME/worktrees/t-stub" > "$CHIEF_HOME/tasks/t-stub/meta"
   run "$BIN/task/chief-crew-state.sh" t-stub
   assert_output --partial "state: blocked"
-  watch_once
+  chief_watch_once
   assert_output --partial "t-stub: state: blocked"
   : > "$CHIEF_HOME/tasks/t-stub/spawning"
   run "$BIN/task/chief-crew-state.sh" t-stub

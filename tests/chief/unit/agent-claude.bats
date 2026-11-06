@@ -12,7 +12,6 @@ setup() {
   CFG="$CLAUDE_CONFIG_DIR/.claude.json"
 }
 
-
 @test "contract: name, command, ready and trust text" {
   assert_equal "$(agent_name)" claude
   assert_equal "$(agent_command)" "claude --dangerously-skip-permissions"
@@ -28,7 +27,7 @@ setup() {
 
 @test "trust: creates the config when missing and sets the flag" {
   agent_prepare /a
-  assert_equal "$(trusted /a)" true
+  assert_equal "$(chief_trusted /a)" true
 }
 
 @test "trust: keeps other keys and records each dir once" {
@@ -36,7 +35,7 @@ setup() {
   agent_prepare /b; agent_prepare /b2
   assert_equal "$(jq -r .theme "$CFG")" dark
   assert_equal "$(jq -c '.projects["/b"].allowedTools' "$CFG")" '["x"]'
-  assert_equal "$(trusted /b2)" true
+  assert_equal "$(chief_trusted /b2)" true
   agent_prepare /b
   assert_equal "$(grep -cxF /b "$STATE/trust-owned")" 1
 }
@@ -45,7 +44,7 @@ setup() {
   echo '{"projects":{"/b":{"allowedTools":["x"]}}}' > "$CFG"
   agent_prepare /b
   agent_release /b
-  assert_equal "$(trusted /b)" unset
+  assert_equal "$(chief_trusted /b)" unset
   assert_equal "$(jq -c '.projects["/b"].allowedTools' "$CFG")" '["x"]'
   assert_equal "$(grep -cxF /b "$STATE/trust-owned" || true)" 0
 }
@@ -53,7 +52,7 @@ setup() {
 @test "release: leaves a dir the user already trusted" {
   echo '{"projects":{"/u":{"hasTrustDialogAccepted":true}}}' > "$CFG"
   agent_prepare /u; agent_release /u
-  assert_equal "$(trusted /u)" true
+  assert_equal "$(chief_trusted /u)" true
 }
 
 @test "trust: warns and leaves corrupt JSON untouched" {

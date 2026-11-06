@@ -1,6 +1,6 @@
 # backends/herdr.sh against a REAL herdr. The agent is the zero-cost stand-in;
 # its modes (trust, late, lose-enter, drop, slow-work, never-ready) reproduce the
-# situations the adapter has to handle, and herdr_fault (a wrapper around the
+# situations the adapter has to handle, and chief_herdr_fault (a wrapper around the
 # real herdr) replaces one named reply where the real one cannot be provoked.
 # Covers what a spawn/relaunch may report as success: only a ready screen
 # followed by an observed started turn.
@@ -33,8 +33,6 @@ open_pane() {
 }
 # started_agent - t1's agent started and ready, by the adapter
 started_agent() { open_pane t1; _chief_herdr_start_agent t1 "$PANE" "$WT" >/dev/null 2>&1; }
-turn_count() { standin_turns t1 | grep -c 'turn:' || true; }
-turns_are() { [ "$(turn_count)" -eq "$1" ]; }
 fault_hits() { cat "$HERDR_FAULTS.$1" 2>/dev/null || echo 0; }
 workspace_labels() { herdr workspace list | jq -r '.result.workspaces[].label' | sort | paste -sd' '; }
 
@@ -59,7 +57,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 
 @test "start: fails with the screen shown when only the shell line renders" {
   standin_never_ready t1
-  herdr_fault "agent start" 1 after 1 '{"error":{"code":"agent_not_ready","message":"agent t1 is not ready"}}'
+  chief_herdr_fault "agent start" 1 after 1 '{"error":{"code":"agent_not_ready","message":"agent t1 is not ready"}}'
   open_pane t1
   run _chief_herdr_start_agent t1 "$PANE" "$WT"
   assert_failure 1
@@ -75,14 +73,14 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 }
 
 @test "start: lets the screen, not an agent_not_ready reply, decide" {
-  herdr_fault "agent start" 1 after 1 '{"error":{"code":"agent_not_ready","message":"agent t1 is blocked during startup"}}'
+  chief_herdr_fault "agent start" 1 after 1 '{"error":{"code":"agent_not_ready","message":"agent t1 is blocked during startup"}}'
   open_pane t1
   run _chief_herdr_start_agent t1 "$PANE" "$WT"
   assert_success
 }
 
 @test "start: retries a pane whose shell is not up yet" {
-  herdr_fault "agent start" 1 before 1 '{"error":{"code":"agent_pane_busy","message":"agent target pane is not an available shell"}}'
+  chief_herdr_fault "agent start" 1 before 1 '{"error":{"code":"agent_pane_busy","message":"agent target pane is not an available shell"}}'
   open_pane t1
   run _chief_herdr_start_agent t1 "$PANE" "$WT"
   assert_success
@@ -90,7 +88,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 }
 
 @test "start: fails with herdr's error when the pane stays busy" {
-  herdr_fault "agent start" 1000 before 1 '{"error":{"code":"agent_pane_busy","message":"not an available shell"}}'
+  chief_herdr_fault "agent start" 1000 before 1 '{"error":{"code":"agent_pane_busy","message":"not an available shell"}}'
   open_pane t1
   CHIEF_HERDR_START_WAIT=2 run _chief_herdr_start_agent t1 "$PANE" "$WT"
   assert_failure 1
@@ -98,7 +96,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 }
 
 @test "start: fails at once on any other 'agent start' error" {
-  herdr_fault "agent start" 1000 before 1 '{"error":{"code":"unknown_kind"}}'
+  chief_herdr_fault "agent start" 1000 before 1 '{"error":{"code":"unknown_kind"}}'
   open_pane t1
   run _chief_herdr_start_agent t1 "$PANE" "$WT"
   assert_failure 1
@@ -146,7 +144,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 
 @test "prompt: fails without a retry when herdr replies blocked" {
   started_agent
-  herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
+  chief_herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
   run _chief_herdr_prompt t1 "$BRIEF"
   assert_failure 1
   assert_equal "$(fault_hits 1)" 1
@@ -156,12 +154,12 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   started_agent
   run _chief_herdr_prompt t1 "$BRIEF"
   assert_success
-  assert_equal "$(turn_count)" 1
+  assert_equal "$(standin_turn_count t1)" 1
 }
 
 @test "prompt: fails with herdr's error when herdr rejects it" {
   started_agent
-  herdr_fault "agent prompt" 100 before 1 '{"error":{"code":"agent_blocked"}}'
+  chief_herdr_fault "agent prompt" 100 before 1 '{"error":{"code":"agent_blocked"}}'
   run _chief_herdr_prompt t1 "$BRIEF"
   assert_failure 1
   assert_output --partial "agent_blocked"
@@ -174,7 +172,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   started_agent
   run _chief_herdr_prompt t1 "$BRIEF"
   assert_success
-  assert_equal "$(turn_count)" 1
+  assert_equal "$(standin_turn_count t1)" 1
   assert_equal "$(standin_keys t1)" "enter-lost"
 }
 
@@ -183,7 +181,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   started_agent
   run _chief_herdr_prompt t1 "$BRIEF"
   assert_failure 1
-  assert_equal "$(turn_count)" 0
+  assert_equal "$(standin_turn_count t1)" 0
   assert_equal "$(standin_keys t1)" $'enter-lost\nenter-lost'
 }
 
@@ -192,7 +190,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   started_agent
   run _chief_herdr_prompt t1 "$SHORT"
   assert_success
-  assert_equal "$(turn_count)" 1
+  assert_equal "$(standin_turn_count t1)" 1
 }
 
 @test "stall: waits for the turn of an already submitted brief" {
@@ -200,7 +198,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   started_agent
   run _chief_herdr_prompt t1 "$SHORT"
   assert_success
-  eventually 10 turns_are 1
+  eventually 10 standin_turns_are t1 1
   assert_equal "$(standin_keys t1)" ""
 }
 
@@ -209,7 +207,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   started_agent
   run _chief_herdr_prompt t1 "$SHORT"
   assert_success
-  assert_equal "$(turn_count)" 1
+  assert_equal "$(standin_turn_count t1)" 1
   assert_equal "$(standin_keys t1)" "dropped"
 }
 
@@ -224,8 +222,8 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 
 @test "stall: names an unanswered permission prompt at a blocked agent" {
   started_agent
-  herdr_fault "agent prompt" 100 before 1 "$STALLED"
-  herdr_fault "agent get" 100 before 0 "$BLOCKED"
+  chief_herdr_fault "agent prompt" 100 before 1 "$STALLED"
+  chief_herdr_fault "agent get" 100 before 0 "$BLOCKED"
   run _chief_herdr_prompt t1 "$SHORT"
   assert_failure 1
   assert_output --partial "unanswered permission/approval prompt"
@@ -234,7 +232,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 # --- spawn / relaunch --------------------------------------------------------
 
 @test "spawn: a blocked reply fails, rolls back and closes only the task's workspace" {
-  herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
+  chief_herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
   run chief_spawn s1 researcher
   assert_failure 1
   refute_output --partial "spawned:"
@@ -261,7 +259,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 
 # relaunchable_task - r1 spawned, then killed, as chief-control.sh leaves it
 relaunchable_task() {
-  spawn r1 --mode researcher
+  chief_spawn_quiet r1 --mode researcher
   OLD_ENDPOINT=$(chief_meta_get r1 endpoint)
   chief_agent_use r1 >/dev/null 2>&1
   backend_kill r1
@@ -270,7 +268,7 @@ relaunchable_task() {
 
 @test "relaunch: a blocked reply fails, closes the workspace and records no endpoint" {
   relaunchable_task
-  herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
+  chief_herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
   run backend_relaunch r1 "$WORK/brief.md"
   assert_failure 1
   assert_equal "$(chief_meta_get r1 endpoint)" "$OLD_ENDPOINT"
@@ -296,7 +294,6 @@ linked_count() { ws_json | jq -r --arg root "$1" '[.result.workspaces[]? | selec
 primary_ws() { ws_json | jq -r --arg root "$1" '.result.workspaces[]? | select(.worktree.repo_root == $root and .worktree.is_linked_worktree == false) | .workspace_id'; }
 ws_label() { ws_json | jq -r --arg id "$1" '.result.workspaces[]? | select(.workspace_id == $id) | .label'; }
 capture() { herdr agent read "$1" --source recent-unwrapped --lines 200 2>/dev/null; }
-idle() { ! backend_busy "$1"; }
 
 # adapter_spawn <id> - backend_spawn as chief-spawn.sh calls it
 adapter_spawn() {
@@ -313,7 +310,7 @@ adapter_spawn() {
   assert_equal "$(sed -n 1p <<< "$SPAWN_OUT")" "$CHIEF_HOME/worktrees/t-herdr-1"
   [[ $(sed -n 2p <<< "$SPAWN_OUT") == herdr:* ]]
   assert_exist "$CHIEF_HOME/worktrees/t-herdr-1/.git"
-  assert_equal "$(trusted "$CHIEF_HOME/worktrees/t-herdr-1")" true
+  assert_equal "$(chief_trusted "$CHIEF_HOME/worktrees/t-herdr-1")" true
 }
 
 @test "backend_spawn: adds one task workspace labeled with the id next to the primary" {
@@ -339,7 +336,7 @@ adapter_spawn() {
 
 @test "backend_busy: is idle once the turn is done and the pane shows the reply" {
   adapter_spawn t-herdr-1
-  eventually 20 idle t-herdr-1
+  eventually 20 chief_backend_idle t-herdr-1
   run capture t-herdr-1
   assert_output --partial "ok"
   assert_output --partial "bypass permissions"
@@ -364,14 +361,14 @@ adapter_spawn() {
 
 @test "backend_send: delivers Escape" {
   adapter_spawn t-herdr-1
-  eventually 20 idle t-herdr-1
+  eventually 20 chief_backend_idle t-herdr-1
   run backend_send t-herdr-1 Escape
   assert_success
 }
 
 @test "backend_kill: leaves the worktree and the primary workspace" {
   adapter_spawn t-herdr-1
-  eventually 20 idle t-herdr-1
+  eventually 20 chief_backend_idle t-herdr-1
   PRIMARY=$(primary_ws "$WORK/project")
   backend_kill t-herdr-1
   assert_exist "$CHIEF_HOME/worktrees/t-herdr-1/.git"
@@ -381,7 +378,7 @@ adapter_spawn() {
 
 @test "backend_relaunch: reopens a killed task in a workspace labeled with its id" {
   adapter_spawn t-herdr-1
-  eventually 20 idle t-herdr-1
+  eventually 20 chief_backend_idle t-herdr-1
   backend_kill t-herdr-1
   printf '%s\n' "$SHORT" > "$WORK/brief2.md"
   run backend_relaunch t-herdr-1 "$WORK/brief2.md"
@@ -389,7 +386,7 @@ adapter_spawn() {
   new=$(chief_meta_get t-herdr-1 endpoint)
   assert_equal "$(linked_count "$WORK/project")" 1
   assert_equal "$(ws_label "$(_chief_herdr_workspace_id "${new#herdr:}")")" t-herdr-1
-  eventually 20 idle t-herdr-1
+  eventually 20 chief_backend_idle t-herdr-1
   run capture t-herdr-1
   assert_output --partial "ok"
   backend_kill t-herdr-1
@@ -408,8 +405,8 @@ workspaces() { herdr workspace list | jq -r '.result.workspaces[] | "\(.label)|\
 
 # cleanup_closes_only <label of the task's workspace>
 cleanup_closes_only() {
-  spawn fix-58
-  spawn fix-580
+  chief_spawn_quiet fix-58
+  chief_spawn_quiet fix-580
   herdr workspace create --cwd "$WORK" --label fix-58 >/dev/null   # a label twin with no worktree
   [ "$1" = fix-58 ] || herdr workspace rename "$(herdr workspace list | jq -r '.result.workspaces[] | select(.worktree.checkout_path == "'"$WORKTREES/fix-58"'") | .workspace_id')" "$1" >/dev/null
   _chief_herdr_close_task_workspace fix-58

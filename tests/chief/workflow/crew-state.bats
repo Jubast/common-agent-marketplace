@@ -29,7 +29,7 @@ aged() { touch -d "@$(($(date +%s) - $2))" "$CHIEF_HOME/tasks/$1/turn-ended"; }
 
 @test "liveness: working while busy, then stale or working by the turn-ended marker" {
   standin_hold t-1
-  spawn t-1
+  chief_spawn_quiet t-1
   state t-1
   assert_output --partial "state: working"
   assert_output --partial "[mode: builder]"
@@ -40,7 +40,7 @@ aged() { touch -d "@$(($(date +%s) - $2))" "$CHIEF_HOME/tasks/$1/turn-ended"; }
   assert_output --partial "[mode: builder] [agent: codex:gpt-5]"
 
   standin_release t-1
-  wait_settled t-1
+  chief_wait_settled t-1
   state t-1
   assert_output --partial "state: stale"          # idle, no turn-ended marker
   touch "$CHIEF_HOME/tasks/t-1/turn-ended"

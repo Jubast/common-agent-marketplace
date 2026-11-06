@@ -45,12 +45,12 @@ configured_project() {
 @test "session-start: in-flight tasks show status, mode, agent and attach hint" {
   configured_project
   "$BIN/chief-backlog.sh" add t-1 "test task" >/dev/null
-  spawn t-1
+  chief_spawn_quiet t-1
   echo "done: finished" >> "$CHIEF_HOME/tasks/t-1/status"
   ctx=$("$SS" | context)
   [[ $ctx == *"t-1: done: finished [mode: builder]"* && $ctx == *"[agent: claude]"* ]]
 
-  spawn bs-1 --mode brainstormer
+  chief_spawn_quiet bs-1 --mode brainstormer
   ctx=$("$SS" | context)
   [[ $ctx == *"[mode: brainstormer] [agent: claude] [attach: herdr workspace focus "* ]]
   [[ $ctx != *"[mode: builder] [agent: claude] [attach:"* ]]
@@ -62,7 +62,7 @@ configured_project() {
 
 @test "worktree: both hooks stand down inside a builder's own worktree" {
   configured_project
-  spawn t-1
+  chief_spawn_quiet t-1
   echo "done: finished" >> "$CHIEF_HOME/tasks/t-1/status"
   cd "$CHIEF_HOME/worktrees/t-1"
   run "$SS"
@@ -75,7 +75,7 @@ configured_project() {
 
 @test "stop-watch-arm: still arms after its cwd drifts into a worktree" {
   configured_project
-  spawn t-2
+  chief_spawn_quiet t-2
   echo "done: finished" >> "$CHIEF_HOME/tasks/t-2/status"
   cd "$CHIEF_HOME/worktrees/t-2"
   CLAUDE_PROJECT_DIR="$WORK/configured/project" run "$ARM"
@@ -83,7 +83,7 @@ configured_project() {
   assert_output --partial "t-2"
 
   git -C "$WORK/configured/project" worktree add -q -b ext "$WORK/ext"
-  spawn t-3
+  chief_spawn_quiet t-3
   echo "done: finished" >> "$CHIEF_HOME/tasks/t-3/status"
   cd "$WORK/ext"
   CHIEF_HOME= CLAUDE_PROJECT_DIR="$WORK/configured/project" run "$ARM"

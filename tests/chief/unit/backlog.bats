@@ -123,15 +123,15 @@ setup() {
   assert_equal "$("$BL" show nope)" ""
 }
 
-# task_meta <id> <endpoint> - a hand-written meta for a spawned task
-task_meta() {
+# backlog_task_meta <id> <endpoint> - a hand-written meta for a spawned task
+backlog_task_meta() {
   mkdir -p "$CHIEF_HOME/tasks/$1"
   printf 'project=%s\nmode=builder\nbranch=feat/%s\nworktree=%s/worktrees/%s\nendpoint=%s\n' \
     "$BATS_TEST_TMPDIR" "$1" "$CHIEF_HOME" "$1" "$2" > "$CHIEF_HOME/tasks/$1/meta"
 }
 
 @test "show: prints the branch, worktree, report path and workspace of a spawned task" {
-  task_meta t-1 herdr:w3:p1
+  backlog_task_meta t-1 herdr:w3:p1
   "$BL" add t-1 "Task one" >/dev/null
   "$BL" status t-1 in-flight >/dev/null
   run "$BL" show t-1
@@ -142,7 +142,7 @@ task_meta() {
 }
 
 @test "show: names the workspace of an Orca task from its endpoint" {
-  task_meta old-o orca:h
+  backlog_task_meta old-o orca:h
   "$BL" add old-o "Orca task" >/dev/null
   run "$BL" show old-o
   assert_output --partial "  workspace: old-o"

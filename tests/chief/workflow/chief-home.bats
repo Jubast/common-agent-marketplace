@@ -9,7 +9,7 @@ setup() {
   # whose origin is ahead of the local checkout.
   mkdir -p "$W/ws/projects" && git -C "$W/ws" init -q -b main
   P="$W/ws/projects/app"
-  project_with_origin "$P"
+  chief_project_with_origin "$P"
   unset CHIEF_HOME
   export CHIEF_BACKEND=herdr
   chief_herdr_server
@@ -30,7 +30,7 @@ teardown() { chief_herdr_stop; }
 
 @test "backlog: run from a project or its worktree creates no .chief there" {
   cd "$P"
-  spawn b-1
+  chief_spawn_quiet b-1
   for dir in "$P" "$HOME_DIR/worktrees/b-1"; do
     run bash -c "cd '$dir' && '$BIN/chief-backlog.sh' add x-$RANDOM t"
     assert_success

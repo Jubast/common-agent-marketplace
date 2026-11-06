@@ -13,10 +13,8 @@ setup() {
 
 teardown() { chief_herdr_stop; }
 
-meta() { chief_meta_get "$1" "$2"; }
-leftovers() { ls -A "$CHIEF_HOME/tasks/$1" 2>/dev/null | wc -l | tr -d ' '; }
 assert_nothing_left() {  # <id>
-  assert_equal "$(leftovers "$1")" 0
+  assert_equal "$(chief_leftovers "$1")" 0
   assert_not_exist "$CHIEF_HOME/worktrees/$1"
   assert_equal "$(git -C "$WORK/project" branch --list "feat/$1" | wc -l | tr -d ' ')" 0
 }
@@ -26,7 +24,7 @@ assert_nothing_left() {  # <id>
 @test "brief: keeps a multi-line --spec and --intent with sed-delimiter characters" {
   SPEC=$'line one with a | pipe\nline two with an & ampersand\nline three with a \\ backslash'
   INTENT=$'multi-line intent\nwith a | pipe too'
-  spawn t-1 --intent "$INTENT" --spec "$SPEC"
+  chief_spawn_quiet t-1 --intent "$INTENT" --spec "$SPEC"
   run cat "$CHIEF_HOME/tasks/t-1/brief.md"
   assert_output --partial "$INTENT"
   assert_output --partial "$SPEC"
@@ -47,26 +45,26 @@ for role in builder researcher brainstormer reviewer; do
 done
 
 @test "render: the builder lifecycle is an unticked checklist" {
-  spawn t-1
+  chief_spawn_quiet t-1
   assert_contains_all "$(cat "$CHIEF_HOME/tasks/t-1/lifecycle")" "- [ ] filed"
 }
 
 # --- pre-trust and the recorded agent ---------------------------------------
 
 @test "pre-trust: trusts the task's worktree" {
-  spawn t-1
-  assert_equal "$(trusted "$CHIEF_HOME/worktrees/t-1")" true
+  chief_spawn_quiet t-1
+  assert_equal "$(chief_trusted "$CHIEF_HOME/worktrees/t-1")" true
 }
 
 @test "pre-trust: CHIEF_NO_PRETRUST=1 spawns and leaves the claude config alone" {
   rm -f "$CLAUDE_CONFIG_DIR/.claude.json"
-  CHIEF_NO_PRETRUST=1 spawn t-2
+  CHIEF_NO_PRETRUST=1 chief_spawn_quiet t-2
   assert_not_exist "$CLAUDE_CONFIG_DIR/.claude.json"
 }
 
 @test "meta: records claude as the default agent" {
-  spawn t-1
-  assert_equal "$(meta t-1 agent)" claude
+  chief_spawn_quiet t-1
+  assert_equal "$(chief_meta t-1 agent)" claude
 }
 
 # --- the attach hint --------------------------------------------------------
@@ -75,13 +73,13 @@ done
   run chief_spawn bs-1 brainstormer
   assert_output --partial "attach: herdr workspace focus"
   assert_output --partial "(workspace \"bs-1\")"
-  [[ $(meta bs-1 attach) == "herdr workspace focus "* ]]
+  [[ $(chief_meta bs-1 attach) == "herdr workspace focus "* ]]
 }
 
 @test "attach: a builder prints and records none" {
   run chief_spawn b-1 builder
   refute_output --partial "attach:"
-  assert_equal "$(meta b-1 attach 2>/dev/null || true)" ""
+  assert_equal "$(chief_meta b-1 attach 2>/dev/null || true)" ""
 }
 
 @test "attach: a brainstormer --dry-run prints none and creates nothing" {
@@ -91,13 +89,13 @@ done
 }
 
 @test "attach: a brainstormer started from a handoff gets the hint too" {
-  spawn r-1 --mode researcher
+  chief_spawn_quiet r-1 --mode researcher
   echo "done: found it" >> "$CHIEF_HOME/tasks/r-1/status"
   echo "# findings" > "$CHIEF_HOME/tasks/r-1/report.md"
   run chief_spawn bs-3 brainstormer --from r-1
   assert_success
   assert_output --partial "attach:"
-  [[ $(meta bs-3 attach) == "herdr workspace focus "* ]]
+  [[ $(chief_meta bs-3 attach) == "herdr workspace focus "* ]]
 }
 
 # --- refusals: nothing is left behind ---------------------------------------
@@ -116,7 +114,7 @@ done
   assert_failure 1
   assert_output --partial "branch feat/t-exists already exists"
   assert_equal "$(git -C "$WORK/project" rev-parse feat/t-exists)" "$sha"
-  assert_equal "$(leftovers t-exists)" 0
+  assert_equal "$(chief_leftovers t-exists)" 0
   assert_not_exist "$CHIEF_HOME/worktrees/t-exists"
 }
 

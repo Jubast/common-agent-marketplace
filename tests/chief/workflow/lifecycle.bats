@@ -19,7 +19,7 @@ teardown() { chief_herdr_stop; }
   run "$BL" list
   assert_output --partial "[queued]"
 
-  spawn t-1 --intent "Add hello.txt" --spec "content: hello"
+  chief_spawn_quiet t-1 --intent "Add hello.txt" --spec "content: hello"
   run "$BL" show t-1
   assert_output --partial "[in-flight]"
   assert_exist "$CHIEF_HOME/worktrees/t-1"
@@ -28,7 +28,7 @@ teardown() { chief_herdr_stop; }
   assert_output --partial "Add hello.txt"
   assert_output --partial "report \`working"  # re-announce working after resuming from a terminal status
 
-  commit_file t-1 hello.txt hello >/dev/null
+  chief_commit_file t-1 hello.txt hello >/dev/null
   echo "done: added hello.txt" >> "$CHIEF_HOME/tasks/t-1/status"
   run "$BIN/task/chief-crew-state.sh" t-1
   assert_output --partial "state: done"

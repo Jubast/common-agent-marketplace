@@ -16,13 +16,13 @@ teardown() { chief_herdr_stop; }
 }
 
 @test "send: refuses an empty message" {
-  spawn t-1
+  chief_spawn_quiet t-1
   run "$SEND" t-1 "   "
   assert_failure 1
 }
 
 @test "inbox: numbers messages 001, 002 and stores the text verbatim" {
-  spawn t-1
+  chief_spawn_quiet t-1
   run "$SEND" t-1 "please also add a README note"
   assert_success
   run "$SEND" t-1 "and run the tests"
@@ -33,7 +33,7 @@ teardown() { chief_herdr_stop; }
 }
 
 @test "inbox: numbering continues from handled/ and never reuses 001" {
-  spawn t-1
+  chief_spawn_quiet t-1
   "$SEND" t-1 "first"
   "$SEND" t-1 "second"
   mv "$CHIEF_HOME/tasks/t-1/inbox/001.msg" "$CHIEF_HOME/tasks/t-1/inbox/handled/"
@@ -46,7 +46,7 @@ teardown() { chief_herdr_stop; }
 # but wrong octal, 099 rolls over.
 numbering_continues_after() {
   local last=$1 tid="n-$1" box want
-  spawn "$tid"
+  chief_spawn_quiet "$tid"
   box="$CHIEF_HOME/tasks/$tid/inbox"
   mkdir -p "$box/handled"
   echo old > "$box/handled/$last.msg"
@@ -63,8 +63,8 @@ done
 turns_have() { run standin_turns "$1"; assert_output --partial "$2"; }
 
 @test "key: a special key reaches the backend" {
-  spawn t-1
-  wait_settled t-1
+  chief_spawn_quiet t-1
+  chief_wait_settled t-1
   standin_type t-1 "typed-by-test"
   run "$SEND" t-1 --key Enter
   assert_success
@@ -72,7 +72,7 @@ turns_have() { run standin_turns "$1"; assert_output --partial "$2"; }
 }
 
 @test "doorbell: rings a line, not the raw text" {
-  spawn t-1
+  chief_spawn_quiet t-1
   run "$SEND" t-1 "hello"
   assert_success
   eventually 10 turns_have t-1 "instruction waiting in"

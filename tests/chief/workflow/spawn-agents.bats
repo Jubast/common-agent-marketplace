@@ -14,8 +14,6 @@ setup() {
 
 teardown() { chief_herdr_stop; }
 
-meta() { chief_meta_get "$1" "$2"; }
-leftovers() { ls -A "$CHIEF_HOME/tasks/$1" 2>/dev/null | wc -l | tr -d ' '; }
 agents_config() { mkdir -p "$CFGDIR"; printf '%b' "$1" > "$CFGDIR/agents"; }
 # dry <flags...> - what a builder spawn with these flags would run
 dry() { run chief_spawn a-dry builder --dry-run "$@"; assert_success; }
@@ -23,13 +21,13 @@ dry() { run chief_spawn a-dry builder --dry-run "$@"; assert_success; }
 # --- --agent and --model ------------------------------------------------------
 
 @test "--agent: records agent and model from agent:model" {
-  spawn a-1 --agent claude:opus
-  assert_equal "$(meta a-1 agent):$(meta a-1 model)" claude:opus
+  chief_spawn_quiet a-1 --agent claude:opus
+  assert_equal "$(chief_meta a-1 agent):$(chief_meta a-1 model)" claude:opus
 }
 
 @test "--model: alone is recorded on the default agent" {
-  spawn a-2 --model sonnet
-  assert_equal "$(meta a-2 agent):$(meta a-2 model)" claude:sonnet
+  chief_spawn_quiet a-2 --model sonnet
+  assert_equal "$(chief_meta a-2 agent):$(chief_meta a-2 model)" claude:sonnet
 }
 
 @test "--agent: a codex launch line carries its model and args" {
@@ -57,14 +55,14 @@ dry() { run chief_spawn a-dry builder --dry-run "$@"; assert_success; }
 
 @test "pool: records the configured model and args" {
   agents_config 'claude:opus args="--verbose"\n'
-  spawn a-3
-  assert_equal "$(meta a-3 model):$(meta a-3 args)" "opus:--verbose"
+  chief_spawn_quiet a-3
+  assert_equal "$(chief_meta a-3 model):$(chief_meta a-3 args)" "opus:--verbose"
 }
 
 @test "pool: records a configured command" {
   agents_config 'claude command="claude --dangerously-skip-permissions --foo"\n'
-  spawn a-6
-  assert_equal "$(meta a-6 command)" "claude --dangerously-skip-permissions --foo"
+  chief_spawn_quiet a-6
+  assert_equal "$(chief_meta a-6 command)" "claude --dangerously-skip-permissions --foo"
 }
 
 @test "pool: each role uses its own pool" {
@@ -112,7 +110,7 @@ fails_with() {
   run chief_spawn "$id" builder "$@"
   assert_failure 1
   assert_output --partial "$msg"
-  assert_equal "$(leftovers "$id")" 0
+  assert_equal "$(chief_leftovers "$id")" 0
   assert_not_exist "$CHIEF_HOME/worktrees/$id"
   assert_equal "$(git -C "$WORK/project" branch --list "feat/$id" | wc -l | tr -d ' ')" 0
 }
@@ -132,20 +130,20 @@ fails_case "command substitution in --args" b-10 "args" "" --args '$(x)'
   run chief_spawn b-11 builder
   assert_failure 1
   assert_output --partial "herdr starts the agent's own executable (claude)"
-  assert_equal "$(leftovers b-11)" 0
+  assert_equal "$(chief_leftovers b-11)" 0
 }
 
 @test "agent CLI: a missing one fails, says which, and leaves no task files" {
   run env PATH=/usr/bin:/bin timeout 90 "$BIN/chief-spawn.sh" b-5 "$WORK/project" --mode builder --branch feat/b-5 --intent x
   assert_failure 1
   assert_output --partial "the 'claude' CLI is not installed"
-  assert_equal "$(leftovers b-5)" 0
+  assert_equal "$(chief_leftovers b-5)" 0
 }
 
 # --- what the agent process receives on herdr -------------------------------
 
 @test "launch: a model and extra args reach the agent's own executable" {
-  spawn t1 --agent claude:gpt-5 --args "--search"
+  chief_spawn_quiet t1 --agent claude:gpt-5 --args "--search"
   eventually 10 test -s "$STANDIN_DIR/t1.args"
   assert_equal "$(cat "$STANDIN_DIR/t1.args")" "--dangerously-skip-permissions --model gpt-5 --search"
 }
@@ -161,7 +159,7 @@ fails_case "command substitution in --args" b-10 "args" "" --args '$(x)'
 
 @test "launch: a bare command override passes no arguments" {
   agents_config 'claude command="claude"\n'
-  spawn t4
+  chief_spawn_quiet t4
   eventually 10 test -e "$STANDIN_DIR/t4.args"
   assert_equal "$(cat "$STANDIN_DIR/t4.args")" ""
 }

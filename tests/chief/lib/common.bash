@@ -116,27 +116,27 @@ chief_spawn() {
   timeout 90 "$BIN/chief-spawn.sh" "$id" "${PROJECT:-$WORK/project}" --mode "$role" \
     --branch "feat/$id" --intent "intent of $id" --spec "spec of $id" "$@"
 }
-# spawn <id> [flags...] - a quiet builder.
-spawn() { local id=$1; shift; chief_spawn "$id" builder "$@" >/dev/null; }
+# chief_spawn_quiet <id> [flags...] - a builder, output discarded.
+chief_spawn_quiet() { local id=$1; shift; chief_spawn "$id" builder "$@" >/dev/null; }
 
 # chief_done_builder <id> [file] - a builder with one commit and a done line
 # carrying its sha, filed in the backlog as "T <id>".
 chief_done_builder() {
   "$BIN/chief-backlog.sh" add "$1" "T $1" >/dev/null
   chief_spawn "$1" builder --intent "T $1" >/dev/null
-  commit_file "$1" "${2:-$1.txt}" >/dev/null
+  chief_commit_file "$1" "${2:-$1.txt}" >/dev/null
   echo "done: $(git -C "$CHIEF_HOME/worktrees/$1" rev-parse --short HEAD) ok" >> "$CHIEF_HOME/tasks/$1/status"
 }
 
-# commit_file <id> <file> [content] - commits a file in the task's worktree and
+# chief_commit_file <id> <file> [content] - commits a file in the task's worktree and
 # prints the new sha.
-commit_file() {
+chief_commit_file() {
   ( cd "$CHIEF_HOME/worktrees/$1" && echo "${3:-$2}" > "$2" && git add "$2" \
     && git commit -q -m "add $2" && git rev-parse HEAD )
 }
 
-# trusted <dir> - the pre-trust flag recorded for <dir> in .claude.json, or "unset".
-trusted() { jq -r --arg p "$1" '.projects[$p].hasTrustDialogAccepted // "unset"' "$CLAUDE_CONFIG_DIR/.claude.json"; }
+# chief_trusted <dir> - the pre-trust flag recorded for <dir> in .claude.json, or "unset".
+chief_trusted() { jq -r --arg p "$1" '.projects[$p].hasTrustDialogAccepted // "unset"' "$CLAUDE_CONFIG_DIR/.claude.json"; }
 
 # chief_add_origin <repo> <branch> - a bare $BATS_TEST_TMPDIR/origin.git ($BARE)
 # as <repo>'s origin, with <branch> pushed.
@@ -146,9 +146,9 @@ chief_add_origin() {
   git -C "$1" remote add origin "$BARE"
   git -C "$1" push -q origin "$2"
 }
-# project_with_origin <dir> - <dir> on main tracking an origin that a second
+# chief_project_with_origin <dir> - <dir> on main tracking an origin that a second
 # clone ($BATS_TEST_TMPDIR/other) has advanced by from-origin.txt since.
-project_with_origin() {
+chief_project_with_origin() {
   local other="$BATS_TEST_TMPDIR/other"
   git init -q -b main "$1"
   git -C "$1" commit --allow-empty -q -m init
@@ -158,26 +158,59 @@ project_with_origin() {
   git -C "$other" add . && git -C "$other" commit -q -m "advance origin" && git -C "$other" push -q origin main
 }
 
-# herdr_fault <call> <times> <before|after> <exit code> <stdout> - from now on
+# chief_herdr_fault <call> <times> <before|after> <exit code> <stdout> - from now on
 # `herdr <call>` is faulted the first <times> times (see fixtures/faulty/herdr);
 # every other call runs the real herdr.
-herdr_fault() {
+chief_herdr_fault() {
   export HERDR_REAL="${HERDR_REAL:-$(command -v herdr)}" HERDR_FAULTS="$BATS_TEST_TMPDIR/faults"
   case ":$PATH:" in *":$TEST_DIR/fixtures/faulty:"*) ;; *) PATH="$TEST_DIR/fixtures/faulty:$PATH" ;; esac
   printf '%s|%s|%s|%s|%s\n' "$@" >> "$HERDR_FAULTS"
 }
 
-# watch_silent - the watcher keeps waiting: no output, killed by timeout (124)
-watch_silent() {
+# chief_watch_silent - the watcher keeps waiting: no output, killed by timeout (124)
+chief_watch_silent() {
   run env CHIEF_POLL=0.5 timeout 2 "$BIN/chief-watch.sh"
   assert_equal "$status:$output" "124:"
 }
-watch_once() { run env CHIEF_POLL=1 timeout 10 "$BIN/chief-watch.sh"; }
+chief_watch_once() { run env CHIEF_POLL=1 timeout 10 "$BIN/chief-watch.sh"; }
+
+# chief_meta <id> <key> - a task's meta value; chief_leftovers <id> - how many
+# entries its task dir still holds.
+chief_meta() { chief_meta_get "$1" "$2"; }
+chief_leftovers() { ls -A "$CHIEF_HOME/tasks/$1" 2>/dev/null | wc -l | tr -d ' '; }
+
+# chief_finish <id> [report] - the worker reports done and writes its report
+# ("" writes none).
+chief_finish() {
+  echo "done: finished" >> "$TASKS/$1/status"
+  [ "${2-x}" = "" ] || echo "${2:-report of $1}" > "$TASKS/$1/report.md"
+}
+
+# chief_refused <reason> <cmd...> - the command exits 1 and says why.
+chief_refused() {
+  local reason=$1; shift
+  run "$@"
+  assert_failure 1
+  assert_output --partial "$reason"
+}
+
+# chief_review <builder> [args] - chief-review.sh, output merged.
+# chief_reviewer_working <reviewer> - a reviewer mid-review.
+chief_review() { timeout 90 "$BIN/task/chief-review.sh" "$@" 2>&1; }
+chief_reviewer_working() { echo "working: reviewing" >> "$TASKS/$1/status"; touch "$TASKS/$1/turn-ended"; }
+
+# chief_pid_dead <pid> - the process is gone.
+chief_pid_dead() { ! kill -0 "$1" 2>/dev/null; }
 
 # standin_turns <id> - every turn the stand-in in that task's worktree received.
 standin_turns() { cat "$STANDIN_DIR/$1.log" 2>/dev/null; }
 # standin_keys <id> - the lone special keys (esc) the stand-in received.
 standin_keys() { cat "$STANDIN_DIR/$1.keys" 2>/dev/null; }
+# standin_turn_count <id> / standin_turns_are <id> <n> - how many turns it received.
+standin_turn_count() { standin_turns "$1" | grep -c 'turn:' || true; }
+standin_turns_are() { [ "$(standin_turn_count "$1")" -eq "$2" ]; }
+# standin_got_esc <id> - the only special key it received is Escape.
+standin_got_esc() { [ "$(standin_keys "$1")" = esc ]; }
 # standin_mode <id> <mode>... - modes for the stand-in the next spawn of <id> starts.
 standin_mode() { local id=$1; shift; printf '%s\n' "$@" > "$STANDIN_DIR/modes/$id"; }
 # standin_never_ready <id> - the next spawn of <id> fails: its TUI never renders,
@@ -191,8 +224,11 @@ standin_type() {
   herdr pane send-text "$(sed -n 's/^endpoint=herdr://p' "$CHIEF_HOME/tasks/$1/meta")" "$2" >/dev/null
 }
 
-# wait_settled <id> - waits for the agent's current turn (the brief) to finish.
-wait_settled() {
+# chief_backend_idle <id> - backend_busy (the loaded adapter) says it is not busy.
+chief_backend_idle() { ! backend_busy "$1"; }
+
+# chief_wait_settled <id> - waits for the agent's current turn (the brief) to finish.
+chief_wait_settled() {
   settled() { herdr agent get "$1" | jq -e '.result.agent.agent_status | . == "idle" or . == "done"' >/dev/null; }
   eventually 20 settled "$1"
 }

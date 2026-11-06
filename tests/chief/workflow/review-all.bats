@@ -17,16 +17,14 @@ setup() {
 
 teardown() { chief_herdr_stop; }
 
-review() { timeout 90 "$RV" "$@" 2>&1; }
-rwork() { echo "working: reviewing" >> "$TASKS/$1/status"; touch "$TASKS/$1/turn-ended"; }
 rdone() { echo "done: round $2 PASS @x" >> "$TASKS/$1/status"; }  # <reviewer> <round>
 
 # round_one - b-4 done, both reviewers started and working; the builder held
 round_one() {
   chief_done_builder b-4
-  review b-4 >/dev/null
+  chief_review b-4 >/dev/null
   "$BL" hold b-4 reported >/dev/null
-  rwork b-4-rv-1; rwork b-4-rv-2
+  chief_reviewer_working b-4-rv-1; chief_reviewer_working b-4-rv-2
 }
 
 # next_round [reviewer...] - the builder fixes and reports again, the next round
@@ -34,16 +32,16 @@ round_one() {
 next_round() {
   local r s rs=("$@")
   [ ${#rs[@]} -gt 0 ] || rs=(b-4-rv-1 b-4-rv-2)
-  s=$(commit_file b-4 "r$RANDOM.txt")
+  s=$(chief_commit_file b-4 "r$RANDOM.txt")
   echo "done: ${s:0:7} fixed" >> "$TASKS/b-4/status"
-  run review b-4
+  run chief_review b-4
   "$BL" hold b-4 reported >/dev/null
-  for r in "${rs[@]}"; do wait_settled "$r"; done
+  for r in "${rs[@]}"; do chief_wait_settled "$r"; done
 }
 
 @test "round 1: starts one reviewer per entry and links them to the builder" {
   chief_done_builder b-4
-  run review b-4
+  run chief_review b-4
   assert_output --partial "review: b-4-rv-1, b-4-rv-2 round 1 of b-4"
   assert_equal "$(chief_meta_get b-4 reviewer)" "b-4-rv-1 b-4-rv-2"
   assert_equal "$(chief_meta_get b-4-rv-1 model):$(chief_meta_get b-4-rv-2 model)" "sonnet:haiku"
@@ -53,35 +51,35 @@ next_round() {
 @test "watch: the first done stays quiet while a sibling works and the last wakes Chief" {
   round_one
   rdone b-4-rv-1 1
-  watch_silent
+  chief_watch_silent
   rdone b-4-rv-2 1
-  watch_once
+  chief_watch_once
   assert_output --partial "b-4-rv-2: state: done"
-  watch_silent
+  chief_watch_silent
 }
 
 @test "round 2: every reviewer gets the new SHA and finishing together wakes once" {
   round_one
   rdone b-4-rv-1 1; rdone b-4-rv-2 1
-  watch_once
+  chief_watch_once
   next_round
   assert_output --partial "review: b-4-rv-1, b-4-rv-2 round 2 of b-4"
   assert_contains_all "$(cat "$TASKS/b-4-rv-2/inbox/001.msg")" "Pinned SHA: $(git -C "$CHIEF_HOME/worktrees/b-4" rev-parse HEAD)"
-  watch_silent
+  chief_watch_silent
   rdone b-4-rv-1 2; rdone b-4-rv-2 2
-  watch_once
+  chief_watch_once
   assert_output --partial "state: done · round 2"
-  watch_silent
+  chief_watch_silent
 }
 
 @test "watch: a failed reviewer wakes Chief at once and does not hold its sibling back" {
   round_one
-  wait_settled b-4-rv-1; wait_settled b-4-rv-2
+  chief_wait_settled b-4-rv-1; chief_wait_settled b-4-rv-2
   echo "failed: could not run checks" >> "$TASKS/b-4-rv-1/status"
-  watch_once
+  chief_watch_once
   assert_output --partial "b-4-rv-1: state: failed"
   rdone b-4-rv-2 1
-  watch_once
+  chief_watch_once
   assert_output --partial "b-4-rv-2: state: done"
 }
 
@@ -89,7 +87,7 @@ next_round() {
   round_one
   timeout 90 "$BIN/chief-teardown.sh" b-4-rv-1 --abandon >/dev/null 2>&1
   rdone b-4-rv-2 1
-  watch_once
+  chief_watch_once
   assert_output --partial "b-4-rv-2: state: done"
 }
 

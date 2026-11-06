@@ -26,7 +26,7 @@ found. Panes inherit the server's environment, not the test's: configure the
 stand-in through files under `$STANDIN_DIR` (`standin_mode`, `standin_hold`),
 never exported variables (modes: `exit`, `never-ready`, `late`, `trust`,
 `lose-enter`, `drop`, `slow-work`; see the header of `fixtures/standin/claude`).
-Where a real herdr reply cannot be provoked, `herdr_fault` swaps one named
+Where a real herdr reply cannot be provoked, `chief_herdr_fault` swaps one named
 call's reply (`fixtures/faulty/herdr`, a wrapper that otherwise runs the real
 herdr). Use `eventually` for anything asynchronous, never a bare `sleep`.
 `standin_never_ready` fails a spawn and shortens herdr's 30 s wait on the pane to 5 s
@@ -86,11 +86,14 @@ also needs Orca. A missing backend skips its tests, unless
   for a role change), the whole at most 80 characters. A generated name must be
   unique and built from its input. A name promises only what the body asserts.
 - **Status**: pin the exit code (`assert_failure 1`, `run -1`), not just "nonzero".
-- **Helpers** (`lib/common.bash`): `chief_project` then `chief_herdr_server` for
-  a test that spawns, `chief_spawn <id> <role> [flags]` / `spawn`, `commit_file`,
-  `chief_done_builder`, `trusted`, `watch_once` / `watch_silent`, `eventually`,
-  `standin_*`, `assert_contains_all` / `refute_contains_any` and
-  `assert_agent_neutral` / `assert_no_placeholders` for template text.
+- **Helpers** (`lib/common.bash`) are named by what they drive: `chief_*` for
+  Chief and herdr (`chief_project` then `chief_herdr_server` for a test that
+  spawns, `chief_spawn <id> <role> [flags]`, `chief_spawn_quiet`,
+  `chief_commit_file`, `chief_done_builder`, `chief_finish`, `chief_refused`,
+  `chief_review`, `chief_watch_once` / `chief_watch_silent`), `standin_*` for the
+  stand-in agent, `assert_contains_all` / `refute_contains_any` /
+  `assert_agent_neutral` / `assert_no_placeholders` for text, and `eventually`
+  for anything asynchronous. A helper used by two files lives there, not in the files.
   `eventually` takes a function or command, never `"$(...)"`, which expands once.
   Wait for background jobs by pid (`wait "$pid"`), never a bare `wait`: bats'
   timeout watchdog is a child of the test too.
