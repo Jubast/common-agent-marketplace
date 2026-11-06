@@ -4,7 +4,6 @@ setup_suite() {
   repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   [ ! -d "$repo/tests/.cache/bin" ] || export PATH="$repo/tests/.cache/bin:$PATH"
   for cli in git jq; do command -v "$cli" >/dev/null || { echo "setup_suite: $cli is required" >&2; return 1; }; done
-  command -v herdr >/dev/null || { echo "setup_suite: herdr not found; run tests/chief/ci/install-herdr.sh" >&2; return 1; }
 }
 
 # teardown_suite - a server or temp dir still around is a leak (a skipped
