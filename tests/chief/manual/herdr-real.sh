@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-backend-herdr-real.sh - MANUAL. Runs herdr.sh against a REAL claude: the
+# herdr-real.sh - MANUAL. Runs herdr.sh against a REAL claude: the
 # three things real Claude Code rendering does that the stand-in agent of
 # ../backends/herdr.bats can only imitate - the folder-trust dialog, the dim
 # placeholder hint in a never-prompted input box, and our own text in the input
@@ -8,7 +8,7 @@
 # NOT zero-cost: three trivial claude turns ("reply with exactly: ok").
 # Opt in explicitly:
 #
-#   CHIEF_TEST_HERDR=1 bash tests/chief/manual/test-backend-herdr-real.sh
+#   CHIEF_TEST_HERDR=1 bash tests/chief/manual/herdr-real.sh
 #
 # Skips cleanly (exit 0) without the opt-in, herdr, claude, jq, ss or a claude
 # login (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, or .credentials.json in
@@ -26,7 +26,7 @@ REPO_ROOT="$(cd "$TEST_DIR/../../.." && pwd)"
 CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
 . "$TEST_DIR/lib/harness.sh"
 
-echo "test-backend-herdr-real:"
+echo "herdr-real:"
 
 if [ "${CHIEF_TEST_HERDR:-0}" != "1" ]; then
   echo "  (skipped - opt in with CHIEF_TEST_HERDR=1; spends real tokens and needs herdr)"
@@ -43,7 +43,7 @@ if [ -z "${ANTHROPIC_API_KEY:-}${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
   ( umask 077; cp "$REAL_CLAUDE_DIR/.credentials.json" "$CLAUDE_CONFIG_DIR/.credentials.json" ) \
     || { echo "  [FAIL] could not copy the claude login"; exit 1; }
 fi
-# Unverified until a first real run: that this seed keeps claude's first-run screens away.
+# Seed to skip claude's first-run screens; never run against a real claude.
 echo '{"hasCompletedOnboarding":true}' > "$CLAUDE_CONFIG_DIR/.claude.json"
 
 WORK="$ISO/work"

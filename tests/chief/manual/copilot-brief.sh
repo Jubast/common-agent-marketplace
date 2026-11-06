@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# test-backend-copilot-brief.sh - issue #90 against the REAL Copilot CLI on
+# copilot-brief.sh - issue #90 against the REAL Copilot CLI on
 # herdr: a brief-sized prompt (taller than the 40-row viewport) goes in through
 # `chief-spawn.sh --agent copilot` and must arrive exactly once - one
 # `herdr agent prompt` call and one user.message in Copilot's events.jsonl.
 #
 # NOT zero-cost: one trivial research turn per attempt. Opt in explicitly:
 #
-#   CHIEF_TEST_COPILOT_BRIEF=1 bash tests/chief/manual/test-backend-copilot-brief.sh
+#   CHIEF_TEST_COPILOT_BRIEF=1 bash tests/chief/manual/copilot-brief.sh
 #
 # The failure needs herdr's 5 s `agent_prompt_stalled` while copilot already
 # took the brief, a race that herdr's status lag hits on some runs only. So it
@@ -14,7 +14,7 @@
 # none stalled: a run that never reached the recovery proves nothing.
 #
 # Skips cleanly without the opt-in or the tools; isolation as in
-# test-backend-copilot.sh (lib/isolation.sh).
+# copilot.sh (lib/isolation.sh).
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +22,7 @@ REPO_ROOT="$(cd "$TEST_DIR/../../.." && pwd)"
 CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
 . "$TEST_DIR/lib/harness.sh"
 
-echo "test-backend-copilot-brief:"
+echo "copilot-brief:"
 
 if [ "${CHIEF_TEST_COPILOT_BRIEF:-0}" != "1" ]; then
   echo "  (skipped - opt in with CHIEF_TEST_COPILOT_BRIEF=1; spends real Copilot requests and needs herdr)"

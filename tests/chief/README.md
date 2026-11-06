@@ -102,7 +102,7 @@ also needs Orca. A missing backend skips its tests, unless
 
 ## The herdr and copilot backend tests that use real agents
 
-`manual/test-backend-herdr-real.sh` isn't free: it needs `herdr`, `claude`, `jq`,
+`manual/herdr-real.sh` isn't free: it needs `herdr`, `claude`, `jq`,
 `ss` and a claude login (`ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN` or
 `.credentials.json`), and spends three trivial claude turns. It covers only what
 the stand-in can merely imitate: the folder-trust dialog, the placeholder hint
@@ -110,15 +110,15 @@ in a never-prompted input box, and our text in the input line while a prompt is
 in flight. `run-tests.sh` never runs it. Opt in:
 
 ```bash
-CHIEF_TEST_HERDR=1 bash tests/chief/manual/test-backend-herdr-real.sh
+CHIEF_TEST_HERDR=1 bash tests/chief/manual/herdr-real.sh
 ```
 
 It never touches your herdr or `~/.claude.json`: like the copilot tests it runs
 through `manual/lib/isolation.sh` (scrubbed environment, own `HOME`/`XDG_*`,
 own herdr server and socket, own `CLAUDE_CONFIG_DIR`) and aborts unless that
 isolation is proven. `CHIEF_TEST_HERDR_GUARD_ONLY=1` runs that guard alone (no
-claude needed). The seeded `hasCompletedOnboarding` in its temp `.claude.json`,
-meant to keep claude's first-run screens away, is unverified until a first real run.
+claude needed). The script has not been run against a real claude, so the seeded
+`hasCompletedOnboarding` in its temp `.claude.json` is untested.
 
 `backends/herdr.sh` is verified against a herdr 0.9.3 install -
 see its header for the real CLI shape and two confirmed quirks: Claude
@@ -130,7 +130,7 @@ rendered) that `_chief_herdr_recover` tells apart from the screen.
 ### The copilot test
 
 ```bash
-CHIEF_TEST_COPILOT=1 bash tests/chief/manual/test-backend-copilot.sh
+CHIEF_TEST_COPILOT=1 bash tests/chief/manual/copilot.sh
 ```
 
 Needs `herdr`, `copilot`, `jq`, `ss` and a copilot login in `~/.copilot/config.json`
@@ -153,7 +153,7 @@ in the temp config; an untrusted folder stalls at copilot's trust dialog.
 ### The copilot brief test
 
 ```bash
-CHIEF_TEST_COPILOT_BRIEF=1 bash tests/chief/manual/test-backend-copilot-brief.sh
+CHIEF_TEST_COPILOT_BRIEF=1 bash tests/chief/manual/copilot-brief.sh
 ```
 
 Same prerequisites and isolation as the copilot test (shared in

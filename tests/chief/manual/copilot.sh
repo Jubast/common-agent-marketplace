@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# test-backend-copilot.sh - runs the copilot adapter against the REAL Copilot
+# copilot.sh - runs the copilot adapter against the REAL Copilot
 # CLI on herdr: the adapter's screen needles against real screens, then one
 # real `chief-spawn.sh --agent copilot --mode researcher` through teardown.
 #
 # NOT zero-cost: one trivial research turn (the spawned worker's brief).
 # Opt in explicitly:
 #
-#   CHIEF_TEST_COPILOT=1 bash tests/chief/manual/test-backend-copilot.sh
+#   CHIEF_TEST_COPILOT=1 bash tests/chief/manual/copilot.sh
 #
 # Skips cleanly (exit 0) without the opt-in, herdr, copilot, jq, ss or a copilot
 # login (~/.copilot/config.json, or $COPILOT_HOME/config.json).
@@ -25,14 +25,13 @@ REPO_ROOT="$(cd "$TEST_DIR/../../.." && pwd)"
 CHIEF_BIN="$REPO_ROOT/plugins/chief/bin"
 . "$TEST_DIR/lib/harness.sh"
 
-echo "test-backend-copilot:"
+echo "copilot:"
 
 if [ "${CHIEF_TEST_COPILOT:-0}" != "1" ]; then
   echo "  (skipped - opt in with CHIEF_TEST_COPILOT=1; spends real Copilot requests and needs herdr)"
   exit 0
 fi
 . "$TEST_DIR/lib/isolation.sh"
-
 
 REPO="$ISO/repo"; PROBE="$ISO/probe-repo"
 for r in "$REPO" "$PROBE"; do
