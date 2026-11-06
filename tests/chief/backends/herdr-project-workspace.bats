@@ -1,6 +1,7 @@
-# A teardown that leaves no task workspace under a project closes its primary herdr workspace only when
-# herdr created it for one of Chief's spawns (marked in herdr), and it is
-# still one idle shell pane. Everything else of the operator's stays open.
+# A teardown that leaves no task workspace under a project closes its primary
+# herdr workspace only when herdr created it for one of Chief's spawns (marked
+# in herdr), and it is still one idle shell pane. Everything else of the
+# operator's stays open.
 
 setup() {
   load ../lib/common

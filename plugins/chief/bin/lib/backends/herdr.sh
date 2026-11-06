@@ -14,8 +14,8 @@
 #
 # Each project has one primary workspace; herdr natively groups each task's
 # linked-worktree workspace (labelled with the plain task id) under it.
-# Chief records a primary only if its own `worktree create`/`open` created it;
-# teardown closes only a recorded, untouched one.
+# Chief marks a primary only if its own `worktree create`/`open` created it;
+# teardown closes only a marked, untouched one.
 #
 # The brief lives under $CHIEF_HOME (inside the project's main checkout),
 # never inside the per-task worktree, so telling the agent to go Read it would
