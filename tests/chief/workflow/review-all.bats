@@ -105,3 +105,23 @@ next_round() {
   assert_failure 1
   assert_equal "$(chief_meta_get b-6-rv-1 status):$(chief_meta_get b-6 reviewer 2>/dev/null || true)" "torn-down:"
 }
+
+@test "teardown: a builder with two linked reviewers takes both down" {
+  round_one
+  run timeout 90 "$BIN/chief-teardown.sh" b-4 --abandon
+  assert_success
+  assert_output --partial "torn down: b-4-rv-1 "
+  assert_output --partial "torn down: b-4-rv-2 "
+  assert_equal "$(grep -c '^torn down' <<< "$output")" 3
+  assert_equal "$(chief_meta_get b-4-rv-1 status):$(chief_meta_get b-4-rv-2 status)" "torn-down:torn-down"
+}
+
+@test "teardown: a builder skips its reviewer that is already torn down" {
+  round_one
+  timeout 90 "$BIN/chief-teardown.sh" b-4-rv-1 --abandon >/dev/null 2>&1
+  next_round b-4-rv-2
+  run timeout 90 "$BIN/chief-teardown.sh" b-4 --abandon
+  assert_success
+  assert_output --partial "torn down: b-4-rv-2 "
+  assert_equal "$(grep -c '^torn down' <<< "$output")" 2
+}
