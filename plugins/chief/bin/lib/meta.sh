@@ -28,10 +28,17 @@ chief_meta_set() {
   mv "$tmp" "$file"
 }
 
-# chief_notify_line <crew-state line> -> the line minus its idle counter, so a
-# stale alert compares equal to itself across polls.
+# chief_notify_line <crew-state line> -> the line minus its idle counter and its
+# trailing metadata tags (mode, agent, for, reviewer, attach), so a stale alert
+# or a changed tag compares equal. Tags are removed one at a time from the END,
+# in a loop, because there are several; anchoring at the end keeps a literal
+# " [mode: " inside the detail from being a cut point and makes the result
+# idempotent, so a stored (already cut) baseline normalizes to itself.
 chief_notify_line() {
-  printf '%s\n' "$1" | sed -E 's/, no turn activity for [0-9]+s//'
+  local line re='^(.*) \[(mode|agent|for|reviewer|attach): [^]]*\]$'
+  line=$(printf '%s' "$1" | sed -E 's/, no turn activity for [0-9]+s//')
+  while [[ $line =~ $re ]]; do line=${BASH_REMATCH[1]}; done
+  printf '%s\n' "$line"
 }
 
 # chief_meta_agent <id> -> agent[:model]

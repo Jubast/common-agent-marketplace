@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Stand-in agent: a Claude-Code-shaped raw-mode TUI that costs no tokens.
+# Tests run it in a real herdr/Orca pane under the name `claude`; panes inherit
+# the SERVER's env, so config comes from STANDIN_DIR and STANDIN_TURN_SECS.
+# Per worktree <name> it writes $STANDIN_DIR/<name>.pid and its argv to
+# <name>.args, logs each turn to <name>.log and a lone Escape to <name>.keys.
+# Also installed as `codex` and `copilot` (symlinks). Modes, one word per line
+# in $STANDIN_DIR/modes/<name>:
+#   exit[=N]        exit after N turns (default 1)
+#   never-ready     print a bare shell prompt and never render the TUI
+#   late[=S]        shell prompt only for S seconds (default 3), then the TUI
+#   trust[=PATH]    folder-trust dialog for PATH (default the worktree) until
+#                   `down enter`; trust-sticky shows it again after accepting
+#   lose-enter[=N]  ignore the first N Enters (the text stays in the input box)
+#   drop[=N]        swallow the first N submitted prompts without a turn
+#   slow-work[=S]   idle for S seconds (default 6) after a prompt, then work
+# While $STANDIN_DIR/hold/<name> exists, a turn stays `working`.
+name=$(basename "$PWD"); dir=${STANDIN_DIR:?}
+echo $$ > "$dir/$name.pid"; echo "$*" > "$dir/$name.args"
+modes=" $(tr '\n' ' ' < "$dir/modes/$name" 2>/dev/null) "
+hist=(); buf=""; pasted=0; turns=0
+if [[ $modes == *" never-ready "* ]]; then printf '$ '; exec sleep 100000; fi
+mode_val() { [[ $modes =~ \ $1(=([^\ ]*))?\  ]] && { REPLY=${BASH_REMATCH[2]}; return 0; }; return 1; }
+exit_after=""; ! mode_val exit || exit_after=${REPLY:-1}
+state=ready; lose=0; drop=0; slow=0; lost=0; dropped=0; down=0
+! mode_val late || { printf '$ '; sleep "${REPLY:-3}"; }
+! mode_val trust || { state=trust; tpath=${REPLY:-$PWD}; }
+! mode_val lose-enter || lose=${REPLY:-1}
+! mode_val drop || drop=${REPLY:-1}
+! mode_val slow-work || slow=${REPLY:-6}
+
+stty -icanon -echo 2>/dev/null; printf '\e[?2004h'
+draw() {  # $1: ready|working
+  # Claude Code's terminal title: spinner while working, star when idle
+  [ "$1" = working ] && printf '\e]0;⠂ Claude Code\a' || printf '\e]0;✳ Claude Code\a'
+  printf '\e[2J\e[H'
+  if [ "$state" = trust ]; then
+    printf '%s\n' " Accessing workspace:" " $tpath" " Quick safety check: Is this a project you created or one you trust?" \
+      " Claude Code'll be able to read, edit, and execute files here." " ❯ No, exit" "   Yes, I trust this folder" " Enter to confirm · Esc to cancel"
+    return
+  fi
+  printf '%s\n' "fake claude" "${hist[@]}" ""
+  [ "$1" = working ] && printf '✻ Working… (1s · esc to interrupt)\n'
+  if [ "$pasted" -gt 0 ]; then printf '❯ [Pasted text #1 +%s lines]\n' "$pasted"; else printf '❯ %s\n' "$buf"; fi
+  if [ "$1" = working ]; then printf '  ⏵⏵ bypass permissions on · esc to interrupt\n'
+  else printf '  ⏵⏵ bypass permissions on (shift+tab to cycle)\n'; fi
+}
+turn() {
+  local text=$buf shown=$buf
+  [ "$pasted" -gt 0 ] && { text="[paste:$pasted lines] $buf"; shown="[Pasted text #1 +$pasted lines] $buf"; }
+  printf 'turn: %s\n' "$text" >> "$dir/$name.log"
+  hist+=("> ${shown:0:60}"); buf=""; pasted=0
+  [ "$slow" -eq 0 ] || { draw ready; sleep "$slow"; }
+  draw working; sleep "${STANDIN_TURN_SECS:-1}"
+  while [ -e "$dir/hold/$name" ]; do sleep 0.2; done
+  hist+=("● ok"); turns=$((turns + 1)); draw ready
+  [ -z "$exit_after" ] || [ "$turns" -lt "$exit_after" ] || exit 0
+}
+
+draw ready
+while IFS= read -rsn1 -d '' c; do
+  case "$c" in
+    $'\e')
+      IFS= read -rsn2 -t 0.05 -d '' seq
+      [ -n "$seq" ] || echo esc >> "$dir/$name.keys"
+      if [ "$state" = trust ]; then [ "$seq" != "[B" ] || { down=1; echo down >> "$dir/$name.keys"; }
+      elif [ "$seq" = "[2" ]; then  # bracketed paste: ESC [ 200 ~ ... ESC [ 201 ~
+        IFS= read -rsn3 -t 0.05 -d '' _
+        p=""; while IFS= read -rsn1 -d '' ch; do p+="$ch"; [[ $p == *$'\e[201~' ]] && break; done
+        p=${p%$'\e[201~'}; n=$(printf '%s' "$p" | grep -c '')
+        if [ "$n" -gt 2 ]; then pasted=$n; buf=""; else buf+="$p"; fi
+      fi ;;
+    $'\r'|$'\n')
+      if [ "$state" = trust ]; then
+        echo enter >> "$dir/$name.keys"
+        [ "$down" = 1 ] || exit 1  # "No, exit"
+        down=0; mode_val trust-sticky || state=ready
+      elif [ -n "$buf" ] || [ "$pasted" -gt 0 ]; then
+        if [ "$lost" -lt "$lose" ]; then lost=$((lost + 1)); echo enter-lost >> "$dir/$name.keys"
+        elif [ "$dropped" -lt "$drop" ]; then dropped=$((dropped + 1)); buf=""; pasted=0; echo dropped >> "$dir/$name.keys"
+        else turn; fi
+      fi ;;
+    $'\x7f') buf=${buf%?} ;;
+    *) [ "$state" = trust ] || buf+="$c" ;;
+  esac
+  draw ready
+done

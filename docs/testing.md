@@ -142,7 +142,9 @@ Provenance section for the diff summary.
 - **No `evals/`-style drill harness.** Disproportionate to a four-plugin
   repo — `tests/claude-code/` already covers both "describes itself
   right" and "actually works" without a separate tmux/multi-CLI harness.
-- **No CI workflow.** Local/manual only, for now.
+- **CI for `tests/chief/` only.** `.github/workflows/tests.yml` runs the free
+  Chief suite on pull requests, as a herdr job and a headless-Orca job; `tests/claude-code/`, `tests/marketplace/` and
+  `tests/convert-pdf-to-md/` stay local/manual.
 
 ## Adding tests for a new plugin
 

@@ -1,0 +1,14 @@
+{
+  "name": "common-agent-marketplace-tests",
+  "private": true,
+  "description": "Pinned test tooling for tests/chief.",
+  "devDependencies": {
+    "bats": "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz",
+    "bats-assert": "2.2.4",
+    "bats-support": "0.3.0",
+    "bats-file": "https://github.com/bats-core/bats-file/archive/refs/tags/v0.4.0.tar.gz"
+  },
+  "overrides": {
+    "bats-support": "0.3.0"
+  }
+}

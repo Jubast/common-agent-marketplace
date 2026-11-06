@@ -72,7 +72,8 @@ chief_agent_release() {  # <id> <dir> - agent_release with the task's adapter
 # --- selection -------------------------------------------------------------
 #
 # .chief/config/agents (no file: claude):
-#   strategy = first | round-robin | random | weighted        (default first)
+#   strategy = first | round-robin | random | weighted | all  (default first;
+#                         all: chief-review.sh runs one reviewer per entry)
 #   <agent>[:<model>] [weight=N] [args="<extra CLI args>"] [command="<launch command>"]
 #   [builder] [researcher] [reviewer] [brainstormer]
 #                         a pool (and strategy) for that role only; each falls
@@ -139,7 +140,7 @@ _chief_agent_read() {
         read -r entry <<< "${line#*=}"
         entry=${entry%%#*}; read -r entry <<< "$entry"
         case "$entry" in
-          first|round-robin|random|weighted) ;;
+          first|round-robin|random|weighted|all) ;;
           *) echo "chief-agent: $file:$n: unknown strategy '$entry'" >&2; return 1 ;;
         esac
         if [ -z "$section" ]; then gstrategy=$entry; elif [ "$section" = "$want" ]; then sstrategy=$entry; fi ;;
@@ -159,13 +160,14 @@ chief_agent_select() {  # <role> [peek]
   SEL_AGENT=claude SEL_MODEL="" SEL_ARGS="" SEL_COMMAND="" SEL_POOL_DESC=""
   _chief_agent_read "$section" || return 1
   [ -n "$POOL" ] || return 0
-  if [ -n "$peek" ] && { [ "$STRATEGY" = random ] || [ "$STRATEGY" = weighted ]; }; then
+  if [ -n "$peek" ] && [[ " random weighted all " == *" $STRATEGY "* ]]; then
     SEL_POOL_DESC="$STRATEGY pool: $(awk -F"$SEP" -v w="$([ "$STRATEGY" = weighted ] && echo 1 || echo 0)" \
       '{ printf "%s%s%s%s", (NR > 1 ? ", " : ""), $1, ($2 != "" ? ":" $2 : ""), (w ? " (" $3 ")" : "") }' <<< "$POOL")"
     return 0
   fi
   case "$STRATEGY" in
     first) rec=$(head -n 1 <<< "$POOL") ;;
+    all) rec=$(sed -n "${CHIEF_AGENT_PICK:-1}p" <<< "$POOL") ;;  # entry number, set by chief-review.sh
     round-robin)
       chief_lock_acquire "$STATE/.agent-select.lock" 10 || { echo "chief-agent: selection lock busy" >&2; return 1; }
       cursor=$(cat "$STATE/agent-cursor-$section" 2>/dev/null || true)
@@ -182,6 +184,11 @@ chief_agent_select() {  # <role> [peek]
         || { echo "chief-agent: every weight in the pool is 0" >&2; return 1; } ;;
   esac
   IFS=$SEP read -r SEL_AGENT SEL_MODEL _ SEL_COMMAND SEL_ARGS <<< "$rec"
+}
+
+chief_agent_count() {  # <role> - workers per spawn: the pool size under all, else 1
+  _chief_agent_read "$1" || return 1
+  if [ "$STRATEGY" = all ]; then grep -c '' <<< "$POOL"; else echo 1; fi
 }
 
 chief_agent_note() {  # after chief_agent_select - the marker for a pool that is not the role's own

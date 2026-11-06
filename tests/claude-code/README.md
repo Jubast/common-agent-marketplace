@@ -90,8 +90,8 @@ files the issue.
 
 Application and Pressure scenarios, each generating a fixture PDF and
 checking that a real `invoice/invoice.md` file gets produced with the
-expected content. **Currently a documented, intentional failure** — see the
-comment at the top of the script and `docs/testing.md` for why.
+expected content. Both pass since the 2026-08-20 SKILL.md fix; see
+`docs/testing.md`.
 
 ### `test-using-chief.sh`, `test-dispatch.sh`, `test-chief-setup.sh` (fast)
 
@@ -102,7 +102,7 @@ don't-implement/don't-merge-inline rules, builder-vs-researcher defaults and the
 never-auto-merge/escalate-cheapest-first rules, the always-ask review loop, and setup's
 once-only/herdr-or-orca/idempotent/dispatch-takes-over-after rules. No
 integration counterpart here — exercising a real spawn against a real
-backend is `tests/chief/test-backend-herdr.sh`'s job instead (real tokens,
+backend is `tests/chief/manual/herdr-real.sh`'s job instead (real tokens,
 opt-in, gated separately since it needs a real herdr install, not just
 `claude`).
 

@@ -1,35 +1,33 @@
 # common-agent-marketplace
 
-A marketplace of plugins — skills and agents — for Claude Code and GitHub
-Copilot CLI.
+A marketplace of plugins — skills and hooks — for Claude Code, with skills
+also usable from GitHub Copilot CLI.
 
 ## What this is
 
 Each plugin under `plugins/` is a self-contained directory with its own
-manifest, skills, and agents. The root `.claude-plugin/marketplace.json`
-lists every plugin and where to find it. Manifests and skills are read
-directly by both Claude Code and Copilot CLI — see
-[CONTRIBUTING.md](CONTRIBUTING.md) for exactly what's shared between the
-two platforms and what isn't (agents, for now).
+manifest and skills, plus hooks where needed. The root
+`.claude-plugin/marketplace.json` lists every plugin and where to find it.
+Manifests and skills are read directly by both Claude Code and Copilot CLI;
+no plugin ships agents yet, and `chief` and `using-orca` rely on Claude Code
+hooks. See [CONTRIBUTING.md](CONTRIBUTING.md) for what's shared between the
+two platforms and what isn't.
 
 ## Installing
 
 **Claude Code:**
 
 ```
-/plugin marketplace add <org>/<repo>
+/plugin marketplace add Jubast/common-agent-marketplace
 /plugin install <plugin-name>
 ```
 
 **Copilot CLI:**
 
 ```
-copilot plugin marketplace add <org>/<repo>
+copilot plugin marketplace add Jubast/common-agent-marketplace
 copilot plugin install <plugin-name>
 ```
-
-(Replace `<org>/<repo>` with this repository's path once it's pushed to
-GitHub.)
 
 ## Available plugins
 
@@ -47,10 +45,15 @@ GitHub.)
   and require the orca-cli and orchestration skills for worktree/agent-
   dispatch work in Orca-managed environments.
 - [`conventional-changes`](plugins/conventional-changes/) — files or
-  updates the issue or work item the work is tracked against, commits
-  changes using micro commits with conventional commit messages, then
-  creates or updates a pull/merge request with a conventional-commit-style
-  title and structured body.
+  updates the issue or work item the work is tracked against, names the
+  branch, commits changes using micro commits with conventional commit
+  messages, then creates or updates a pull/merge request with a
+  conventional-commit-style title and structured body. A SessionStart hook
+  requires all four skills.
+- [`chief`](plugins/chief/) — a lightweight supervisor for Claude Code:
+  dispatches work to isolated builder/researcher/reviewer/brainstormer
+  agents over the herdr or Orca backend, tracks a plain-markdown backlog,
+  and supervises them with a near-zero-token watch loop.
 
 ## Adding a plugin
 
@@ -62,8 +65,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 common-agent-marketplace/
 ├── .claude-plugin/
 │   └── marketplace.json      # lists every plugin in this repo
+├── .github/workflows/        # tags marketplace releases
+├── .devcontainer/            # dev environment
+├── docs/                     # repo docs (testing)
 ├── plugins/
 │   └── <plugin-name>/        # one directory per plugin
+├── scripts/                  # devcontainer setup scripts
+├── tests/                    # per-plugin and marketplace tests
 ├── CONTRIBUTING.md
 └── LICENSE
 ```

@@ -19,13 +19,17 @@ plugins/<new-plugin-name>/
 1. Create `plugins/<new-plugin-name>/.claude-plugin/plugin.json` — `name`
    (kebab-case, matches the directory), `description`, `version`, `author`
    (the marketplace owner unless the plugin has a different author),
-   `license`.
+   `license`. A new plugin sets its initial `version` in `plugin.json`
+   and the same value in its `marketplace.json` entry. Don't touch
+   `metadata.version`.
 2. Add the plugin's skill(s) and/or agent(s), following the conventions
    below.
 3. Write `plugins/<new-plugin-name>/README.md` describing the plugin.
 4. Add an entry to `.claude-plugin/marketplace.json`'s `plugins` array —
    this single file is read by both Claude Code and Copilot CLI, see
-   "Claude Code / Copilot CLI compatibility" below.
+   "Claude Code / Copilot CLI compatibility" below. The plugin is not in
+   a tagged release until a maintainer bumps `metadata.version`, because
+   the tag workflow creates a tag only for a new `metadata.version`.
 5. Add the new plugin to the root `README.md`'s "Available plugins" list.
 6. Validate every manifest parses: `python3 -m json.tool <path>`.
 
@@ -35,9 +39,15 @@ plugins/<new-plugin-name>/
 marketplace as a whole. The tag `v<version>` pins every plugin version
 listed in that file at that commit.
 
-- Bump `metadata.version` in the same PR as any plugin version change.
-- While 0.x: bump the minor for plugin additions, removals, or breaking
-  changes; bump the patch for any other plugin bump.
+- Don't bump plugin versions or `metadata.version` in feature or fix
+  PRs. Maintainers bump them together in a dedicated release PR: each
+  changed plugin's `plugin.json`, its entry in `marketplace.json`, and
+  `metadata.version`. A merged change reaches installs with the next
+  release.
+- Marketplace `metadata.version` (while 0.x): bump the minor for plugin
+  additions, removals or breaking changes, and the patch for any other
+  plugin change. Plugins follow semver; from 1.0 on, a breaking change
+  is a major bump.
 - Don't tag by hand. The `tag-marketplace` workflow creates `v<version>`
   on merge to `main` if it doesn't exist yet.
 
@@ -89,4 +99,5 @@ Plugins with real executable code or checkable skill behavior get actual
 tests. See [docs/testing.md](docs/testing.md) for the two tiers
 (`tests/<plugin-name>/` for non-LLM mechanics, `tests/claude-code/` for
 skill-behavior checks) and how to add coverage when you add a new plugin.
-Tests run locally, by hand. The only CI workflow tags marketplace versions.
+The Chief suite (`tests/chief/`) runs in CI on pull requests (`.github/workflows/tests.yml`, a herdr job and an Orca job);
+the other tests run locally, by hand. Another workflow tags marketplace versions.
