@@ -38,6 +38,18 @@ done
     'This brief wins over any skill'
 }
 
+skill_limits() {
+  assert_contains_all "$(brief "$1")" "skip a skill's step that would ask a human, push, open a PR, create a worktree, start other agents"
+}
+for role in builder researcher; do
+  bats_test_function --description "$role brief: a skill never makes it ask, push or go beyond the spec" -- skill_limits "$role"
+done
+
+@test "brainstormer brief: names six spec sections and wins over a skill" {
+  assert_contains_all "$(brief brainstormer)" '**Goal**' '**In scope**' '**Out of scope**' '**Behavior and acceptance criteria**' \
+    '**Decisions**' '**Open questions**' 'replace any workflow a skill describes'
+}
+
 @test "brainstormer brief: waits for the operator's confirmation, no needs-decision" {
   assert_contains_all "$(brief brainstormer)" '{REPORT_FILE}' 'working: brainstorming with operator' 'done: spec ready' \
     'working: revising spec' 'Never ask through `needs-decision`' \
