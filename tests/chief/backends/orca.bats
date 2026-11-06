@@ -70,7 +70,7 @@ rolled_back() {
 
 # --- spawn ---------------------------------------------------------------
 
-@test "spawn: registers the project, nests the task, starts the agent and delivers the brief" {
+@test "spawn: registers the project, starts the agent and delivers the brief" {
   assert_equal "$(repo_count)" 0
   spawned
   assert_equal "$(repo_count)" 1
@@ -87,15 +87,24 @@ rolled_back() {
   assert_output --partial "bypass permissions"
 }
 
-@test "spawn: a second task registers nothing new; rolling it back leaves the first alone" {
+# second_task - a second task in the same project; $first and $second are the worktrees
+second_task() {
   spawned
   first=$WT
   chief_meta_set "${ID}b" agent claude
   run --separate-stderr backend_spawn "${ID}b" "$P" "$BRIEF" "chief/${ID}b"
   assert_success
   second=$(sed -n 1p <<< "$output")
+}
+
+@test "spawn: a second task registers nothing new" {
+  second_task
   assert_equal "$(repo_count)" 1
   assert_equal "$(child_count)" 2
+}
+
+@test "cleanup: rolling back a second task leaves the first alone" {
+  second_task
   backend_spawn_cleanup "${ID}b" "$P" "chief/${ID}b"
   run listed "$second"
   assert_failure 1
@@ -152,12 +161,17 @@ rolled_back() {
 
 # --- running tasks -------------------------------------------------------
 
-@test "busy and send: busy while a turn runs, idle after; Enter, Escape, text and C-c reach the agent" {
+@test "busy: reports busy while a turn runs and idle after" {
   standin_hold "$ID"
   spawned
   run backend_busy "$ID"
   assert_success
   standin_release "$ID"
+  eventually 20 chief_backend_idle "$ID"
+}
+
+@test "send: Enter, Escape, text and C-c reach the agent" {
+  spawned
   eventually 20 chief_backend_idle "$ID"
   backend_send "$ID" Enter
   backend_send "$ID" Escape
@@ -169,26 +183,30 @@ rolled_back() {
   eventually 10 chief_pid_dead "$(cat "$STANDIN_DIR/$ID.pid")"
 }
 
-@test "kill: closes every terminal, keeps the worktree; falls back to the tab with no worktree; no endpoint is a no-op" {
+@test "kill: closes every terminal and keeps the worktree" {
   spawned
   backend_kill "$ID"
   assert_equal "$(terminals "$WT")" 0
   assert_exist "$WT/.git"
   run listed "$WT"
   assert_success
+}
 
+@test "kill: falls back to the tab when the task has no worktree" {
   chief_meta_set "${ID}b" agent claude
   run --separate-stderr backend_spawn "${ID}b" "$P" "$BRIEF" "chief/${ID}b"
   second=$(sed -n 1p <<< "$output")
   chief_meta_set "${ID}b" endpoint "$(sed -n 2p <<< "$output")"
   backend_kill "${ID}b"
   assert_equal "$(terminals "$second")" 0
+}
 
+@test "kill: is a no-op for a task with no endpoint" {
   run backend_kill "${ID}c"
   assert_success
 }
 
-@test "relaunch: a fresh terminal in the same worktree, the brief delivered, the worktree re-trusted" {
+@test "relaunch: delivers the brief in a fresh terminal and re-trusts the worktree" {
   spawned
   backend_kill "$ID"
   chief_agent_release "$ID" "$WT"
@@ -214,7 +232,7 @@ rolled_back() {
 
 # --- rollback and teardown -----------------------------------------------
 
-@test "cleanup: rolls back a leftover worktree found by its branch, leaves others, and is a no-op for nothing" {
+@test "cleanup: rolls back a leftover worktree found by its branch and spares others" {
   spawned
   keep=$WT
   orca repo add --path "$P" --json > /dev/null 2>&1
@@ -227,6 +245,9 @@ rolled_back() {
   assert_not_exist "$left"
   assert_equal "$(branch_count "chief/${ID}c")" 0
   assert_exist "$keep/.git"
+}
+
+@test "cleanup: is a no-op for a task with nothing to roll back" {
   run backend_spawn_cleanup "${ID}never" "$P" "chief/${ID}never"
   assert_success
 }
@@ -252,7 +273,7 @@ rolled_back() {
 
 # --- the real lifecycle scripts ------------------------------------------
 
-@test "lifecycle: spawn -> send -> interrupt -> relaunch -> teardown leaves nothing behind" {
+@test "lifecycle: spawn, send, interrupt, relaunch and teardown leave nothing behind" {
   ID=$LID
   run timeout 120 "$BIN/chief-spawn.sh" "$LID" "$P" --mode builder --branch "feat/$LID" --intent test --spec test
   assert_success
