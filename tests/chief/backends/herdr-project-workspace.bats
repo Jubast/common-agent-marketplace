@@ -1,5 +1,5 @@
-# The last teardown of a project closes its primary herdr workspace only when
-# herdr created it for one of Chief's spawns (state/herdr-owned/), and it is
+# A teardown that leaves no task workspace under a project closes its primary herdr workspace only when
+# herdr created it for one of Chief's spawns (marked in herdr), and it is
 # still one idle shell pane. Everything else of the operator's stays open.
 
 setup() {
@@ -27,7 +27,7 @@ primary_id() {
 operator_ws() { herdr workspace create --cwd "$1" --label "$2" --no-focus | jq -r .result.workspace.workspace_id; }
 # task_ws <id> - the workspace of a task, from its endpoint
 task_ws() { chief_meta_get "$1" endpoint | sed 's/herdr://; s/:.*//'; }
-records() { ls -A "$STATE/herdr-owned" 2>/dev/null; }
+records() { herdr workspace list | jq -r ".result.workspaces[] | select(.tokens.owned == \"1\") | .workspace_id"; }
 
 # restart_herdr - stops this test's server and starts it again on the same state
 restart_herdr() {
@@ -129,15 +129,6 @@ restart_herdr() {
   restart_herdr
   td a1 >/dev/null
   assert_equal "$(primary_id)" "$W"
-  assert_equal "$(records)" ""
-}
-
-@test "teardown: drops the record when the operator closed the primary" {
-  sp a1
-  herdr workspace close "$(task_ws a1)" >/dev/null
-  herdr workspace close "$(primary_id)" >/dev/null
-  td a1 >/dev/null
-  assert_equal "$(records)" ""
 }
 
 @test "teardown: closes a primary reached through a symlink to the project" {

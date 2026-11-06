@@ -64,56 +64,27 @@ _chief_herdr_close_task_workspace() {
     | while read -r w; do herdr workspace close "$w" >/dev/null 2>&1; done || true
 }
 
-# _chief_herdr_owned_file <project-dir> - the ownership record, "<workspace-id>
-# <terminal-id> <real path>"; the terminal id is pinned because herdr reuses
-# workspace ids after a restart.
-_chief_herdr_owned_file() {
-  printf '%s/herdr-owned/%s' "$STATE" "$(realpath -m "$1" | cksum | cut -d' ' -f1)"
-}
-
-# _chief_herdr_record_primary <project-dir> <workspace-list-before> - records
-# the project's primary workspace if it is not in <workspace-list-before>.
+# _chief_herdr_record_primary <project-dir> <workspace-list-before> - marks the
+# project's primary workspace as Chief's if it is not in <workspace-list-before>.
+# The mark lives in herdr, so it dies with the workspace and with a restart.
 _chief_herdr_record_primary() {
-  local project=$1 before=$2 real w t
-  printf '%s' "$before" | jq -e '.result.workspaces | type == "array"' >/dev/null 2>&1 || return 0
-  real=$(realpath -m "$project")
-  w=$(herdr workspace list 2>/dev/null | jq -r --arg a "$project" --arg b "$real" \
+  local project=$1 before=$2 w
+  w=$(herdr workspace list 2>/dev/null | jq -r --arg a "$project" --arg b "$(realpath -m "$project")" \
         '.result.workspaces[]? | select(.worktree.is_linked_worktree == false and (.worktree.checkout_path | . == $a or . == $b)) | .workspace_id' | head -1)
   [ -n "$w" ] || return 0
-  printf '%s' "$before" | jq -e --arg w "$w" 'any(.result.workspaces[]; .workspace_id == $w)' >/dev/null && return 0
-  t=$(herdr pane list --workspace "$w" 2>/dev/null | jq -r '.result.panes[0].terminal_id // empty')
-  [ -n "$t" ] || return 0
-  mkdir -p "$STATE/herdr-owned"
-  printf '%s %s %s\n' "$w" "$t" "$real" > "$(_chief_herdr_owned_file "$project")"
+  printf '%s' "$before" | jq -e --arg w "$w" '.result.workspaces | type == "array" and all(.[]; .workspace_id != $w)' >/dev/null || return 0
+  herdr workspace report-metadata "$w" --source chief --token owned=1 >/dev/null 2>&1 || true
 }
 
-# _chief_herdr_project_in_use <id> <project-dir> - another live task of the
-# project exists (any task but <id> whose meta is not torn-down)
-_chief_herdr_project_in_use() {
-  local m other want
-  want=$(realpath -m "$2")
-  for m in "$TASKS"/*/meta; do
-    [ -f "$m" ] || continue
-    other=$(basename "$(dirname "$m")")
-    [ "$other" != "$1" ] || continue
-    [ "$(realpath -m "$(chief_meta_get "$other" project 2>/dev/null)" 2>/dev/null)" = "$want" ] || continue
-    [ "$(chief_meta_get "$other" status 2>/dev/null)" != torn-down ] && return 0
-  done
-  return 1
-}
-
-# _chief_herdr_close_project_workspace <project-dir> - closes the recorded
-# primary only while the recorded terminal is its one pane, idle at the shell
-# prompt, and not Chief's own workspace. Never --group. The record is dropped
-# unless linked worktree workspaces still block the close.
+# _chief_herdr_close_project_workspace <project-dir> - closes the project's
+# primary only if Chief marked it, it is one idle shell pane, and it is not
+# Chief's own workspace. Never --group. Once touched, the mark is cleared.
 _chief_herdr_close_project_workspace() {
-  local project=$1 file w t real pane err
-  file=$(_chief_herdr_owned_file "$project")
-  [ -f "$file" ] || return 0
-  read -r w t real < "$file"
-  [ "$real" = "$(realpath -m "$project")" ] || return 0
-  pane=$(herdr pane list --workspace "$w" 2>/dev/null \
-           | jq -r --arg t "$t" '.result.panes | select(length == 1) | .[0] | select(.terminal_id == $t) | .pane_id')
+  local project=$1 w pane err
+  w=$(herdr workspace list 2>/dev/null | jq -r --arg a "$project" --arg b "$(realpath -m "$project")" \
+        '.result.workspaces[]? | select(.tokens.owned == "1" and .worktree.is_linked_worktree == false and (.worktree.checkout_path | . == $a or . == $b)) | .workspace_id' | head -1)
+  [ -n "$w" ] || return 0
+  pane=$(herdr pane list --workspace "$w" 2>/dev/null | jq -r '.result.panes | select(length == 1) | .[0].pane_id')
   if [ -n "$pane" ] && [ "$w" != "${HERDR_WORKSPACE_ID:-}" ] \
      && herdr pane process-info --pane "$pane" 2>/dev/null \
           | jq -e '.result.process_info | .foreground_process_group_id == .shell_pid' >/dev/null; then
@@ -122,7 +93,7 @@ _chief_herdr_close_project_workspace() {
       *) echo "chief-backend-herdr: could not close project workspace $w ($project): $err" >&2 ;;
     esac
   fi
-  rm -f "$file"
+  herdr workspace report-metadata "$w" --source chief --clear-token owned >/dev/null 2>&1 || true
 }
 
 _chief_herdr_screen() {  # <id> [source] -> the agent's screen
@@ -289,7 +260,7 @@ backend_spawn_cleanup() {
   local id=$1 project_dir=$2 branch=$3
   local worktree="$WORKTREES/$id"
   _chief_herdr_close_task_workspace "$id"
-  _chief_herdr_project_in_use "$id" "$project_dir" || _chief_herdr_close_project_workspace "$project_dir"
+  _chief_herdr_close_project_workspace "$project_dir"
   chief_agent_release "$id" "$worktree"
   git -C "$project_dir" worktree remove --force "$worktree" >/dev/null 2>&1 || rm -rf "$worktree"
   git -C "$project_dir" branch -D "$branch" >/dev/null 2>&1 || true
@@ -329,11 +300,11 @@ backend_kill() {
 }
 
 # backend_teardown <id> <project-dir> <worktree> - releases the agent's trust
-# and closes the project's primary workspace if Chief created it and no other
-# live task uses the project.
+# and closes the project's primary workspace if Chief created it and herdr
+# has no task workspace left under it.
 backend_teardown() {
   chief_agent_release "$1" "$3"
-  _chief_herdr_project_in_use "$1" "$2" || _chief_herdr_close_project_workspace "$2"
+  _chief_herdr_close_project_workspace "$2"
 }
 
 backend_relaunch() {

@@ -19,7 +19,7 @@
 #                 brief.md report.md evidence/
 #   archive/<id>/ a torn-down task's folder
 #   state/        global machine state only: locks, agent cursors, trust-owned,
-#                 herdr-owned, watcher heartbeat
+#                 watcher heartbeat
 #   backlog.md    the backlog
 #   config/       operator configuration
 #   worktrees/    one disposable checkout per task

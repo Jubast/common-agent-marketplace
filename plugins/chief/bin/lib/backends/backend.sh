@@ -52,7 +52,7 @@
 #                        before it removes the worktree via git, so a backend
 #                        that tracks worktrees itself (orca) can forget it,
 #                        or close the project's primary workspace it created
-#                        once no other live task uses the project (herdr).
+#                        once no task workspace is left under it (herdr).
 #                        Must call `chief_agent_release <id> <worktree>`. Failures are ignored.
 #
 # Every function above that touches the agent starts with `chief_agent_use <id>`
