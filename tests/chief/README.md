@@ -67,7 +67,7 @@ herdr files; on a small machine use `--no-orca`, then `--only-orca`.
 in `tests/package.json` (bats 1.14.0, bats-assert, bats-support, bats-file;
 `run-tests.sh` runs `npm ci` on first use, so Node and npm are needed). Options:
 `run-tests.sh [--jobs N] [--junit DIR] [--no-orca | --only-orca] [bats args...] [path...]`.
-A path (a folder or a file) replaces the default of the whole suite. `--jobs`
+A path (a folder or a `.bats` file) replaces the default of the whole suite. `--jobs`
 needs GNU `parallel` (without it the run warns and goes serial, slowly);
 `--junit` writes `DIR/report.xml`. Every test gets `BATS_TEST_TIMEOUT` (300 s).
 To run bats yourself, pass `-r` and `--setup-suite-file tests/chief/setup_suite.bash`

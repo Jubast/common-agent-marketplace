@@ -29,7 +29,9 @@ while [ $# -gt 0 ]; do
     --junit) JUNIT=$2; shift 2 ;;
     --no-orca) TAGS='!orca'; shift ;;
     --only-orca) TAGS='orca'; shift ;;
-    *) if [ -e "$1" ]; then PATHS+=("$1"); else BATS_ARGS+=("$1"); fi; shift ;;
+    *.bats) PATHS+=("$1"); shift ;;
+    -*) BATS_ARGS+=("$1"); shift ;;
+    *) if [ -d "$1" ]; then PATHS+=("$1"); else BATS_ARGS+=("$1"); fi; shift ;;
   esac
 done
 
