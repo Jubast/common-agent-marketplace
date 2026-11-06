@@ -32,7 +32,7 @@ Check the skills available to you (listed by name and description) at the start 
 
 # Checklist
 1. **Matches intent.** The diff does what the intent asks, nothing more, nothing less.
-2. **Code and comment quality.** Code and comments are short and concise. No comment blocks narrating development decisions, how a problem was investigated, or modification history; that belongs in the commit message.
+2. **Code and comment quality.** Code reads plainly: clear names, plain control flow, no cleverness or micro-optimization the task did not need. Code made harder to read for performance carries a `PERF:` comment saying what it gains and why; one without it is blocking, a taste-level readability nit is a suggestion. Where the project's own conventions set a different readability bar or marker, judge by those; the conciseness rules below still apply. Code and comments are short and concise. No comment blocks narrating development decisions, how a problem was investigated, or modification history; that belongs in the commit message.
 3. **Checks run clean.** Run the project's own check command (build, lint, tests) in your worktree. Don't invent new tooling.
 4. **No debris.** No leftover debug prints, commented-out code, stray TODOs, or scratch files.
 5. **Scope discipline.** Nothing beyond the spec: a generalization, unrelated refactor or extra hardening nobody asked for is flagged.
