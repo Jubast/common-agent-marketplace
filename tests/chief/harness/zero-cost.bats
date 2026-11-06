@@ -21,6 +21,7 @@ setup() {
 }
 
 @test "server: aborts the start when a real agent CLI is on its PATH" {
+  chief_herdr_require
   mkdir "$BATS_TEST_TMPDIR/real" "$BATS_TEST_TMPDIR/standins"  # the server PATH gets herdr's own directory
   ln -s "$(command -v herdr)" "$BATS_TEST_TMPDIR/real/herdr"
   printf '#!/bin/sh\n' > "$BATS_TEST_TMPDIR/real/codex"; chmod +x "$BATS_TEST_TMPDIR/real/codex"

@@ -9,7 +9,7 @@ The folder says what a test needs to run; the file name says what it tests.
 | `unit/` | no backend, no agent | One library, CLI or template per file: `meta`, `lock`, `id`, `backlog`, `agent-*`, `templates`, `static`... About 40 s in total |
 | `workflow/` | a real herdr and the stand-in agent | Chief's scripts end to end: `spawn`, `spawn-agents`, `spawn-rollback`, `handoff`, `promote`, `send`, `control`, `teardown`, `review`, `review-all`, `crew-state`, `watch`, `hooks`, `lifecycle`, `chief-home` |
 | `backends/` | a real herdr, or (`orca`) a real headless Orca | The adapter contract of `backends/herdr.sh` and `backends/orca.sh` |
-| `harness/` | herdr (`standin`) or nothing | The test doubles and the zero-cost guard |
+| `harness/` | herdr (`standin`, the server guard) or nothing | The test doubles and the zero-cost guard |
 | `manual/` | real herdr and agent CLIs, real tokens | Opt-in scripts (below), never run by `run-tests.sh` |
 
 `lib/` holds the shared helpers, `fixtures/` the stand-in agent and the faulty
