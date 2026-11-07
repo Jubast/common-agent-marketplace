@@ -102,7 +102,7 @@ don't-implement/don't-merge-inline rules, builder-vs-researcher defaults and the
 never-auto-merge/escalate-cheapest-first rules, the always-ask review loop, and setup's
 once-only/herdr-or-orca/idempotent/dispatch-takes-over-after rules. No
 integration counterpart here — exercising a real spawn against a real
-backend is `tests/chief/manual/herdr-real.sh`'s job instead (real tokens,
+backend is `tests/chief/live/herdr-claude.bats`'s job instead (real tokens,
 opt-in, gated separately since it needs a real herdr install, not just
 `claude`).
 

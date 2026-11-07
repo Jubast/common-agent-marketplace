@@ -135,13 +135,14 @@ default one, the server was started by the file, and its workspace list is
 empty, and unless `CHIEF_HOME` (so the backlog and tasks) is inside the scratch
 dir and not the operator's. `CHIEF_HOME` is set in the scratch environment the
 panes inherit, because a model may run `chief-*.sh` from any directory, and
-from inside the repo that would resolve the operator's `.chief`. Only login files are copied in (a claude token in the environment passes
-through; copilot gets trust for its throwaway repos; codex gets its `auth.json`).
-Copilot always runs with `--experimental`, per run, never as a setting. The
-scratch dir is removed in `teardown_file` (and swept in `teardown_suite` if a
-run was killed). The tests of a live file run in order and share the agents the
-first ones start. Copilot and claude can answer with a rate or quota message; a
-test then fails without retrying.
+from inside the repo that would resolve the operator's `.chief`. Only login
+files are copied in (a claude token in the environment passes through; copilot
+gets trust for its throwaway repos; codex gets its `auth.json`). Copilot always
+runs with `--experimental`, per run, never as a setting. The scratch dir is
+removed in `teardown_file` (and swept in `teardown_suite` if a run was killed).
+The tests of a live file run in order and share the agents the first ones
+start. Copilot and claude can answer with a rate or quota message; a test then
+fails without retrying.
 
 `backends/herdr.sh` is verified against a herdr 0.9.3 install -
 see its header for the real CLI shape and two confirmed quirks: Claude
