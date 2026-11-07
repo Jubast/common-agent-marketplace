@@ -10,9 +10,9 @@ The folder says what a test needs to run; the file name says what it tests.
 | `workflow/` | a real herdr and the stand-in agent | Chief's scripts end to end: `spawn`, `spawn-agents`, `spawn-rollback`, `handoff`, `promote`, `send`, `control`, `teardown`, `review`, `review-all`, `crew-state`, `watch`, `hooks`, `lifecycle`, `spawn-sync` |
 | `backends/` | a real herdr, or (`orca`) a real headless Orca | The adapter contract of `backends/herdr.sh` and `backends/orca.sh` |
 | `harness/` | herdr (`standin`, the server guard) or nothing | The test doubles and the zero-cost guard |
-| `manual/` | real herdr and agent CLIs, real tokens | Opt-in scripts (below), never run by `run-tests.sh` |
+| `live/` | real herdr and agent CLIs, real tokens | Opt-in tests (below), run only by `run-tests.sh --only-live` |
 
-`lib/` holds the shared helpers, `fixtures/` the stand-in agent and the faulty
+`lib/` holds the shared helpers (`common`, `orca`, `live`), `fixtures/` the stand-in agent and the faulty
 `herdr` wrapper, `ci/` the pinned installers.
 
 ## Real herdr with a stand-in agent
@@ -66,7 +66,7 @@ herdr files; on a small machine use `--no-orca`, then `--only-orca`.
 `.bats` files run on [bats-core](https://github.com/bats-core/bats-core) pinned
 in `tests/package.json` (bats 1.14.0, bats-assert, bats-support, bats-file;
 `run-tests.sh` runs `npm ci` on first use, so Node and npm are needed). Options:
-`run-tests.sh [--jobs N] [--junit DIR] [--no-orca | --only-orca] [bats args...] [path...]`.
+`run-tests.sh [--jobs N] [--junit DIR] [--no-orca | --only-orca | --only-live] [bats args...] [path...]`.
 A path (a folder or a `.bats` file) replaces the default of the whole suite. `--jobs`
 needs GNU `parallel` (without it the run warns and goes serial, slowly);
 `--junit` writes `DIR/report.xml`. Every test gets `BATS_TEST_TIMEOUT` (300 s).
@@ -100,25 +100,48 @@ also needs Orca. A missing backend skips its tests, unless
 - **Templates**: pin operative tokens only (paths, status syntax, commands, the
   "never" rules), not wording.
 
-## The herdr and copilot backend tests that use real agents
+## Live tests (`live/`)
 
-`manual/herdr-real.sh` isn't free: it needs `herdr`, `claude`, `jq`,
-`ss` and a claude login (`ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN` or
-`.credentials.json`), and spends three trivial claude turns. It covers only what
-the stand-in can merely imitate: the folder-trust dialog, the placeholder hint
-in a never-prompted input box, and our text in the input line while a prompt is
-in flight. `run-tests.sh` never runs it. Opt in:
+Real agent CLIs, real tokens: `run-tests.sh` skips them (tag `live`) unless you
+pass `--only-live`, which runs them one file at a time. Each file gates itself on
+its own variable and skips cleanly without it, without the CLIs (`herdr`, `jq`,
+`ss`, the agent) or without a login:
+
+| File | Gate | Covers | Cost |
+|---|---|---|---|
+| `isolation.bats` | none | the guard below | free |
+| `herdr-claude.bats` | `CHIEF_TEST_HERDR=1` | `backends/herdr.sh` with a real claude: the folder-trust dialog, the placeholder hint in a never-prompted input box, our text in the input line while a prompt is in flight | 3 claude turns |
+| `copilot-spawn.bats` | `CHIEF_TEST_COPILOT=1` | the copilot adapter's screen needles on real screens, then a real `chief-spawn.sh --agent copilot` researcher through teardown | 1 copilot turn |
+| `copilot-brief.bats` | `CHIEF_TEST_COPILOT_BRIEF=1` | a brief-sized prompt reaches copilot exactly once (#90); `CHIEF_TEST_COPILOT_BRIEF_ATTEMPTS` attempts (default 3), and the last test fails when none hit `agent_prompt_stalled`, as the recovery was then never exercised | 1 copilot turn per attempt |
+| `chief-claude.bats` | `CHIEF_TEST_CHIEF_CLAUDE=1` | Chief on Claude Code: identity, a researcher via the dispatch skill, woken when it finishes | a few claude turns |
+| `chief-codex.bats` | `CHIEF_TEST_CHIEF_CODEX=1` | Chief on Codex: the hook trust flow, identity, dispatch and wake via `codex queue`, nothing queued once the TUI is closed | a few codex + claude turns |
+| `chief-copilot.bats` | `CHIEF_TEST_CHIEF_COPILOT=1` | Chief on Copilot (`--experimental`): identity, dispatch and wake by the extension, no watcher left after exit | a few copilot + claude turns |
 
 ```bash
-CHIEF_TEST_HERDR=1 bash tests/chief/manual/herdr-real.sh
+CHIEF_TEST_CHIEF_CODEX=1 tests/chief/run-tests.sh --only-live tests/chief/live/chief-codex.bats
 ```
 
-It never touches your herdr or `~/.claude.json`: like the copilot tests it runs
-through `manual/lib/isolation.sh` (scrubbed environment, own `HOME`/`XDG_*`,
-own herdr server and socket, own `CLAUDE_CONFIG_DIR`) and aborts unless that
-isolation is proven. `CHIEF_TEST_HERDR_GUARD_ONLY=1` runs that guard alone (no
-claude needed). The script has not been run against a real claude, so the seeded
-`hasCompletedOnboarding` in its temp `.claude.json` is untested.
+The `chief-*` files check the three harnesses the same way: the session answers
+`NAME=Chief` (identity), and a researcher that reads a token from the project is
+spawned through the dispatch skill while Chief is told not to poll, so the token
+reaching the screen after the worker's `done` proves the wake. Their workers run
+`claude:haiku`, so those files need a claude login as well.
+
+A live file never touches your herdr or agent config (`lib/live.bash`): it runs
+in a scrubbed environment with its own `HOME`/`XDG_*`, `CLAUDE_CONFIG_DIR`,
+`CODEX_HOME`, `COPILOT_HOME` and herdr server and socket, in `/tmp/chl.*`, and
+`live_isolate` aborts unless the socket differs from the caller's and the
+default one, the server was started by the file, and its workspace list is
+empty, and unless `CHIEF_HOME` (so the backlog and tasks) is inside the scratch
+dir and not the operator's. `CHIEF_HOME` is set in the scratch environment the
+panes inherit, because a model may run `chief-*.sh` from any directory, and
+from inside the repo that would resolve the operator's `.chief`. Only login files are copied in (a claude token in the environment passes
+through; copilot gets trust for its throwaway repos; codex gets its `auth.json`).
+Copilot always runs with `--experimental`, per run, never as a setting. The
+scratch dir is removed in `teardown_file` (and swept in `teardown_suite` if a
+run was killed). The tests of a live file run in order and share the agents the
+first ones start. Copilot and claude can answer with a rate or quota message; a
+test then fails without retrying.
 
 `backends/herdr.sh` is verified against a herdr 0.9.3 install -
 see its header for the real CLI shape and two confirmed quirks: Claude
@@ -126,42 +149,6 @@ Code's first-run "trust this folder?" dialog, and `herdr agent prompt
 --wait` reporting `agent_prompt_stalled` for distinct situations (text
 delivered but Enter didn't register, text never delivered, TUI not yet
 rendered) that `_chief_herdr_recover` tells apart from the screen.
-
-### The copilot test
-
-```bash
-CHIEF_TEST_COPILOT=1 bash tests/chief/manual/copilot.sh
-```
-
-Needs `herdr`, `copilot`, `jq`, `ss` and a copilot login in `~/.copilot/config.json`
-(or `$COPILOT_HOME`); skips cleanly without any of them. **Cost: one research
-turn per run** (the spawned worker's brief); everything else, including the
-paste check, is free local screen reading. It fails without retrying on a rate
-or quota message.
-
-It never touches your herdr: it runs in a scrubbed environment (no `HERDR_*`),
-with its own `HOME`/`XDG_*` in a temp dir and its own herdr server and socket,
-and aborts before any herdr call or copilot run unless it proves the socket
-differs from the default and the caller's, its server pid differs from the
-default server's, and its workspace list is empty.
-`CHIEF_TEST_COPILOT_GUARD_ONLY=1` runs that guard alone. Only the login is
-copied into the temp `HOME` (plus trust for the throwaway repo); it is deleted
-on EXIT/INT/TERM/HUP along with the temp dir, and only the test's own server is
-stopped. Copilot has no folder-trust handling, so the spawn repo is pre-trusted
-in the temp config; an untrusted folder stalls at copilot's trust dialog.
-
-### The copilot brief test
-
-```bash
-CHIEF_TEST_COPILOT_BRIEF=1 bash tests/chief/manual/copilot-brief.sh
-```
-
-Same prerequisites and isolation as the copilot test (shared in
-`manual/lib/isolation.sh`). **Cost: one research turn per attempt**, with
-`CHIEF_TEST_COPILOT_BRIEF_ATTEMPTS` attempts (default 3). The bug needs herdr to
-report `agent_prompt_stalled` although copilot took the brief, which happens on
-some runs only, so the test fails when no attempt stalled instead of passing
-without having exercised the recovery.
 
 ## What's deliberately NOT here (needs the devcontainer instead)
 

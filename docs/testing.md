@@ -144,7 +144,9 @@ Provenance section for the diff summary.
   right" and "actually works" without a separate tmux/multi-CLI harness.
 - **CI for `tests/chief/` only.** `.github/workflows/tests.yml` runs the free
   Chief suite on pull requests, as a herdr job and a headless-Orca job; `tests/claude-code/`, `tests/marketplace/` and
-  `tests/convert-pdf-to-md/` stay local/manual.
+  `tests/convert-pdf-to-md/` stay local/manual. Chief's tests that spend real tokens
+  (`tests/chief/live/`, `run-tests.sh --only-live`, each file opt-in by its own variable)
+  never run in CI; see `tests/chief/README.md`.
 
 ## Adding tests for a new plugin
 

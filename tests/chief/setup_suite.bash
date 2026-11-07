@@ -28,5 +28,14 @@ teardown_suite() {
       rm -rf "$d"
     done < "$BATS_SUITE_TMPDIR/servers"
   fi
+  if [ -f "$BATS_SUITE_TMPDIR/lives" ]; then
+    . "$(dirname "${BASH_SOURCE[0]}")/lib/live.bash"
+    while read -r d; do
+      [ -d "$d" ] || continue
+      leaked=$((leaked + 1))
+      HERDR_SOCKET_PATH="$d/xdg-run/herdr.sock" herdr server stop >/dev/null 2>&1
+      live_reap "$d"
+    done < "$BATS_SUITE_TMPDIR/lives"
+  fi
   [ "$leaked" -eq 0 ] || { echo "teardown_suite: $leaked server(s) outlived their test" >&2; return 1; }
 }

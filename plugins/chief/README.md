@@ -143,7 +143,7 @@ Best-effort only: forms like `git -C . push` or `sh -c '...'` do not match. GitH
 
 ## Status
 
-Core lifecycle (backlog, spawn, send, control/relaunch, crew-state, watch, teardown, handoff) is implemented and tested end-to-end on a real herdr (`tests/chief/{unit,workflow,backends,harness}/*.bats`, with a zero-cost stand-in agent; `unit/hook-harness.bats` covers the Codex and Copilot adapters with fake CLIs; `tests/chief/manual/herdr-real.sh` is the opt-in run with a real `claude` turn, `CHIEF_TEST_HERDR=1`). The **Orca adapter** (`bin/lib/backends/orca.sh`) follows the same flow - bypass-permissions launch, spawn rollback, relaunch, teardown - and is tested on a real headless Orca in `tests/chief/backends/orca.bats`. The **copilot adapter**'s screen needles and a real researcher spawn are checked against the real Copilot CLI in `tests/chief/manual/copilot.sh` (opt-in, `CHIEF_TEST_COPILOT=1`).
+Core lifecycle (backlog, spawn, send, control/relaunch, crew-state, watch, teardown, handoff) is implemented and tested end-to-end on a real herdr (`tests/chief/{unit,workflow,backends,harness}/*.bats`, with a zero-cost stand-in agent; `unit/hook-harness.bats` covers the Codex and Copilot adapters with fake CLIs; `tests/chief/live/` holds the opt-in tests with real CLIs and tokens, including Chief itself on Claude Code, Codex and Copilot). The **Orca adapter** (`bin/lib/backends/orca.sh`) follows the same flow - bypass-permissions launch, spawn rollback, relaunch, teardown - and is tested on a real headless Orca in `tests/chief/backends/orca.bats`. The **copilot adapter**'s screen needles and a real researcher spawn are checked against the real Copilot CLI in `tests/chief/live/copilot-spawn.bats`.
 
 ## Maintaining these docs
 
