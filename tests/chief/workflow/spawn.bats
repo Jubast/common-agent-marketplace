@@ -30,6 +30,23 @@ assert_nothing_left() {  # <id>
   assert_output --partial "$SPEC"
 }
 
+@test "brief: ends with the operator's definition of done when the config is non-empty" {
+  mkdir -p "$CHIEF_HOME/config"
+  printf -- '- `make test` passes\n- has a perf test\n' > "$CHIEF_HOME/config/definition-of-done"
+  chief_spawn_quiet t-1
+  run tail -n 4 "$CHIEF_HOME/tasks/t-1/brief.md"
+  assert_output "# Definition of done"$'\n'"The operator's items for every change:"$'\n'"- \`make test\` passes"$'\n'"- has a perf test"
+}
+
+@test "brief: has no operator definition of done when the config is absent or empty" {
+  chief_spawn_quiet t-1
+  mkdir -p "$CHIEF_HOME/config"
+  : > "$CHIEF_HOME/config/definition-of-done"
+  chief_spawn_quiet t-2
+  run grep -x '# Definition of done' "$CHIEF_HOME/tasks/t-1/brief.md" "$CHIEF_HOME/tasks/t-2/brief.md"
+  assert_failure
+}
+
 render_fills_placeholders() {  # <role>
   local id="r-$1"
   chief_spawn "$id" "$1" --spec "Branch: feat/x" >/dev/null

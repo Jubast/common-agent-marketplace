@@ -28,7 +28,7 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
    `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <id> <project-dir> --mode builder|researcher|brainstormer --branch "<type>/<short-kebab-description>" --intent "<the operator's own ask, close to verbatim>" --spec "<your build instructions, only what the intent requires>"`
    - `--branch` is required: a new name in the `conventional-branches` scheme.
    - The agent and model come from the role's pool in `.chief/config/agents`, then the global pool. Add `--agent <agent[:model]>` and/or `--model <model>` only when the operator names one. Spawn prints the chosen `agent:`; `${CLAUDE_PLUGIN_ROOT}/bin/chief-agents.sh` lists the agent each role would get, marking a global-pool fallback.
-   - Keep `--intent` narrow (it becomes the acceptance criteria) and `--spec` to what the intent requires.
+   - Keep `--intent` narrow (it becomes the acceptance criteria; the definition of done, `.chief/config/definition-of-done` plus the project's `## Definition of done` in `AGENTS.md`/`CLAUDE.md`, applies to every change, so don't repeat it in `--spec`) and `--spec` to what the intent requires.
    - It creates the worktree and branch, renders the brief, launches the worker and marks the backlog item in-flight. It returns once the worker's first turn has started; run it in the background.
 
 3. **It runs on its own.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-watch.sh` (armed by a Stop hook, zero model cost) interrupts you only when the task finishes, fails, is blocked or needs a decision. On `blocked` or `needs-decision`, run `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "<why, one line>"`.
@@ -47,7 +47,7 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
 
 Never automatic. Propose each step; the operator decides.
 
-1. Builder `done`: report the result with the diffstat and a one-line recommendation (e.g. "2 files, docs only: review probably unnecessary"), hold it (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "reported: awaiting review decision"`), and ask whether to review it. Batch the question when several builders finish together.
+1. Builder `done`: report the result with the diffstat, any `n/a` lines in its `report.md`, and a one-line recommendation (e.g. "2 files, docs only: review probably unnecessary"), hold it (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "reported: awaiting review decision"`), and ask whether to review it. Batch the question when several builders finish together.
 2. No: go to landing. Yes: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-review.sh <builder-id>`. Round 1 spawns the reviewer `<builder-id>-rv` (under `strategy = all`, `<builder-id>-rv-1`, `-2`...); later rounds re-arm them. Run it in the background. The watcher wakes you when the reviewer reports.
    If the operator says "review everything this session", skip the question for this conversation until they revoke it. Still present every verdict.
 3. Reviewer `done`: present the verdict (PASS, or the blocking findings, then the suggestions) from `.chief/tasks/<reviewer-id>/report.md`; with several reviewers, from every live one's report (any FAIL fails). Hold the reviewer (`chief-backlog.sh hold <reviewer-id> "round N <verdict>, idle"`) and propose the next step:

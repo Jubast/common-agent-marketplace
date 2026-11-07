@@ -28,11 +28,12 @@ Check the skills available to you (listed by name and description) at the start 
    Whenever you end a turn and are about to wait for input, run `touch {TURN_FILE}` first: it is how Chief tells a quietly idle worker from a stalled one.
 4. Use `needs-decision: {summary of options}` for a choice that belongs to a human, then stop until answered.
 5. Use `blocked: {why}` if you hit the same obstacle twice in a row, and stop.
+6. If this brief has a `# Definition of done` section or the project's `AGENTS.md`/`CLAUDE.md` has a `## Definition of done` section, every change you recommend must let a builder meet each item; say how where it is not obvious.
 
 # Instruction inbox
 Chief may steer you mid-task through `{INBOX_DIR}`. When a message tells you an instruction is waiting there - or at any natural checkpoint when you're unsure what to do next - list `{INBOX_DIR}/*.msg`, read and act on each in order, then acknowledge by moving it: `mv {INBOX_DIR}/NNN.msg {INBOX_DIR}/handled/`. An empty or absent inbox needs no action.
 
-# Definition of done
+# Done when
 - `{REPORT_FILE}` is self-contained: a different agent that never saw this conversation can act on it alone. It states the decisions and their rationale, the options you rejected, constraints, file/symbol pointers, and open items.
 - A report may recommend implementation but never performs it.
 - Your last status line is `done: {one-line summary}` or `failed: {why}`.

@@ -13,6 +13,7 @@
 # --from <id> makes the worker the successor of a done researcher or
 # brainstormer: its report is appended to the brief. --dry-run validates and
 # prints the agent and launch line (or the pool) without creating anything.
+# A non-empty .chief/config/definition-of-done is appended to every brief.
 # A brainstormer also prints "attach: ..." (and records attach= in meta), how
 # the operator reaches its pane.
 set -euo pipefail
@@ -177,6 +178,8 @@ BRIEF_CONTENT=${BRIEF_CONTENT//\{INBOX_DIR\}/$(brief_escape "$INBOX_DIR")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{REPORT_FILE\}/$(brief_escape "$REPORT_FILE")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{TURN_FILE\}/$(brief_escape "$(chief_task_path "$ID" turn-ended)")}
 printf '%s\n' "$BRIEF_CONTENT" > "$BRIEF"
+DOD="$CONFIG/definition-of-done"
+[ ! -s "$DOD" ] || printf '\n# Definition of done\nThe operator'\''s items for every change:\n%s\n' "$(cat "$DOD")" >> "$BRIEF"
 [ -z "$FROM" ] || chief_prior_work "$FROM" >> "$BRIEF"
 
 LIFECYCLE_CONTENT=$(cat "$LIFECYCLE_TEMPLATE")

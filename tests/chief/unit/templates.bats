@@ -33,6 +33,22 @@ done
     'fix them with new commits (amend only for commit-message findings)' 'This brief wins over any skill'
 }
 
+done_when_has_its_own_heading() {  # <role>
+  grep -qx '# Done when' <<< "$(brief "$1")"
+  ! grep -qx '# Definition of done' <<< "$(brief "$1")"
+}
+for role in builder researcher brainstormer reviewer; do
+  bats_test_function --description "$role brief: its own checklist is '# Done when', leaving '# Definition of done' to the operator's items" -- done_when_has_its_own_heading "$role"
+done
+
+@test "builder brief: records one evidence line per Definition of done item in REPORT_FILE" {
+  assert_contains_all "$(brief builder)" '- [ ] n/a - <why it does not apply>' '{REPORT_FILE}'
+}
+
+@test "reviewer brief: reads the project's Definition of done from the base" {
+  assert_contains_all "$(brief reviewer)" 'git show <base>:AGENTS.md'
+}
+
 @test "builder brief: readable code, performance trades marked PERF:, project conventions win" {
   assert_contains_all "$(brief builder)" 'Write code for its next reader' 'mark that code with a `PERF:` comment' \
     'set a different bar or marker, follow them; rule 4 still applies'
@@ -61,10 +77,10 @@ done
     'Never report `done` before the operator has explicitly confirmed the spec' 'Edit no project files'
 }
 
-@test "reviewer brief: has the eight checklist items" {
+@test "reviewer brief: has the nine checklist items" {
   local item
   for item in "Matches intent" "Code and comment quality" "Checks run clean" "No debris" "Scope discipline" \
-      "Project docs addressed" "Doc quality" "Commit conventions"; do
+      "Project docs addressed" "Doc quality" "Commit conventions" "Definition of done met"; do
     assert_contains_all "$(brief reviewer)" "**$item.**"
   done
 }

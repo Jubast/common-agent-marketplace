@@ -75,6 +75,11 @@ round_two() {
     "Builder done line: ${SHA1:0:7} ok" "Review round 1"
 }
 
+@test "round 1: the reviewer's brief points at the builder's DoD evidence" {
+  round_one b-1
+  assert_contains_all "$(cat "$TASKS/b-1-rv/brief.md")" "Builder DoD evidence: $TASKS/b-1/report.md"
+}
+
 @test "round 1: crew-state and the session digest show the link" {
   round_one b-1
   run "$CS" b-1-rv; assert_output --partial "[for: b-1]"
