@@ -13,7 +13,8 @@
 # --from <id> makes the worker the successor of a done researcher or
 # brainstormer: its report is appended to the brief. --dry-run validates and
 # prints the agent and launch line (or the pool) without creating anything.
-# The mode's items from .chief/config/definition-of-done (see chief_dod_items) are appended to the brief.
+# The mode's items from .chief/config/definition-of-done (see chief_dod_items)
+# are appended to the brief.
 # A brainstormer also prints "attach: ..." (and records attach= in meta), how
 # the operator reaches its pane.
 set -euo pipefail
