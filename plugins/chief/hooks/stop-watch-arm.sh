@@ -42,5 +42,5 @@ if [ -z "$REASON" ] || [ "$REASON" = "nothing in flight" ]; then
   exit 0
 fi
 
-printf 'chief watcher: %s\n%s\n' "$REASON" "$(cat "$CHIEF_PLUGIN_ROOT/hooks/wake-reply.txt")" >&2
+printf 'chief watcher: %s\n%s\n' "$REASON" "$(<"$CHIEF_PLUGIN_ROOT/hooks/wake-reply.txt")" >&2
 exit 2
