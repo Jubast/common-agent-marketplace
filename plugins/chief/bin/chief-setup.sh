@@ -31,6 +31,16 @@ else
   echo "backend check: WARNING - '$BACKEND' not found on PATH; install (and for Orca, start) it before dispatching"
 fi
 
+# Chief's own harness: Codex wakes it through `codex queue`, Copilot through an
+# extension that needs experimental on.
+if command -v codex >/dev/null 2>&1 && ! codex queue --help >/dev/null 2>&1; then
+  echo "harness check: WARNING - this codex has no 'queue' command; Chief on Codex cannot be woken (see README, Harnesses)"
+fi
+if command -v copilot >/dev/null 2>&1 \
+  && ! jq -e '.experimental == true' "${COPILOT_HOME:-$HOME/.copilot}/settings.json" >/dev/null 2>&1; then
+  echo "harness check: WARNING - copilot has 'experimental' off; Chief on Copilot needs --experimental (or /settings experimental on) for its wake extension"
+fi
+
 GIT_ROOT=$(git -C "$(dirname "$CHIEF_HOME")" rev-parse --show-toplevel 2>/dev/null || true)
 if [ -n "$GIT_ROOT" ]; then
   GITIGNORE="$GIT_ROOT/.gitignore"

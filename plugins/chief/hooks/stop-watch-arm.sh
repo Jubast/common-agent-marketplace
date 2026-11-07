@@ -3,44 +3,22 @@
 # asyncRewake: true, so Claude Code runs this in the background at zero
 # model cost every time the primary session's turn ends, and only "rewakes"
 # the session (via exit 2 + stderr) if it finds something worth interrupting
-# you for. chief-watch.sh does the actual polling; this script only
-# interprets its exit.
+# you for. watch-reason.sh does the actual watching; this script only
+# interprets its output.
 #
 # Concurrent arms are resolved by chief-watch.sh itself (the newest watcher
 # takes over; an older one exits silently, which this script must not rewake
 # on). Beacon staleness backstops are deliberately not handled.
 set -euo pipefail
 
-CHIEF_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=../bin/lib/worktree.sh
-. "$CHIEF_PLUGIN_ROOT/bin/lib/worktree.sh"
+# Codex and Copilot set PLUGIN_ROOT (Claude Code does not) and have their own
+# wake adapters; Copilot also loads this hooks.json and would block on a sync Stop hook.
+[ -z "${PLUGIN_ROOT:-}" ] || exit 0
 
-# A spawned builder's own session must never arm a watcher on itself - only
-# the primary (operator-facing) session supervises. This check is race-free
-# even against Orca's create-and-launch-in-one-call spawn; see
-# bin/lib/worktree.sh. Judge by the launch dir, not the cwd, which drifts in
-# the primary session.
-LAUNCH_DIR="${CLAUDE_PROJECT_DIR:-.}"
-chief_is_linked_worktree "$LAUNCH_DIR" && exit 0
+# Judge by the launch dir, not the cwd, which drifts in the primary session.
+REASON=$("$(dirname "${BASH_SOURCE[0]}")/watch-reason.sh" "${CLAUDE_PROJECT_DIR:-.}") || exit 0
 
-# shellcheck source=../bin/lib/home.sh
-. "$CHIEF_PLUGIN_ROOT/bin/lib/home.sh"
-export CHIEF_HOME="${CHIEF_HOME:-$(cd "$LAUNCH_DIR" && chief_default_home)}"
-
-# shellcheck source=../bin/lib/paths.sh
-. "$CHIEF_PLUGIN_ROOT/bin/lib/paths.sh"
-
-# No CHIEF_HOME at all -> Chief isn't in use here; let the
-# turn end normally rather than creating one just to watch nothing.
-[ -d "$STATE" ] || exit 0
-
-WATCH="$CHIEF_ROOT/bin/chief-watch.sh"
-
-REASON=$("$WATCH" 2>&1) || true
-
-if [ -z "$REASON" ] || [ "$REASON" = "nothing in flight" ]; then
-  exit 0
-fi
+[ -n "$REASON" ] || exit 0
 
 echo "chief watcher: $REASON" >&2
 exit 2
