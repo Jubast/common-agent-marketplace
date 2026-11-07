@@ -83,4 +83,11 @@ Posts findings to the PR unasked: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
 assert_contains "$output" "Posts findings to the PR unasked:.*no" "Findings are posted to a PR only when the operator asks"
 echo ""
 
+echo "Test 10: The definition of done is not repeated in --spec..."
+output=$(run_claude "According to the dispatch skill, should Chief repeat the definition of done in --spec when spawning a worker? Answer using exactly this structure:
+Repeats the definition of done in --spec: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
+
+assert_contains "$output" "Repeats the definition of done in --spec:.*no" "The definition of done is not repeated in --spec"
+echo ""
+
 echo "=== All dispatch skill tests passed ==="
