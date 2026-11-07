@@ -181,6 +181,7 @@ bg_watch() { ( rc=0; CHIEF_POLL=1 timeout 10 "$2" > "$1" 2>&1 || rc=$?; echo "rc
   wait "${BG_PIDS[@]}"
   assert_equal "$(cat "$WORK/old.out")" "rc=0"
   assert_equal "$(cat "$WORK/new.out")" "chief watcher: $(line 'older exits')
+$(cat "$REPO_ROOT/plugins/chief/hooks/wake-reply.txt")
 rc=2"
 }
 
