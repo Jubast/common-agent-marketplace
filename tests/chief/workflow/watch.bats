@@ -181,7 +181,6 @@ bg_watch() { ( rc=0; CHIEF_POLL=1 timeout 10 "$2" > "$1" 2>&1 || rc=$?; echo "rc
   wait "${BG_PIDS[@]}"
   assert_equal "$(cat "$WORK/old.out")" "rc=0"
   assert_equal "$(cat "$WORK/new.out")" "chief watcher: $(line 'older exits')
-Reply in at most 5 lines: the outcome, the decisions the operator must make (recommendation first), and the report path.
 rc=2"
 }
 
