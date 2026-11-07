@@ -45,9 +45,17 @@ done
   assert_contains_all "$(brief builder)" '- [ ] n/a - <why it does not apply>' '{REPORT_FILE}'
 }
 
-@test "reviewer brief: reads the project's Definition of done from the base" {
-  assert_contains_all "$(brief reviewer)" 'git show <base>:AGENTS.md'
+@test "reviewer brief: reads the project's Definition of done from the base and records its own items under Notes" {
+  assert_contains_all "$(brief reviewer)" 'git show <base>:AGENTS.md' 'under `### Builder`' 'under `### Reviewer`' 'Notes:'
 }
+
+definition_of_done_is_per_role() {  # <role>
+  local subheading; subheading=$(tr a-z A-Z <<< "${1:0:1}")${1:1}
+  assert_contains_all "$(brief "$1")" "under \`### $subheading\`" 'under `### All`' '- [ ] n/a - <why it does not apply>'
+}
+for role in researcher brainstormer; do
+  bats_test_function --description "$role brief: meets its own project items and records one evidence line each" -- definition_of_done_is_per_role "$role"
+done
 
 @test "builder brief: readable code, performance trades marked PERF:, project conventions win" {
   assert_contains_all "$(brief builder)" 'Write code for its next reader' 'mark that code with a `PERF:` comment' \

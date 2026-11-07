@@ -13,7 +13,7 @@
 # --from <id> makes the worker the successor of a done researcher or
 # brainstormer: its report is appended to the brief. --dry-run validates and
 # prints the agent and launch line (or the pool) without creating anything.
-# A non-empty .chief/config/definition-of-done is appended to every brief.
+# The mode's items from .chief/config/definition-of-done (see chief_dod_items) are appended to the brief.
 # A brainstormer also prints "attach: ..." (and records attach= in meta), how
 # the operator reaches its pane.
 set -euo pipefail
@@ -169,6 +169,22 @@ brief_escape() {
   printf '%s' "$value"
 }
 
+# The "# Definition of done" items for a role: those before any header or under
+# [all], then the role's own section. An unknown section warns and is ignored.
+chief_dod_items() {  # <file> <role>
+  awk -v role="$2" -v roles="$CHIEF_ROLES" '
+    /^[ \t]*\[.*\][ \t]*$/ {
+      sec = $0; gsub(/[][ \t]/, "", sec)
+      if (sec != "all" && !index(" " roles " ", " " sec " ")) {
+        print "chief-spawn: " FILENAME ":" NR ": unknown section [" sec "] ignored" > "/dev/stderr"; sec = "?"
+      }
+      next
+    }
+    sec == "" || sec == "all" { shared = shared $0 "\n" }
+    sec == role { own = own $0 "\n" }
+    END { printf "%s%s", shared, own }' "$1"
+}
+
 BRIEF_CONTENT=$(cat "$TEMPLATE")
 BRIEF_CONTENT=${BRIEF_CONTENT//\{TASK\}/$(brief_escape "$INTENT")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{SPEC\}/$(brief_escape "$SPEC")}
@@ -178,8 +194,8 @@ BRIEF_CONTENT=${BRIEF_CONTENT//\{INBOX_DIR\}/$(brief_escape "$INBOX_DIR")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{REPORT_FILE\}/$(brief_escape "$REPORT_FILE")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{TURN_FILE\}/$(brief_escape "$(chief_task_path "$ID" turn-ended)")}
 printf '%s\n' "$BRIEF_CONTENT" > "$BRIEF"
-DOD="$CONFIG/definition-of-done"
-[ ! -s "$DOD" ] || printf '\n# Definition of done\nThe operator'\''s items for every change:\n%s\n' "$(cat "$DOD")" >> "$BRIEF"
+[ ! -f "$CONFIG/definition-of-done" ] || DOD=$(chief_dod_items "$CONFIG/definition-of-done" "$MODE")
+[[ ${DOD:-} != *[![:space:]]* ]] || printf '\n# Definition of done\nThe operator'\''s items for a %s:\n%s\n' "$MODE" "$DOD" >> "$BRIEF"
 [ -z "$FROM" ] || chief_prior_work "$FROM" >> "$BRIEF"
 
 LIFECYCLE_CONTENT=$(cat "$LIFECYCLE_TEMPLATE")

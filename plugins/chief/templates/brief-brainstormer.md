@@ -40,7 +40,7 @@ Check the skills available to you (listed by name and description). Read any tha
    Start with `working: brainstorming with operator`. Use `blocked` or `failed` only if you cannot continue.
 2. Never report `done` before the operator has explicitly confirmed the spec in this pane. Then report `done: spec ready`. If the operator asks for changes afterwards, report `working: revising spec` first, then update the spec, get it confirmed again, and report a new `done:` line that names the change.
 3. Whenever you end a turn and are about to wait for the operator, run `touch {TURN_FILE}` first: it is how Chief tells an operator-wait from a stall.
-4. If this brief has a `# Definition of done` section or the project's `AGENTS.md`/`CLAUDE.md` has a `## Definition of done` section, the spec must let a builder meet each item; say how where it is not obvious.
+4. Definition of done: meet every item in this brief's `# Definition of done` section and in the project's `## Definition of done` section of its root `AGENTS.md`/`CLAUDE.md` (there: items outside any subheading, under `### All`, or under `### Brainstormer`), and record one line per item in `{REPORT_FILE}`: `- [x] <item> - <evidence>` or `- [ ] n/a - <why it does not apply>`. The spec must also let a builder meet the project section's builder items (under `### All` or `### Builder`); say how where it is not obvious.
 
 # Instruction inbox
 Chief may steer you through `{INBOX_DIR}`: list `{INBOX_DIR}/*.msg`, act on each in order, then move it to `{INBOX_DIR}/handled/`. Chief never relays the operator's side of the conversation; the pane is the only channel for that.

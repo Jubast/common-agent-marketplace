@@ -30,21 +30,52 @@ assert_nothing_left() {  # <id>
   assert_output --partial "$SPEC"
 }
 
-@test "brief: ends with the operator's definition of done when the config is non-empty" {
-  mkdir -p "$CHIEF_HOME/config"
-  printf -- '- `make test` passes\n- has a perf test\n' > "$CHIEF_HOME/config/definition-of-done"
-  chief_spawn_quiet t-1
-  run tail -n 4 "$CHIEF_HOME/tasks/t-1/brief.md"
-  assert_output "# Definition of done"$'\n'"The operator's items for every change:"$'\n'"- \`make test\` passes"$'\n'"- has a perf test"
+dod_config() { mkdir -p "$CHIEF_HOME/config"; printf '%s\n' "$@" > "$CHIEF_HOME/config/definition-of-done"; }
+dod_section() {  # <id> - the brief from its "# Definition of done" heading on
+  sed -n '/^# Definition of done$/,$p' "$CHIEF_HOME/tasks/$1/brief.md"
 }
 
-@test "brief: has no operator definition of done when the config is absent or empty" {
-  chief_spawn_quiet t-1
-  mkdir -p "$CHIEF_HOME/config"
-  : > "$CHIEF_HOME/config/definition-of-done"
-  chief_spawn_quiet t-2
-  run grep -x '# Definition of done' "$CHIEF_HOME/tasks/t-1/brief.md" "$CHIEF_HOME/tasks/t-2/brief.md"
+@test "dod: a file with no header gives every role the same items" {
+  dod_config '- `make test` passes' '- has a perf test'
+  chief_spawn t-b builder >/dev/null
+  chief_spawn t-r reviewer >/dev/null
+  assert_equal "$(dod_section t-b)" "# Definition of done"$'\n'"The operator's items for a builder:"$'\n'"- \`make test\` passes"$'\n'"- has a perf test"
+  assert_contains_all "$(dod_section t-r)" "items for a reviewer:" "- has a perf test"
+}
+
+@test "dod: [all] items come first, then the role's own, and other roles' items stay out" {
+  dod_config '- before any header' '[builder]' '- builder only' '[all]' '- shared' '[reviewer]' '- reviewer only'
+  chief_spawn t-b builder >/dev/null
+  assert_equal "$(dod_section t-b | tail -n 3)" "- before any header"$'\n'"- shared"$'\n'"- builder only"
+  refute_contains_any "$(dod_section t-b)" "reviewer only"
+}
+
+@test "dod: a role-only section reaches that role alone" {
+  dod_config '[researcher]' '- cite sources'
+  chief_spawn t-r researcher >/dev/null
+  chief_spawn t-b builder >/dev/null
+  assert_contains_all "$(dod_section t-r)" "- cite sources"
+  run grep -x '# Definition of done' "$CHIEF_HOME/tasks/t-b/brief.md"
   assert_failure
+}
+
+@test "dod: no heading when the role has no items, the file is empty or it is absent" {
+  chief_spawn t-1 builder >/dev/null
+  dod_config '[reviewer]' '- reviewer only'
+  chief_spawn t-2 builder >/dev/null
+  : > "$CHIEF_HOME/config/definition-of-done"
+  chief_spawn t-3 builder >/dev/null
+  run grep -x '# Definition of done' "$CHIEF_HOME/tasks/t-1/brief.md" "$CHIEF_HOME/tasks/t-2/brief.md" "$CHIEF_HOME/tasks/t-3/brief.md"
+  assert_failure
+}
+
+@test "dod: an unknown section warns on stderr and its items are ignored" {
+  dod_config '[bulider]' '- typo item' '[builder]' '- kept'
+  run chief_spawn t-1 builder
+  assert_success
+  assert_output --partial "unknown section [bulider] ignored"
+  assert_contains_all "$(dod_section t-1)" "- kept"
+  refute_contains_any "$(dod_section t-1)" "typo item"
 }
 
 render_fills_placeholders() {  # <role>

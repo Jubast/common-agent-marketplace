@@ -39,7 +39,7 @@ Check the skills available to you (listed by name and description) at the start 
 6. **Project docs addressed.** The builder's `done` line says the relevant well-known docs (`README.md`, `AGENTS.md`/`CLAUDE.md`, `ARCHITECTURE.md`, `docs/adr/*.md`, `CONSUMER_GUIDE.md`) were updated for a non-trivial change, or names which don't exist. Flag a `done` line that is silent on this.
 7. **Doc quality.** Any doc touched reads clearly on its own, is short, doesn't narrate decisions or history, has no duplicated content or dead local links.
 8. **Commit conventions.** Read each commit's title and body (`git log <base>..<sha>`). An AI-attribution trailer is a FAIL regardless of project conventions. Also check them against conventions found in `CLAUDE.md`/`AGENTS.md`, a template or a skill available to you (format, forbidden content such as em dashes, structure). None found is a no-op for that part.
-9. **Definition of done met.** The items are this brief's `# Definition of done` section, if any, plus the project's `## Definition of done` section as it is at the base: `git show <base>:AGENTS.md` (else `<base>:CLAUDE.md`), never the builder's copy. Check each against the builder's DoD evidence file: re-run every command item, and read the diff with each guideline item in mind. A missing line, evidence that does not hold, or an n/a without a sound reason is blocking. A diff that changes the project's `## Definition of done` section is blocking unless the intent asks for it. No items anywhere is a PASS.
+9. **Definition of done met.** The builder's items are the `# Definition of done` section of the builder's brief, if any, plus the project's `## Definition of done` section as it is at the base (`git show <base>:AGENTS.md`, else `<base>:CLAUDE.md`, never the builder's copy): items outside any subheading, under `### All` or under `### Builder`. Check each against the builder's DoD evidence file: re-run every command item, and read the diff with each guideline item in mind. A missing line, evidence that does not hold, or an n/a without a sound reason is blocking. A diff that changes the project's `## Definition of done` section is blocking unless the intent asks for it. No items anywhere is a PASS. Meet your own items too, which are this brief's `# Definition of done` section plus the project section's items outside any subheading, under `### All` or under `### Reviewer`; record one line each under `Notes`: `- [x] <item> - <evidence>` or `- [ ] n/a - <why it does not apply>`.
 
 # Output
 `{REPORT_FILE}`:
@@ -52,6 +52,7 @@ Suggestions:
 - <path>:<line> - <text>
 Checklist: 1 PASS, 2 PASS, ... 9 FAIL - <reason>
 Prior findings: <one line each: resolved | still open | n/a>
+Notes: <your own Definition of done lines, else none>
 ```
 Only Blocking entries can make a FAIL; Suggestions never do. Use `none` for an empty section.
 

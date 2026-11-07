@@ -71,7 +71,7 @@ The launch line each worker runs is the adapter's `agent_command` in `bin/lib/ag
 - Approval/sandbox: `claude --dangerously-skip-permissions`, `codex --dangerously-bypass-approvals-and-sandbox`, `copilot --allow-all`.
 - Claude workers inherit the `CLAUDE_CONFIG_DIR` note below.
 
-`.chief/config/definition-of-done` (optional): a markdown bullet list appended to every brief. Projects add their own as a `## Definition of done` section in `AGENTS.md`/`CLAUDE.md`. Keep it to a handful of checkable items; backtick a command for a mechanical item.
+`.chief/config/definition-of-done` (optional): a markdown bullet list appended to the briefs. Items before any header, or under `[all]`, go to every role; `[builder]`, `[researcher]`, `[reviewer]` and `[brainstormer]` sections to that role only (an unknown section warns and is ignored). Projects add their own as a `## Definition of done` section in `AGENTS.md`/`CLAUDE.md`, optionally with `### All`, `### Builder`, `### Researcher`, `### Reviewer` and `### Brainstormer` subheadings (items outside any subheading go to every role); Chief does not parse it, the workers read it. Builders, researchers and brainstormers meet their items and record evidence in their report; the reviewer verifies the builder's items and meets its own. Keep it to a handful of checkable items; backtick a command for a mechanical item.
 
 ## Handoff
 
