@@ -29,7 +29,6 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
    - `--branch` is required: a new name in the `conventional-branches` scheme.
    - The agent and model come from the role's pool in `.chief/config/agents`, then the global pool. Add `--agent <agent[:model]>` and/or `--model <model>` only when the operator names one. Spawn prints the chosen `agent:`; `${CLAUDE_PLUGIN_ROOT}/bin/chief-agents.sh` lists the agent each role would get, marking a global-pool fallback.
    - Keep `--intent` narrow (it becomes the acceptance criteria) and `--spec` to what the intent requires.
-   - The definition of done reaches the workers on its own; don't repeat it in `--spec`.
    - It creates the worktree and branch, renders the brief, launches the worker and marks the backlog item in-flight. It returns once the worker's first turn has started; run it in the background.
 
 3. **It runs on its own.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-watch.sh` (armed by a Stop hook, zero model cost) interrupts you only when the task finishes, fails, is blocked or needs a decision. On `blocked` or `needs-decision`, run `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "<why, one line>"`.
