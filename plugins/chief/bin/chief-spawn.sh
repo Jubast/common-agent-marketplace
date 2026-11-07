@@ -13,8 +13,6 @@
 # --from <id> makes the worker the successor of a done researcher or
 # brainstormer: its report is appended to the brief. --dry-run validates and
 # prints the agent and launch line (or the pool) without creating anything.
-# The mode's items from .chief/config/definition-of-done (see chief_dod_items)
-# are appended to the brief.
 # A brainstormer also prints "attach: ..." (and records attach= in meta), how
 # the operator reaches its pane.
 set -euo pipefail
@@ -195,8 +193,8 @@ BRIEF_CONTENT=${BRIEF_CONTENT//\{INBOX_DIR\}/$(brief_escape "$INBOX_DIR")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{REPORT_FILE\}/$(brief_escape "$REPORT_FILE")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{TURN_FILE\}/$(brief_escape "$(chief_task_path "$ID" turn-ended)")}
 printf '%s\n' "$BRIEF_CONTENT" > "$BRIEF"
-[ ! -f "$CONFIG/definition-of-done" ] || DOD=$(chief_dod_items "$CONFIG/definition-of-done" "$MODE")
-[[ ${DOD:-} != *[![:space:]]* ]] || printf '\n# Definition of done\nThe operator'\''s items for a %s:\n%s\n' "$MODE" "$DOD" >> "$BRIEF"
+DOD=$([ ! -f "$CONFIG/definition-of-done" ] || chief_dod_items "$CONFIG/definition-of-done" "$MODE")
+[[ $DOD != *[![:space:]]* ]] || printf '\n# Definition of done\nThe operator'\''s items for a %s:\n%s\n' "$MODE" "$DOD" >> "$BRIEF"
 [ -z "$FROM" ] || chief_prior_work "$FROM" >> "$BRIEF"
 
 LIFECYCLE_CONTENT=$(cat "$LIFECYCLE_TEMPLATE")

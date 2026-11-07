@@ -38,7 +38,7 @@ done_when_has_its_own_heading() {  # <role>
   ! grep -qx '# Definition of done' <<< "$(brief "$1")"
 }
 for role in builder researcher brainstormer reviewer; do
-  bats_test_function --description "$role brief: has '# Done when', not '# Definition of done'" -- done_when_has_its_own_heading "$role"
+  bats_test_function --description "$role brief: leaves # Definition of done to the operator's items" -- done_when_has_its_own_heading "$role"
 done
 
 @test "builder brief: records one evidence line per Definition of done item in REPORT_FILE" {
