@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# stop-watch-codex.sh - Codex's wake adapter. Registered as an async Stop hook
-# (hooks.codex.json), so it watches in the background at zero model cost and
-# wakes the idle session with `codex queue` when watch-reason.sh finds
-# something. It queues only while a Codex TUI runs in the session's cwd: this
-# hook's parent is Codex's shared app-server, which outlives the TUI, and
-# against a closed Chief `codex queue` would run a headless turn.
+# stop-watch-codex.sh - Codex's wake adapter (async Stop hook): `codex queue`s the
+# watcher's reason only while a Codex TUI runs in the cwd, else it would run headless.
 set -euo pipefail
 
 SESSION=$(jq -r '.session_id // empty')
