@@ -109,7 +109,7 @@ its own variable and skips cleanly without it, without the CLIs (`herdr`, `jq`,
 
 | File | Gate | Covers | Cost |
 |---|---|---|---|
-| `isolation.bats` | none | the guard below | free |
+| `isolation.bats` | none | the isolation guard | free |
 | `herdr-claude.bats` | `CHIEF_TEST_HERDR=1` | `backends/herdr.sh` with a real claude: the folder-trust dialog, the placeholder hint in a never-prompted input box, our text in the input line while a prompt is in flight | 3 claude turns |
 | `copilot-spawn.bats` | `CHIEF_TEST_COPILOT=1` | the copilot adapter's screen needles on real screens, then a real `chief-spawn.sh --agent copilot` researcher through teardown | 1 copilot turn |
 | `copilot-brief.bats` | `CHIEF_TEST_COPILOT_BRIEF=1` | a brief-sized prompt reaches copilot exactly once (#90); `CHIEF_TEST_COPILOT_BRIEF_ATTEMPTS` attempts (default 3), and the last test fails when none hit `agent_prompt_stalled`, as the recovery was then never exercised | 1 copilot turn per attempt |
@@ -127,22 +127,12 @@ spawned through the dispatch skill while Chief is told not to poll, so the token
 reaching the screen after the worker's `done` proves the wake. Their workers run
 `claude:haiku`, so those files need a claude login as well.
 
-A live file never touches your herdr or agent config (`lib/live.bash`): it runs
-in a scrubbed environment with its own `HOME`/`XDG_*`, `CLAUDE_CONFIG_DIR`,
-`CODEX_HOME`, `COPILOT_HOME` and herdr server and socket, in `/tmp/chl.*`, and
-`live_isolate` aborts unless the socket differs from the caller's and the
-default one, the server was started by the file, and its workspace list is
-empty, and unless `CHIEF_HOME` (so the backlog and tasks) is inside the scratch
-dir and not the operator's. `CHIEF_HOME` is set in the scratch environment the
-panes inherit, because a model may run `chief-*.sh` from any directory, and
-from inside the repo that would resolve the operator's `.chief`. Only login
-files are copied in (a claude token in the environment passes through; copilot
-gets trust for its throwaway repos; codex gets its `auth.json`). Copilot always
-runs with `--experimental`, per run, never as a setting. The scratch dir is
-removed in `teardown_file` (and swept in `teardown_suite` if a run was killed).
-The tests of a live file run in order and share the agents the first ones
-start. Copilot and claude can answer with a rate or quota message; a test then
-fails without retrying.
+Live files run in a scratch dir (`/tmp/chl.*`) with their own `HOME`, agent
+config dirs, herdr server and `CHIEF_HOME`; only logins are copied in, and
+Copilot runs with `--experimental` per run, never as a setting. `live_isolate`
+aborts if the herdr server or `CHIEF_HOME` is not provably the file's own. The
+tests of a file run in order and share the agents the first ones start. A rate
+or quota message from Copilot or claude fails a test without a retry.
 
 `backends/herdr.sh` is verified against a herdr 0.9.3 install -
 see its header for the real CLI shape and two confirmed quirks: Claude

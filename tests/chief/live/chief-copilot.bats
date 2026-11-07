@@ -1,11 +1,5 @@
-# Chief's own session on Copilot CLI: it gets the identity (a top-level
-# additionalContext), spawns a trivial researcher through the dispatch skill and
-# is woken by the extension (session.send) when the researcher is done.
-# Launched with --experimental, which the extension needs. Workers run claude:haiku.
-#
-# Spends a few copilot and claude turns:
-#   CHIEF_TEST_CHIEF_COPILOT=1 tests/chief/run-tests.sh --only-live tests/chief/live/chief-copilot.bats
-# The tests run in order and share the Chief session.
+# Chief on Copilot (--experimental): identity, then a researcher dispatched
+# through the dispatch skill, woken by the extension; no watcher left on exit.
 
 # bats file_tags=live,copilot
 
@@ -20,7 +14,7 @@ setup_file() {
   live_login_copilot "$LIVE/ws" || skip "no copilot login at $LIVE_REAL_COPILOT_HOME/config.json"
   pane=$(live_pane chief "$LIVE/ws" copilot --experimental --allow-all --plugin-dir "$REPO_ROOT/plugins/chief")
   echo "$pane" > "$LIVE/pane"
-  live_wait_screen "$pane" 'Allow All' 60
+  live_wait 60 live_screen_has "$pane" 'Allow All'
 }
 teardown_file() {
   load ../lib/live

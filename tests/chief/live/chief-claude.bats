@@ -1,10 +1,5 @@
-# Chief's own session on Claude Code: it gets the identity, spawns a trivial
-# researcher through the dispatch skill and is woken when the researcher is done
-# (the Stop hook with asyncRewake). Workers run claude:haiku.
-#
-# Spends a few claude turns:
-#   CHIEF_TEST_CHIEF_CLAUDE=1 tests/chief/run-tests.sh --only-live tests/chief/live/chief-claude.bats
-# The tests run in order and share the Chief session.
+# Chief on Claude Code: identity, then a researcher dispatched through the
+# dispatch skill, woken by the Stop hook when it finishes.
 
 # bats file_tags=live,claude
 
@@ -20,7 +15,7 @@ setup_file() {
     > "$CLAUDE_CONFIG_DIR/.claude.json.new" && mv "$CLAUDE_CONFIG_DIR/.claude.json.new" "$CLAUDE_CONFIG_DIR/.claude.json"
   pane=$(live_pane chief "$LIVE/ws" claude --plugin-dir "$REPO_ROOT/plugins/chief" --dangerously-skip-permissions --model haiku)
   echo "$pane" > "$LIVE/pane"
-  live_wait_screen "$pane" 'bypass permissions on' 60
+  live_wait 60 live_screen_has "$pane" 'bypass permissions on'
 }
 teardown_file() {
   load ../lib/live

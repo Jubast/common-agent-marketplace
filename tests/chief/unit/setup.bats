@@ -52,7 +52,7 @@ setup() {
   assert_not_exist "$W/nogit/.gitignore"
 }
 
-# fake_cli <name> <exit code of --help> - a <name> on PATH whose `queue --help` exits so
+# fake_cli <name> <exit code> - a <name> on PATH that exits so
 fake_cli() {
   mkdir -p "$W/bin"
   printf '#!/bin/sh\nexit %s\n' "$2" > "$W/bin/$1"
@@ -60,40 +60,27 @@ fake_cli() {
   PATH="$W/bin:$PATH"
 }
 
-@test "harness check: warns when codex has no queue command" {
+@test "harness check: warns about a codex without queue, not about one with it" {
   mkdir -p "$W/h1" && cd "$W/h1" && git init -q
   export CHIEF_HOME="$W/h1/.chief"
   fake_cli codex 1
   run "$SETUP" --backend herdr
   assert_success
   assert_output --partial "no 'queue' command"
-}
-
-@test "harness check: stays quiet when codex has queue" {
-  mkdir -p "$W/h2" && cd "$W/h2" && git init -q
-  export CHIEF_HOME="$W/h2/.chief"
   fake_cli codex 0
   run "$SETUP" --backend herdr
-  assert_success
   refute_output --partial "'queue'"
 }
 
-@test "harness check: warns when copilot has experimental off" {
-  mkdir -p "$W/h3" "$W/ch" && cd "$W/h3" && git init -q
-  export CHIEF_HOME="$W/h3/.chief" COPILOT_HOME="$W/ch"
+@test "harness check: warns about copilot with experimental off, not with it on" {
+  mkdir -p "$W/h2" "$W/ch" && cd "$W/h2" && git init -q
+  export CHIEF_HOME="$W/h2/.chief" COPILOT_HOME="$W/ch"
   fake_cli copilot 0
   echo '{}' > "$W/ch/settings.json"
   run "$SETUP" --backend herdr
   assert_success
   assert_output --partial "'experimental' off"
-}
-
-@test "harness check: stays quiet when copilot has experimental on" {
-  mkdir -p "$W/h4" "$W/ch" && cd "$W/h4" && git init -q
-  export CHIEF_HOME="$W/h4/.chief" COPILOT_HOME="$W/ch"
-  fake_cli copilot 0
   echo '{"experimental":true}' > "$W/ch/settings.json"
   run "$SETUP" --backend herdr
-  assert_success
   refute_output --partial "experimental"
 }

@@ -6,8 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${PLUGIN_ROOT}/hooks/session-start.sh\"",
-            "additionalContextLimit": 0
+            "command": "\"${PLUGIN_ROOT}/hooks/session-start.sh\""
           }
         ]
       }

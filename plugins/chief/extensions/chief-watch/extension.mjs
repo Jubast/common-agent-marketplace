@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 
 const WATCH = join(dirname(fileURLToPath(import.meta.url)), "../../hooks/watch-reason.sh");
 const IDLE_MS = 30000;
-const STAND_DOWN = 3;
 
 let child;
 const stop = () => { try { process.kill(-child.pid); } catch {} };
@@ -26,7 +25,7 @@ const watch = () => new Promise((resolve) => {
 const session = await joinSession({});
 for (;;) {
   const { code, out } = await watch();
-  if (code === STAND_DOWN) break;
+  if (code === 3) break; // a worker's worktree
   if (out) await session.send({ prompt: `chief watcher: ${out}` });
   else await new Promise((r) => setTimeout(r, IDLE_MS));
 }

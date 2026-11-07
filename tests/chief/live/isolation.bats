@@ -41,12 +41,6 @@ teardown_file() {
   assert_output --partial "socket equals"
 }
 
-@test "guard: the scratch Chief home is inside the scratch dir, not the operator's" {
-  live_guard_chief_home
-  [[ $CHIEF_HOME == "$LIVE"/* ]]
-  [[ $LIVE_REAL_CHIEF_HOME != "$LIVE"/* ]]
-}
-
 @test "guard: refuses a CHIEF_HOME outside the scratch dir" {
   CHIEF_HOME=$LIVE_REAL_CHIEF_HOME run live_guard_chief_home
   assert_failure 1

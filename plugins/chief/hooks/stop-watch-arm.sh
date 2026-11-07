@@ -11,8 +11,7 @@
 # on). Beacon staleness backstops are deliberately not handled.
 set -euo pipefail
 
-# Codex and Copilot set PLUGIN_ROOT (Claude Code does not) and have their own
-# wake adapters; Copilot also loads this hooks.json and would block on a sync Stop hook.
+# Codex and Copilot set PLUGIN_ROOT and have their own wake adapters.
 [ -z "${PLUGIN_ROOT:-}" ] || exit 0
 
 # Judge by the launch dir, not the cwd, which drifts in the primary session.

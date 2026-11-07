@@ -163,41 +163,25 @@ live_pane() {
 live_screen() { herdr pane read "$1" --source recent-unwrapped --lines 300 2>/dev/null | tr -s '[:space:]' ' '; }
 # live_screen_has <pane> <ere>
 live_screen_has() { live_screen "$1" | grep -Eq -- "$2"; }
-# live_wait_screen <pane> <ere> <secs> - polls until the screen matches; on a
-# timeout prints the screen's tail.
-live_wait_screen() {
-  local i
-  for i in $(seq 1 $(($3 * 2))); do live_screen_has "$1" "$2" && return 0; sleep 0.5; done
-  echo "timed out waiting for /$2/; screen tail:" >&2
-  herdr pane read "$1" --source recent-unwrapped --lines 40 >&2
-  return 1
-}
 # live_visible_has <pane> <ere> - the pane's current screen only, not its history.
 live_visible_has() { herdr pane read "$1" --source visible --lines 80 2>/dev/null | tr -s '[:space:]' ' ' | grep -Eq -- "$2"; }
-# live_wait_visible <pane> <ere> <secs> - polls until the current screen matches
-# live_wait_visible_gone waits until it stops matching.
-live_wait_visible() {
-  local i
-  for i in $(seq 1 $(($3 * 2))); do live_visible_has "$1" "$2" && return 0; sleep 0.5; done
-  echo "timed out waiting for /$2/ on the visible screen:" >&2
-  herdr pane read "$1" --source visible --lines 40 >&2
-  return 1
-}
-live_wait_visible_gone() {
-  local i
-  for i in $(seq 1 $(($3 * 2))); do live_visible_has "$1" "$2" || return 0; sleep 0.5; done
-  echo "/$2/ is still on the visible screen" >&2
+live_visible_gone() { ! live_visible_has "$@"; }
+# live_wait <secs> <check> <pane> [args] - polls the check until it passes; on a
+# timeout prints the pane's tail.
+live_wait() {
+  local secs=$1; shift
+  eventually "$secs" "$@" && return 0
+  echo "timed out waiting for: $*; screen tail:" >&2
+  herdr pane read "$2" --source recent-unwrapped --lines 40 >&2
   return 1
 }
 # live_say <pane> <text> - types the text and presses Enter.
 live_say() { herdr pane send-text "$1" "$2" > /dev/null; sleep 1; herdr pane send-keys "$1" Enter > /dev/null; }
-# live_interrupt_twice <pane> - Ctrl-C twice, the way a TUI quits.
-live_interrupt_twice() { herdr pane send-keys "$1" C-c > /dev/null; sleep 1; herdr pane send-keys "$1" C-c > /dev/null; }
 
 # --- Chief on a harness ------------------------------------------------------
 
 # live_chief_workspace - $LIVE/ws (a git repo, the Chief session's dir) with a
-# project at $LIVE/ws/proj holding SECRET.txt, Chief set up on herdr and
+# project at $LIVE/ws/proj holding NOTE.txt, Chief set up on herdr and
 # workers on claude:haiku. The token never appears in a prompt, only in a worker's report.
 live_chief_workspace() {
   LIVE_TOKEN=zebra-$RANDOM$RANDOM
@@ -206,7 +190,7 @@ live_chief_workspace() {
   printf '.chief/\nproj/\n' > "$LIVE/ws/.gitignore"
   git -C "$LIVE/ws" add . && git -C "$LIVE/ws" commit -q -m init
   git -C "$LIVE/ws/proj" init -q -b main
-  echo "$LIVE_TOKEN" > "$LIVE/ws/proj/SECRET.txt"
+  echo "$LIVE_TOKEN" > "$LIVE/ws/proj/NOTE.txt"
   git -C "$LIVE/ws/proj" add . && git -C "$LIVE/ws/proj" commit -q -m init
   ( cd "$LIVE/ws" && CHIEF_HOME="$LIVE/ws/.chief" "$BIN/chief-setup.sh" --backend herdr > /dev/null )
   echo "claude:haiku" > "$LIVE/ws/.chief/config/agents"
@@ -214,22 +198,17 @@ live_chief_workspace() {
   # from the session's dir, chief-*.sh find the scratch home, not a real one
   [ "$(cd "$LIVE/ws" && env -u CHIEF_HOME bash -c ". '$BIN/lib/home.sh'; chief_default_home")" = "$LIVE/ws/.chief" ]
 }
-# live_dispatch_prompt <id> - asks Chief to spawn a researcher that reads the token.
+# live_dispatch_prompt <id> [gate file] - asks Chief to spawn a researcher that reads
+# the token, once the gate file exists if one is given.
 live_dispatch_prompt() {
-  printf "Via the dispatch skill: file a backlog item %s and spawn it as a researcher on the project at %s/proj; its only job is to read SECRET.txt in the project and report its content (one line). Wait in the foreground until chief-spawn prints 'spawned:', then say so and stop; do not poll afterwards." "$1" "$LIVE/ws"
+  printf "Via the dispatch skill: file a backlog item %s and spawn it as a researcher on the project at %s/proj; its only job is to %sread NOTE.txt in the project and report its content (one line). Wait in the foreground until chief-spawn prints 'spawned:', then say so and stop; do not poll afterwards." "$1" "$LIVE/ws" "${2:+wait until the file $2 exists (check with ls every few seconds), then }"
 }
 # live_task_status_is <id> <prefix> - the last status line of a Chief task starts so.
 live_task_status_is() { [[ $(tail -n 1 "$LIVE/ws/.chief/tasks/$1/status" 2>/dev/null) == "$2"* ]]; }
-live_wait_task() {  # <id> <prefix> <secs>
-  local i
-  for i in $(seq 1 $(($3 * 2))); do live_task_status_is "$1" "$2" && return 0; sleep 0.5; done
-  echo "task $1 never reported '$2'; last: $(tail -n 1 "$LIVE/ws/.chief/tasks/$1/status" 2>/dev/null)" >&2
-  return 1
-}
 # live_chief_identity <pane> - asks without tools and waits for the answer.
 live_chief_identity() {
   live_say "$1" "Without using any tool: what is your name in this workspace? Reply with exactly NAME=<name>."
-  live_wait_screen "$1" 'NAME=[A-Za-z]' 120
+  live_wait 120 live_screen_has "$1" 'NAME=[A-Za-z]'
 }
 # live_wait_seen <pane> <secs> <ere>... - polls until each <ere> has shown on the
 # screen at some poll (a long conversation scrolls early lines away, so they
@@ -269,13 +248,13 @@ live_watchers() {
 live_quit_tui() {
   local i
   for i in 1 2 3 4 5; do
-    live_visible_has "$1" "$2" || live_screen_has "$1" "$2" && return 0
     herdr pane send-keys "$1" C-c > /dev/null
     sleep 1
     herdr pane send-keys "$1" C-c > /dev/null
-    sleep 3
+    eventually 3 live_exited "$1" "$2" && return 0
   done
   echo "the TUI did not show /$2/; visible screen:" >&2
   herdr pane read "$1" --source visible --lines 40 >&2
   return 1
 }
+live_exited() { live_visible_has "$@" || live_screen_has "$@"; }

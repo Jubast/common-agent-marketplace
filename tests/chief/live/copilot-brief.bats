@@ -1,15 +1,5 @@
-# Issue #90 against the REAL Copilot CLI on herdr: a brief-sized prompt (taller
-# than the 40-row viewport) goes in through `chief-spawn.sh --agent copilot` and
-# must arrive exactly once - one `herdr agent prompt` call and one user.message
-# in Copilot's events.jsonl.
-#
-# Spends one research turn per attempt:
-#   CHIEF_TEST_COPILOT_BRIEF=1 tests/chief/run-tests.sh --only-live tests/chief/live/copilot-brief.bats
-# The failure needs herdr's 5 s `agent_prompt_stalled` while copilot already took
-# the brief, a race that herdr's status lag hits on some runs only. So the file
-# makes CHIEF_TEST_COPILOT_BRIEF_ATTEMPTS (default 3) attempts and its last test
-# fails when none stalled: a run that never reached the recovery proves nothing.
-# The tests run in order.
+# #90 on real Copilot: a brief-sized prompt arrives exactly once, and at least
+# one attempt hits herdr's `agent_prompt_stalled` (else the recovery is untested).
 
 # bats file_tags=live,copilot
 

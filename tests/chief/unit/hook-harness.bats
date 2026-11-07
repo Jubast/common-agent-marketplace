@@ -163,14 +163,6 @@ STUB
 watcher_gone() { ! pgrep -f "$W/pc/bin/chief-watch.sh"; }
 sent() { grep -q 'chief watcher: t-1: state: done' "$W/send.log"; }
 
-@test "extension: sends the reason to the session" {
-  project
-  ext_plugin
-  done_task t-1
-  node "$W/pc/extensions/chief-watch/extension.mjs" & EXT_PID=$!
-  eventually 10 sent
-}
-
 @test "extension: stands down inside a linked worktree" {
   project
   ext_plugin
@@ -182,13 +174,13 @@ sent() { grep -q 'chief watcher: t-1: state: done' "$W/send.log"; }
   assert_file_not_exists "$W/send.log"
 }
 
-@test "extension: ends its watcher when it is terminated" {
+@test "extension: sends the reason, and ends its watcher when terminated" {
   project
   ext_plugin
   done_task t-1
   node "$W/pc/extensions/chief-watch/extension.mjs" & EXT_PID=$!
   eventually 10 sent
-  pgrep -f "$W/pc/bin/chief-watch.sh" > /dev/null
+  eventually 5 pgrep -f "$W/pc/bin/chief-watch.sh"
   kill "$EXT_PID"
   wait "$EXT_PID" || true
   eventually 5 watcher_gone

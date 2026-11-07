@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# watch-reason.sh <launch-dir> - runs chief-watch.sh for the primary session
-# and prints the reason worth waking it, or nothing (nothing in flight, or
-# Chief not in use here). Exits 3 inside a spawned builder's own worktree: a
-# worker never arms a watcher on itself. Shared by every harness adapter.
+# watch-reason.sh <launch-dir> - runs chief-watch.sh for the primary session and
+# prints the reason worth waking it, or nothing. Exits 3 in a worker's worktree.
 set -euo pipefail
 
 CHIEF_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

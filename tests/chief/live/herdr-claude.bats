@@ -1,12 +1,5 @@
-# backends/herdr.sh against a REAL claude: the three things real Claude Code
-# rendering does that the stand-in agent of ../backends/herdr.bats can only
-# imitate - the folder-trust dialog, the dim placeholder hint in a
-# never-prompted input box, and our own text in the input line while a prompt
-# is in flight. Everything else is covered there for free.
-#
-# Spends three trivial claude turns ("reply with exactly: ok").
-#   CHIEF_TEST_HERDR=1 tests/chief/run-tests.sh --only-live tests/chief/live/herdr-claude.bats
-# The tests run in order: the first two start the agents the later ones use.
+# backends/herdr.sh with a real claude: the folder-trust dialog, the placeholder
+# hint in a never-prompted input box, and our text in the input line in flight.
 
 # bats file_tags=live,claude
 

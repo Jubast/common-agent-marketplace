@@ -1,13 +1,5 @@
-# The copilot adapter against the REAL Copilot CLI on herdr: its screen needles
-# against real screens, then one real `chief-spawn.sh --agent copilot --mode
-# researcher` through teardown.
-#
-# Spends one research turn (the spawned worker's brief); everything else is
-# free local screen reading. Fails without retrying on a rate or quota message.
-#   CHIEF_TEST_COPILOT=1 tests/chief/run-tests.sh --only-live tests/chief/live/copilot-spawn.bats
-# Copilot has no folder-trust handling, so the spawn repo is trusted in the
-# scratch config; the probe repo stays untrusted so its trust dialog shows.
-# The tests run in order: the probe pane they share is opened by the first.
+# The copilot adapter's screen needles on real Copilot screens, then a real
+# `chief-spawn.sh --agent copilot` researcher through teardown.
 
 # bats file_tags=live,copilot
 
