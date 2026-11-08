@@ -40,8 +40,7 @@ Check the skills available to you (listed by name and description) at the start 
 7. **Doc quality.** Any doc touched reads clearly on its own, is short, doesn't narrate decisions or history, has no duplicated content or dead local links.
 8. **Commit conventions.** Read each commit's title and body (`git log <base>..<sha>`). An AI-attribution trailer is a FAIL regardless of project conventions. Also check them against conventions found in `CLAUDE.md`/`AGENTS.md`, a template or a skill available to you (format, forbidden content such as em dashes, structure). None found is a no-op for that part.
 9. **Definition of done met.** Read the project's `## Definition of done` section as it is at the base (`git show <base>:AGENTS.md`, else `<base>:CLAUDE.md`), never the builder's copy.
-   - The builder's items: the operator's items under `# Definition of done` at the end of the builder's brief, if any, plus the project section's items outside any subheading, under `### All` or under `### Builder`. Check each against the builder's DoD evidence file: re-run every command item, and read the diff with each guideline item in mind. A missing line, evidence that does not hold, or an n/a without a sound reason is blocking. A diff that changes the project's `## Definition of done` section is blocking unless the intent asks for it. No items anywhere is a PASS.
-   - Your own items: the operator's items under `# Definition of done` at the end of this brief (absent when there are none) plus the project section's items outside any subheading, under `### All` or under `### Reviewer`, from the same base copy. Meet them and record one line each under `Notes`: `- [x] <item> - <evidence>` or `- [ ] n/a - <why it does not apply>`.
+   - The builder's items: the operator's items at the end of `# Definition of done` in the builder's brief, if any, plus the project section's items outside any subheading, under `### All` or under `### Builder`. Check each against the builder's DoD evidence file: re-run every command item, and read the diff with each guideline item in mind. A missing line, evidence that does not hold, or an n/a without a sound reason is blocking. A diff that changes the project's `## Definition of done` section is blocking unless the intent asks for it. No items anywhere is a PASS.
 
 # Output
 `{REPORT_FILE}`:
@@ -61,6 +60,8 @@ Only Blocking entries can make a FAIL; Suggestions never do. Use `none` for an e
 # Instruction inbox
 Chief starts later rounds through `{INBOX_DIR}`: list `{INBOX_DIR}/*.msg`, act on each in order, then move it to `{INBOX_DIR}/handled/`.
 
-# Done when
+# Definition of done
 - `{REPORT_FILE}` holds this round's verdict in the format above.
 - Your last status line is `done: round N PASS @<sha7>`, `done: round N FAIL (<n> blocking) @<sha7>` or `failed: {why}`.
+- Meet the items in the project's `## Definition of done` section in `AGENTS.md`/`CLAUDE.md` (items outside any subheading, under `### All` or under `### Reviewer`).
+- Every operator item (listed below, if any) and project item has an evidence line in `{REPORT_FILE}` under `Notes`: `- [x] <item> - <evidence>` or `- [ ] n/a - <why it does not apply>`. Items that would ask a human, push, open a PR or go beyond the spec are n/a.

@@ -33,17 +33,15 @@ done
     'fix them with new commits (amend only for commit-message findings)' 'This brief wins over any skill'
 }
 
-done_when_has_its_own_heading() {  # <role>
-  grep -qx '# Done when' <<< "$(brief "$1")"
-  ! grep -qx '# Definition of done' <<< "$(brief "$1")"
+ends_with_one_definition_of_done() {  # <role>
+  local text; text=$(brief "$1")
+  [ "$(grep -cx '# Definition of done' <<< "$text")" = 1 ]
+  [ "$(sed -n '/^# Definition of done$/,$p' <<< "$text" | grep -c '^# ')" = 1 ]
+  ! grep -qx '# Done when' <<< "$text"
 }
 for role in builder researcher brainstormer reviewer; do
-  bats_test_function --description "$role brief: leaves # Definition of done to the operator's items" -- done_when_has_its_own_heading "$role"
+  bats_test_function --description "$role brief: ends with the one # Definition of done section" -- ends_with_one_definition_of_done "$role"
 done
-
-@test "builder brief: records one evidence line per Definition of done item in REPORT_FILE" {
-  assert_contains_all "$(brief builder)" '- [ ] n/a - <why it does not apply>' '{REPORT_FILE}'
-}
 
 @test "reviewer brief: reads the project's Definition of done from the base and records its own items under Notes" {
   assert_contains_all "$(brief reviewer)" 'git show <base>:AGENTS.md' 'under `### Builder`' 'under `### Reviewer`' 'Notes:'
@@ -51,9 +49,9 @@ done
 
 definition_of_done_is_per_role() {  # <role>
   local subheading; subheading=$(tr a-z A-Z <<< "${1:0:1}")${1:1}
-  assert_contains_all "$(brief "$1")" "under \`### $subheading\`" 'under `### All`' '- [ ] n/a - <why it does not apply>'
+  assert_contains_all "$(brief "$1")" "under \`### $subheading\`" 'under `### All`' '- [ ] n/a - <why it does not apply>' '{REPORT_FILE}'
 }
-for role in researcher brainstormer; do
+for role in builder researcher brainstormer reviewer; do
   bats_test_function --description "$role brief: meets its own project items and records one evidence line each" -- definition_of_done_is_per_role "$role"
 done
 

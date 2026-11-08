@@ -194,7 +194,7 @@ BRIEF_CONTENT=${BRIEF_CONTENT//\{REPORT_FILE\}/$(brief_escape "$REPORT_FILE")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{TURN_FILE\}/$(brief_escape "$(chief_task_path "$ID" turn-ended)")}
 printf '%s\n' "$BRIEF_CONTENT" > "$BRIEF"
 DOD=$([ ! -f "$CONFIG/definition-of-done" ] || chief_dod_items "$CONFIG/definition-of-done" "$MODE")
-[[ $DOD != *[![:space:]]* ]] || printf '\n# Definition of done\nThe operator'\''s items for a %s:\n%s\n' "$MODE" "$DOD" >> "$BRIEF"
+[[ $DOD != *[![:space:]]* ]] || printf '%s\n' "$DOD" >> "$BRIEF"
 [ -z "$FROM" ] || chief_prior_work "$FROM" >> "$BRIEF"
 
 LIFECYCLE_CONTENT=$(cat "$LIFECYCLE_TEMPLATE")
