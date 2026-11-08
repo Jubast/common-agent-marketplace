@@ -28,6 +28,7 @@ Check the skills available to you (listed by name and description) at the start 
    Whenever you end a turn and are about to wait for input, run `touch {TURN_FILE}` first: it is how Chief tells a quietly idle worker from a stalled one.
 4. Use `needs-decision: {summary of options}` for a choice that belongs to a human, then stop until answered.
 5. Use `blocked: {why}` if you hit the same obstacle twice in a row, and stop.
+6. Record each Definition of done item in `{REPORT_FILE}`: `- [x] <item> - <evidence>`, or `- [ ] n/a - <why>` when it does not apply (e.g. it would ask a human, push, or go beyond the spec).
 
 # Instruction inbox
 Chief may steer you mid-task through `{INBOX_DIR}`. When a message tells you an instruction is waiting there - or at any natural checkpoint when you're unsure what to do next - list `{INBOX_DIR}/*.msg`, read and act on each in order, then acknowledge by moving it: `mv {INBOX_DIR}/NNN.msg {INBOX_DIR}/handled/`. An empty or absent inbox needs no action.
@@ -35,7 +36,4 @@ Chief may steer you mid-task through `{INBOX_DIR}`. When a message tells you an 
 # Definition of done
 - `{REPORT_FILE}` is self-contained: a different agent that never saw this conversation can act on it alone. It states the decisions and their rationale, the options you rejected, constraints, file/symbol pointers, and open items.
 - A report may recommend implementation but never performs it.
-- Your last status line is `done: {one-line summary}` or `failed: {why}`.
-- Meet the items in the project's `## Definition of done` section in `AGENTS.md`/`CLAUDE.md` (items outside any subheading, under `### All` or under `### Researcher`).
-- Every change you recommend lets a builder meet the project section's builder items (under `### All` or `### Builder`); say how where it is not obvious.
-- Every operator item (listed below, if any) and project item has an evidence line in `{REPORT_FILE}`: `- [x] <item> - <evidence>` or `- [ ] n/a - <why it does not apply>`. Items that would ask a human, push, open a PR or go beyond the spec are n/a.
+- Meet the project's `## Definition of done` in `AGENTS.md`/`CLAUDE.md`: items outside any subheading, under `### All`, or under `### Researcher`.

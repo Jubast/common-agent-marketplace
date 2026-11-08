@@ -33,6 +33,7 @@ Check the skills available to you (listed by name and description) at the start 
 7. Use `needs-decision: {summary of options}` for any choice that belongs to a human (product tradeoffs, destructive actions, ambiguous scope) and then stop until answered.
 8. Use `blocked: {why}` if you hit the same obstacle twice in a row, and stop.
 9. Before reporting `done`: the project's checks pass, the work is committed, and the tree is clean.
+10. Record each Definition of done item in `{REPORT_FILE}`: `- [x] <item> - <evidence>`, or `- [ ] n/a - <why>` when it does not apply (e.g. it would ask a human, push, or go beyond the spec).
 
 # Project docs
 Check this project's root (and `docs/adr/`) for `README.md`, `AGENTS.md` (or `CLAUDE.md`), `ARCHITECTURE.md`, `docs/adr/*.md`, `CONSUMER_GUIDE.md`. For each that exists and this task's change is relevant to, update it proportionately - skip trivial tasks with no durable project-facing change, and prefer a pointer over duplicating detail. Do not create any that are missing unless the intent/spec above explicitly asked for that file; instead, name which of the well-known ones don't exist in your `done` line so Chief and the operator see the gap instead of it passing silently.
@@ -45,7 +46,5 @@ Chief may steer you mid-task through `{INBOX_DIR}`. When a message tells you an 
 
 # Definition of done
 - The intent above is satisfied, nothing more, nothing less.
-- The project's checks pass, the work is committed, and the tree is clean.
 - Your last status line is `done: <short commit sha> <one-line summary>` (e.g. `done: a1b2c3d added the limiter`) or `failed: {why}`.
-- Meet the items in the project's `## Definition of done` section in `AGENTS.md`/`CLAUDE.md` (items outside any subheading, under `### All` or under `### Builder`). Run command items and fix what fails.
-- Every operator item (listed below, if any) and project item has an evidence line in `{REPORT_FILE}`: `- [x] <item> - <evidence>` (the command you ran and its result, or `<path>:<line>` and why) or `- [ ] n/a - <why it does not apply>`. Items that would ask a human, push, open a PR or go beyond the spec are n/a.
+- Meet the project's `## Definition of done` in `AGENTS.md`/`CLAUDE.md`: items outside any subheading, under `### All`, or under `### Builder`.

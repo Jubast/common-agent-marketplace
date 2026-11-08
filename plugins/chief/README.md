@@ -75,7 +75,7 @@ The launch line each worker runs is the adapter's `agent_command` in `bin/lib/ag
 
 - Items before any header, or under `[all]`, go to every role; `[builder]`, `[researcher]`, `[reviewer]` and `[brainstormer]` sections go to that role only. An unknown section warns and is ignored.
 - Projects add their own as a `## Definition of done` section in `AGENTS.md`/`CLAUDE.md`, with optional `### <Role>` and `### All` subheadings (items outside any subheading go to every role). The workers read it; Chief does not parse it.
-- Each brief ends with its `# Definition of done` section; the role's operator items are appended to it. Workers record an evidence line per item in their report (the reviewer under `Notes`) and the reviewer also verifies the builder's.
+- The role's items are appended to the `# Definition of done` section at the end of its brief. Workers record one evidence line per item in their report (the reviewer under `Notes`); the reviewer also verifies the builder's.
 - Keep it to a handful of checkable items; backtick a command for a mechanical item.
 
 ## Handoff

@@ -49,7 +49,7 @@ done
 
 definition_of_done_is_per_role() {  # <role>
   local subheading; subheading=$(tr a-z A-Z <<< "${1:0:1}")${1:1}
-  assert_contains_all "$(brief "$1")" "under \`### $subheading\`" 'under `### All`' '- [ ] n/a - <why it does not apply>' '{REPORT_FILE}'
+  assert_contains_all "$(brief "$1")" "under \`### $subheading\`" 'under `### All`' '- [ ] n/a - <why>' '{REPORT_FILE}'
 }
 for role in builder researcher brainstormer reviewer; do
   bats_test_function --description "$role brief: meets its own project items and records one evidence line each" -- definition_of_done_is_per_role "$role"
@@ -61,7 +61,7 @@ done
 }
 
 @test "researcher brief: the report goes to REPORT_FILE and nothing is pushed" {
-  assert_contains_all "$(brief researcher)" '{REPORT_FILE}' 'Never push to any remote, never open a PR' 'done: {one-line summary}' \
+  assert_contains_all "$(brief researcher)" '{REPORT_FILE}' 'Never push to any remote, never open a PR' \
     'This brief wins over any skill'
 }
 

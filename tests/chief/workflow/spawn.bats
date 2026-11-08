@@ -31,8 +31,8 @@ assert_nothing_left() {  # <id>
 }
 
 dod_config() { mkdir -p "$CHIEF_HOME/config"; printf '%s\n' "$@" > "$CHIEF_HOME/config/definition-of-done"; }
-dod_items() {  # <id> - the operator's bullets, appended after the template's own
-  sed -n '/^# Definition of done$/,$p' "$CHIEF_HOME/tasks/$1/brief.md" | sed -n '/^- Every operator item/,$p' | tail -n +2
+dod_items() {  # <id> - the bullets appended after the template's own
+  sed -n '/^# Definition of done$/,$p' "$CHIEF_HOME/tasks/$1/brief.md" | sed -n "/^- Meet the project's/,\$p" | tail -n +2
 }
 
 @test "dod: a file with no header gives every role the same items under the one heading" {
