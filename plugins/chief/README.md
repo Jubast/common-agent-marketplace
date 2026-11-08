@@ -14,7 +14,7 @@ Chief's own (operator-facing) session runs on any of three CLIs; they differ onl
 |---|---|---|---|
 | Identity | `SessionStart` hook, nested `hookSpecificOutput` | `hooks/hooks.codex.json` `SessionStart`, same output | `hooks/hooks.json` `SessionStart`, top-level `additionalContext` (the nested form is ignored) |
 | Wake | `Stop` hook with `asyncRewake` (`stop-watch-claude.sh`) | async `Stop` hook, then `codex queue` (`stop-watch-codex.sh`) | extension calling `session.send` (`extensions/chief-watch/extension.mjs`) |
-| Needs | nothing | Chief's hooks trusted in `/hooks`, again after each Chief update; a `codex` with `queue` | `experimental` on: launch with `--experimental` or `/settings experimental on` |
+| Needs | nothing | Chief's hooks trusted in `/hooks`, again when an update changes them; a `codex` with `queue` | `experimental` on: launch with `--experimental` or `/settings experimental on` |
 | Tested | 2.1.312 | codex-cli 0.162.1 | 1.0.107 |
 
 `session-start.sh` tells them apart by `COPILOT_CLI`, else `PLUGIN_ROOT` (Codex or Copilot; Claude Code never sets it), else Claude Code. `stop-watch-claude.sh` exits when `PLUGIN_ROOT` is set, since Copilot also loads `hooks.json`. `stop-watch-codex.sh` queues only while a Codex TUI runs in the session's cwd (Linux `/proc`; elsewhere it always queues). `chief-setup.sh` warns about a `codex` without `queue` and about Copilot with `experimental` off.
