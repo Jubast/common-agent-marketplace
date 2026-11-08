@@ -3,7 +3,7 @@
 # checks every in-flight task's state, and only exits (with a reason printed
 # on stdout) when something needs the operator's attention. Chief's Stop hook
 # runs this in the background at zero model cost and only "rewakes" you when
-# it exits - see hooks/stop-watch-arm.sh.
+# it exits - see hooks/stop-watch-claude.sh.
 #
 # One watcher per CHIEF_HOME: the newest owns state/watch.owner, an older one
 # exits silently.

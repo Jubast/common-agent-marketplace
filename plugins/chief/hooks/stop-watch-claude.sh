@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# stop-watch-arm.sh - the token-saving trick. Registered as a Stop hook with
+# stop-watch-claude.sh - the token-saving trick. Registered as a Stop hook with
 # asyncRewake: true, so Claude Code runs this in the background at zero
 # model cost every time the primary session's turn ends, and only "rewakes"
 # the session (via exit 2 + stderr) if it finds something worth interrupting

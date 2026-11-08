@@ -7,7 +7,7 @@ setup() {
   W="$BATS_TEST_TMPDIR"
   PLUGIN="$REPO_ROOT/plugins/chief"
   SS="$PLUGIN/hooks/session-start.sh"
-  ARM="$PLUGIN/hooks/stop-watch-arm.sh"
+  ARM="$PLUGIN/hooks/stop-watch-claude.sh"
   CODEX_STOP="$PLUGIN/hooks/stop-watch-codex.sh"
   WATCH_REASON="$PLUGIN/hooks/watch-reason.sh"
   export CHIEF_POLL=1
@@ -82,7 +82,7 @@ tui() {
   refute_contains_any "$ctx" "NOT CONFIGURED YET"
 }
 
-@test "stop-watch-arm: stands down when PLUGIN_ROOT marks codex or copilot" {
+@test "stop-watch-claude: stands down when PLUGIN_ROOT marks codex or copilot" {
   project
   done_task t-1
   PLUGIN_ROOT="$PLUGIN" run "$ARM"

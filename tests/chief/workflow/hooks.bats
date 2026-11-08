@@ -1,4 +1,4 @@
-# session-start.sh and stop-watch-arm.sh's own bash logic: what JSON/exit code
+# session-start.sh and stop-watch-claude.sh's own bash logic: what JSON/exit code
 # they produce for a given .chief/ state. The hooks run as plain bash - no model
 # tokens. Spawned tasks run on a real herdr with the stand-in.
 
@@ -6,7 +6,7 @@ setup() {
   load ../lib/common
   chief_common_setup
   SS="$REPO_ROOT/plugins/chief/hooks/session-start.sh"
-  ARM="$REPO_ROOT/plugins/chief/hooks/stop-watch-arm.sh"
+  ARM="$REPO_ROOT/plugins/chief/hooks/stop-watch-claude.sh"
   unset CHIEF_HOME
 }
 
@@ -73,7 +73,7 @@ configured_project() {
   assert_success
 }
 
-@test "stop-watch-arm: still arms after its cwd drifts into a worktree" {
+@test "stop-watch-claude: still arms after its cwd drifts into a worktree" {
   configured_project
   chief_spawn_quiet t-2
   echo "done: finished" >> "$CHIEF_HOME/tasks/t-2/status"

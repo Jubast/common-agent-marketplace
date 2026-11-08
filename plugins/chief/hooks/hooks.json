@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/stop-watch-arm.sh\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/stop-watch-claude.sh\"",
             "asyncRewake": true,
             "timeout": 28800
           }

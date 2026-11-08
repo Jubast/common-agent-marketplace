@@ -175,7 +175,7 @@ bg_watch() { ( rc=0; CHIEF_POLL=1 timeout 10 "$2" > "$1" 2>&1 || rc=$?; echo "rc
   bg_watch "$WORK/old.out" "$BIN/chief-watch.sh"
   eventually 10 owner_is_not ""
   old_owner=$(cat "$CHIEF_HOME/state/watch.owner")
-  bg_watch "$WORK/new.out" "$REPO_ROOT/plugins/chief/hooks/stop-watch-arm.sh"
+  bg_watch "$WORK/new.out" "$REPO_ROOT/plugins/chief/hooks/stop-watch-claude.sh"
   eventually 10 owner_is_not "$old_owner"
   echo "done: older exits" >> "$CHIEF_HOME/tasks/t-2/status"
   wait "${BG_PIDS[@]}"
