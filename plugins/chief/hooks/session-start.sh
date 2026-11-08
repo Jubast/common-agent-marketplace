@@ -31,7 +31,7 @@ SKILL_FILE="$CHIEF_ROOT/skills/using-chief/SKILL.md"
 BACKEND_CONFIG="$CONFIG/backend"
 
 digest="## Configuration"$'\n'
-digest+="chief root: $CHIEF_ROOT (the <chief-root> in the skills' commands)"$'\n'
+digest+="chief plugin dir: $CHIEF_ROOT (the <chief-plugin-dir> in the skills' commands)"$'\n'
 if [ -f "$BACKEND_CONFIG" ]; then
   digest+="backend: $(cat "$BACKEND_CONFIG") (from .chief/config/backend)"$'\n'
   if [ -f "$CONFIG/agents" ]; then

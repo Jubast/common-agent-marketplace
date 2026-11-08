@@ -7,14 +7,14 @@ description: Use when Chief has not been configured yet at CHIEF_HOME (no .chief
 
 Needed once per `CHIEF_HOME` (the operator's shared home, typically the top-level workspace root, not each project), when `.chief/config/backend` doesn't exist yet.
 
-All commands live in `<chief-root>/bin/`; `<chief-root>` is the absolute path on the "chief root:" line of your session context.
+All commands live in `<chief-plugin-dir>/bin/`; `<chief-plugin-dir>` is the absolute path on the "chief plugin dir:" line of your session context.
 
 1. Ask the operator which backend to use: `herdr` or `orca`. Skip this if they already said.
-2. Run `<chief-root>/bin/chief-setup.sh --backend <choice>`. It writes the config, checks the tool is on PATH, and adds `.chief/` to `.gitignore` if missing - safe to re-run.
+2. Run `<chief-plugin-dir>/bin/chief-setup.sh --backend <choice>`. It writes the config, checks the tool is on PATH, and adds `.chief/` to `.gitignore` if missing - safe to re-run.
 3. If it warns the backend isn't on PATH, tell the operator: dispatching needs it installed (and, for Orca, running; the PATH check can't confirm that).
    - On Codex, the operator trusts Chief's hooks in `/hooks` (again after a Chief update); on Copilot, `experimental` must be on (`--experimental` or `/settings experimental on`).
 4. Ask which agent[:model] each dispatched role (builder, researcher, reviewer, brainstormer) should run: `claude` (default), `codex` or `copilot`, e.g. `claude:opus`. Optional per profile: `weight=N`, `args="..."`, `command="..."`. One profile, or a pool with a strategy (`first`, `round-robin`, `random`, `weighted`). If they decline, skip it: with no `.chief/config/agents`, workers run `claude`.
 5. Write `.chief/config/agents` (format: the plugin README's "Agents" section): a section per role (`[builder]`, `[researcher]`, `[reviewer]`, `[brainstormer]`) for its own pool, global lines above them for a shared pool. A role without a section uses the global pool. This Chief session's own agent is not configurable here.
    Optionally write `.chief/config/definition-of-done` (README, configuration).
-6. Run `<chief-root>/bin/chief-agents.sh` and show the operator the agent each role gets, flagging any `(global fallback)`.
+6. Run `<chief-plugin-dir>/bin/chief-agents.sh` and show the operator the agent each role gets, flagging any `(global fallback)`.
 7. Done. From here on, use `dispatch` for actual work.

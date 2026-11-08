@@ -47,13 +47,13 @@ tui() {
   TUI_PID=$!
 }
 
-@test "session-start: claude gets the nested form and the chief root" {
+@test "session-start: claude gets the nested form and the chief plugin dir" {
   project
   run "$SS"
   assert_success
   assert_equal "$(jq -r '.hookSpecificOutput.hookEventName' <<< "$output")" SessionStart
   ctx=$(context <<< "$output")
-  assert_contains_all "$ctx" "You are Chief" "chief root: $PLUGIN "
+  assert_contains_all "$ctx" "You are Chief" "chief plugin dir: $PLUGIN "
 }
 
 @test "session-start: copilot gets a top-level additionalContext" {
@@ -61,7 +61,7 @@ tui() {
   COPILOT_CLI=1 PLUGIN_ROOT="$PLUGIN" run "$SS"
   assert_success
   assert_equal "$(jq -r '.hookSpecificOutput // "none"' <<< "$output")" none
-  assert_contains_all "$(context <<< "$output")" "You are Chief" "chief root: $PLUGIN "
+  assert_contains_all "$(context <<< "$output")" "You are Chief" "chief plugin dir: $PLUGIN "
 }
 
 @test "session-start: codex gets the nested form when only PLUGIN_ROOT is set" {
