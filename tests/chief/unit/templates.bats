@@ -33,13 +33,35 @@ done
     'fix them with new commits (amend only for commit-message findings)' 'This brief wins over any skill'
 }
 
+ends_with_one_definition_of_done() {  # <role>
+  local text; text=$(brief "$1")
+  [ "$(grep -cx '# Definition of done' <<< "$text")" = 1 ]
+  [ "$(sed -n '/^# Definition of done$/,$p' <<< "$text" | grep -c '^# ')" = 1 ]
+  ! grep -qx '# Done when' <<< "$text"
+}
+for role in builder researcher brainstormer reviewer; do
+  bats_test_function --description "$role brief: ends with the one # Definition of done section" -- ends_with_one_definition_of_done "$role"
+done
+
+@test "reviewer brief: reads the project's Definition of done from the base and records its own items under Notes" {
+  assert_contains_all "$(brief reviewer)" 'git show <base>:AGENTS.md' 'under `### Builder`' 'under `### Reviewer`' 'Notes:'
+}
+
+definition_of_done_is_per_role() {  # <role>
+  local subheading; subheading=$(tr a-z A-Z <<< "${1:0:1}")${1:1}
+  assert_contains_all "$(brief "$1")" "under \`### $subheading\`" 'under `### All`' '- [ ] n/a - <why>' '{REPORT_FILE}'
+}
+for role in builder researcher brainstormer reviewer; do
+  bats_test_function --description "$role brief: meets its own project items and records one evidence line each" -- definition_of_done_is_per_role "$role"
+done
+
 @test "builder brief: readable code, performance trades marked PERF:, project conventions win" {
   assert_contains_all "$(brief builder)" 'Write code for its next reader' 'mark that code with a `PERF:` comment' \
     'set a different bar or marker, follow them; rule 4 still applies'
 }
 
 @test "researcher brief: the report goes to REPORT_FILE and nothing is pushed" {
-  assert_contains_all "$(brief researcher)" '{REPORT_FILE}' 'Never push to any remote, never open a PR' 'done: {one-line summary}' \
+  assert_contains_all "$(brief researcher)" '{REPORT_FILE}' 'Never push to any remote, never open a PR' \
     'This brief wins over any skill'
 }
 
@@ -61,10 +83,10 @@ done
     'Never report `done` before the operator has explicitly confirmed the spec' 'Edit no project files'
 }
 
-@test "reviewer brief: has the eight checklist items" {
+@test "reviewer brief: has the nine checklist items" {
   local item
   for item in "Matches intent" "Code and comment quality" "Checks run clean" "No debris" "Scope discipline" \
-      "Project docs addressed" "Doc quality" "Commit conventions"; do
+      "Project docs addressed" "Doc quality" "Commit conventions" "Definition of done met"; do
     assert_contains_all "$(brief reviewer)" "**$item.**"
   done
 }

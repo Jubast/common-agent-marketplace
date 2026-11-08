@@ -50,7 +50,8 @@ fi
 
 text="Review round $ROUND. Branch: $BRANCH. Pinned SHA: $SHA. Base: $BASE.
 Builder brief (intent): $(chief_task_path "$BID" brief.md)
-Builder done line: ${LAST#done: }"
+Builder done line: ${LAST#done: }
+Builder DoD evidence: $(chief_task_path "$BID" report.md) (absent if there are no DoD items)"
 
 if [ "$ROUND" -eq 1 ]; then
   # One reviewer per [reviewer] entry under strategy all (<builder>-rv-<n>), else <builder>-rv.

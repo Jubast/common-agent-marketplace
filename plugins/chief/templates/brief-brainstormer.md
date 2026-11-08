@@ -40,10 +40,10 @@ Check the skills available to you (listed by name and description). Read any tha
    Start with `working: brainstorming with operator`. Use `blocked` or `failed` only if you cannot continue.
 2. Never report `done` before the operator has explicitly confirmed the spec in this pane. Then report `done: spec ready`. If the operator asks for changes afterwards, report `working: revising spec` first, then update the spec, get it confirmed again, and report a new `done:` line that names the change.
 3. Whenever you end a turn and are about to wait for the operator, run `touch {TURN_FILE}` first: it is how Chief tells an operator-wait from a stall.
+4. Record each Definition of done item in `{REPORT_FILE}`: `- [x] <item> - <evidence>`, or `- [ ] n/a - <why>` when it does not apply (e.g. it would ask a human, push, or go beyond the spec).
 
 # Instruction inbox
 Chief may steer you through `{INBOX_DIR}`: list `{INBOX_DIR}/*.msg`, act on each in order, then move it to `{INBOX_DIR}/handled/`. Chief never relays the operator's side of the conversation; the pane is the only channel for that.
 
 # Definition of done
-- `{REPORT_FILE}` holds the operator-confirmed spec, with every section above.
-- Your last status line is `done: spec ready` (or `failed: {why}`).
+- Meet the project's `## Definition of done` in `AGENTS.md`/`CLAUDE.md`: items outside any subheading, under `### All`, or under `### Brainstormer`.

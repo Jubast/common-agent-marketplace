@@ -48,7 +48,7 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
 
 Never automatic. Propose each step; the operator decides.
 
-1. Builder `done`: report the result with the diffstat and a one-line recommendation (e.g. "2 files, docs only: review probably unnecessary"), hold it (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "reported: awaiting review decision"`), and ask whether to review it. Batch the question when several builders finish together.
+1. Builder `done`: report the result with the diffstat, any `n/a` lines in its `report.md`, and a one-line recommendation (e.g. "2 files, docs only: review probably unnecessary"), hold it (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "reported: awaiting review decision"`), and ask whether to review it. Batch the question when several builders finish together.
 2. No: go to landing. Yes: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-review.sh <builder-id>`. Round 1 spawns the reviewer `<builder-id>-rv` (under `strategy = all`, `<builder-id>-rv-1`, `-2`...); later rounds re-arm them. Run it in the background. The watcher wakes you when the reviewer reports.
    If the operator says "review everything this session", skip the question for this conversation until they revoke it. Still present every verdict.
 3. Reviewer `done`: present the verdict in one line, the blocking findings one line each, the number of suggestions and the report path, from `.chief/tasks/<reviewer-id>/report.md`; with several reviewers, from every live one's report (any FAIL fails). Hold the reviewer (`chief-backlog.sh hold <reviewer-id> "round N <verdict>, idle"`) and propose the next step:

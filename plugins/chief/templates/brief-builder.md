@@ -32,18 +32,18 @@ Check the skills available to you (listed by name and description) at the start 
    Whenever you end a turn and are about to wait for input, run `touch {TURN_FILE}` first: it is how Chief tells a quietly idle worker from a stalled one.
 7. Use `needs-decision: {summary of options}` for any choice that belongs to a human (product tradeoffs, destructive actions, ambiguous scope) and then stop until answered.
 8. Use `blocked: {why}` if you hit the same obstacle twice in a row, and stop.
-9. Before reporting `done`: the project's checks pass, the work is committed, and the tree is clean.
+9. Before reporting `done`: the project's checks pass, the work is committed, and the tree is clean. Then your last status line is `done: <short commit sha> <one-line summary>` (e.g. `done: a1b2c3d added the limiter`) or `failed: {why}`.
+10. Record each Definition of done item in `{REPORT_FILE}`: `- [x] <item> - <evidence>`, or `- [ ] n/a - <why>` when it does not apply (e.g. it would ask a human, push, or go beyond the spec).
 
 # Project docs
 Check this project's root (and `docs/adr/`) for `README.md`, `AGENTS.md` (or `CLAUDE.md`), `ARCHITECTURE.md`, `docs/adr/*.md`, `CONSUMER_GUIDE.md`. For each that exists and this task's change is relevant to, update it proportionately - skip trivial tasks with no durable project-facing change, and prefer a pointer over duplicating detail. Do not create any that are missing unless the intent/spec above explicitly asked for that file; instead, name which of the well-known ones don't exist in your `done` line so Chief and the operator see the gap instead of it passing silently.
 
 # Review
-The operator may have your commit reviewed. If findings arrive in your inbox, fix them with new commits (amend only for commit-message findings), re-run the project's checks, and report `done` again.
+The operator may have your commit reviewed. If findings arrive in your inbox, fix them with new commits (amend only for commit-message findings), re-run the project's checks, update `{REPORT_FILE}`, and report `done` again.
 
 # Instruction inbox
 Chief may steer you mid-task through `{INBOX_DIR}`. When a message tells you an instruction is waiting there - or at any natural checkpoint when you're unsure what to do next - list `{INBOX_DIR}/*.msg`, read and act on each in order, then acknowledge by moving it: `mv {INBOX_DIR}/NNN.msg {INBOX_DIR}/handled/`. An empty or absent inbox needs no action.
 
 # Definition of done
 - The intent above is satisfied, nothing more, nothing less.
-- The project's checks pass, the work is committed, and the tree is clean.
-- Your last status line is `done: <short commit sha> <one-line summary>` (e.g. `done: a1b2c3d added the limiter`) or `failed: {why}`.
+- Meet the project's `## Definition of done` in `AGENTS.md`/`CLAUDE.md`: items outside any subheading, under `### All`, or under `### Builder`.

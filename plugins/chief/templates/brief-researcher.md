@@ -19,20 +19,20 @@ Early on, check this project's own commit/PR conventions - its root `AGENTS.md`/
 Check the skills available to you (listed by name and description) at the start and at each new step. Read any that could plausibly help, even slightly, and follow it where it fits this task. This brief wins over any skill: skip a skill's step that would ask a human, push, open a PR, create a worktree, start other agents, or go beyond the spec.
 
 # Rules
-1. Never push to any remote, never open a PR.
+1. Never push to any remote, never open a PR. Recommend, never implement.
 2. Write your findings to `{REPORT_FILE}` as you go, not only at the end.
 3. Report status by appending exactly one line at a time:
    `echo "{state}: {one short line}" >> {STATUS_FILE}`
-   States: `working`, `needs-decision`, `blocked`, `done`, `failed`.
+   States: `working`, `needs-decision`, `blocked`, `done`, `failed`. Finish with `done: {one-line summary}` or `failed: {why}`.
    Chief only reads your LAST line. After `done`, `blocked`, `needs-decision`, or `failed`, report `working: resuming` again before acting on a new instruction.
    Whenever you end a turn and are about to wait for input, run `touch {TURN_FILE}` first: it is how Chief tells a quietly idle worker from a stalled one.
 4. Use `needs-decision: {summary of options}` for a choice that belongs to a human, then stop until answered.
 5. Use `blocked: {why}` if you hit the same obstacle twice in a row, and stop.
+6. Record each Definition of done item in `{REPORT_FILE}`: `- [x] <item> - <evidence>`, or `- [ ] n/a - <why>` when it does not apply (e.g. it would ask a human, push, or go beyond the spec).
 
 # Instruction inbox
 Chief may steer you mid-task through `{INBOX_DIR}`. When a message tells you an instruction is waiting there - or at any natural checkpoint when you're unsure what to do next - list `{INBOX_DIR}/*.msg`, read and act on each in order, then acknowledge by moving it: `mv {INBOX_DIR}/NNN.msg {INBOX_DIR}/handled/`. An empty or absent inbox needs no action.
 
 # Definition of done
 - `{REPORT_FILE}` is self-contained: a different agent that never saw this conversation can act on it alone. It states the decisions and their rationale, the options you rejected, constraints, file/symbol pointers, and open items.
-- A report may recommend implementation but never performs it.
-- Your last status line is `done: {one-line summary}` or `failed: {why}`.
+- Meet the project's `## Definition of done` in `AGENTS.md`/`CLAUDE.md`: items outside any subheading, under `### All`, or under `### Researcher`.

@@ -40,4 +40,11 @@ Used again once already configured: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
 assert_contains "$output" "Used again once already configured:.*no" "Not reused once already configured - dispatch takes over"
 echo ""
 
+echo "Test 5: The definition of done config is optional..."
+output=$(run_claude "According to chief's setup skill, may the operator optionally write .chief/config/definition-of-done? Answer using exactly this structure:
+Mentions optional definition-of-done config: <yes or no>" "$CLAUDE_PROMPT_TIMEOUT")
+
+assert_contains "$output" "Mentions optional definition-of-done config:.*yes" "Setup mentions the optional definition-of-done config"
+echo ""
+
 echo "=== All chief setup skill tests passed ==="

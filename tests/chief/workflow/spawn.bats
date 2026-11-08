@@ -30,6 +30,54 @@ assert_nothing_left() {  # <id>
   assert_output --partial "$SPEC"
 }
 
+dod_config() { mkdir -p "$CHIEF_HOME/config"; printf '%s\n' "$@" > "$CHIEF_HOME/config/definition-of-done"; }
+dod_items() {  # <id> - the bullets appended after the template's own
+  sed -n '/^# Definition of done$/,$p' "$CHIEF_HOME/tasks/$1/brief.md" | sed -n "/^- Meet the project's/,\$p" | tail -n +2
+}
+
+@test "dod: a file with no header gives every role the same items under the one heading" {
+  dod_config '- `make test` passes' '- has a perf test'
+  chief_spawn t-b builder >/dev/null
+  chief_spawn t-r reviewer >/dev/null
+  assert_equal "$(dod_items t-b)" "- \`make test\` passes"$'\n'"- has a perf test"
+  assert_equal "$(dod_items t-r)" "$(dod_items t-b)"
+  assert_equal "$(grep -cx '# Definition of done' "$CHIEF_HOME/tasks/t-b/brief.md")" 1
+}
+
+@test "dod: [all] items come first, then the role's own, and other roles' items stay out" {
+  dod_config '- before any header' '[builder]' '- builder only' '[all]' '- shared' '[reviewer]' '- reviewer only'
+  chief_spawn t-b builder >/dev/null
+  assert_equal "$(dod_items t-b)" "- before any header"$'\n'"- shared"$'\n'"- builder only"
+}
+
+@test "dod: a role-only section reaches that role alone" {
+  dod_config '[researcher]' '- cite sources'
+  chief_spawn t-r researcher >/dev/null
+  chief_spawn t-b builder >/dev/null
+  assert_equal "$(dod_items t-r)" "- cite sources"
+  assert_equal "$(dod_items t-b)" ""
+}
+
+@test "dod: no operator items when the role has none, the file is empty or it is absent" {
+  chief_spawn t-1 builder >/dev/null
+  dod_config '[reviewer]' '- reviewer only'
+  chief_spawn t-2 builder >/dev/null
+  : > "$CHIEF_HOME/config/definition-of-done"
+  chief_spawn t-3 builder >/dev/null
+  for id in t-1 t-2 t-3; do
+    assert_equal "$(dod_items $id)" ""
+    assert_equal "$(grep -cx '# Definition of done' "$CHIEF_HOME/tasks/$id/brief.md")" 1
+  done
+}
+
+@test "dod: an unknown section warns on stderr and its items are ignored" {
+  dod_config '[bulider]' '- typo item' '[builder]' '- kept'
+  run chief_spawn t-1 builder
+  assert_success
+  assert_output --partial "unknown section [bulider] ignored"
+  assert_equal "$(dod_items t-1)" "- kept"
+}
+
 render_fills_placeholders() {  # <role>
   local id="r-$1"
   chief_spawn "$id" "$1" --spec "Branch: feat/x" >/dev/null

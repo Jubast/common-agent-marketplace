@@ -168,6 +168,22 @@ brief_escape() {
   printf '%s' "$value"
 }
 
+# The "# Definition of done" items for a role: those before any header or under
+# [all], then the role's own section. An unknown section warns and is ignored.
+chief_dod_items() {  # <file> <role>
+  awk -v role="$2" -v roles="$CHIEF_ROLES" '
+    /^[ \t]*\[.*\][ \t]*$/ {
+      sec = $0; gsub(/[][ \t]/, "", sec)
+      if (sec != "all" && !index(" " roles " ", " " sec " ")) {
+        print "chief-spawn: " FILENAME ":" NR ": unknown section [" sec "] ignored" > "/dev/stderr"; sec = "?"
+      }
+      next
+    }
+    sec == "" || sec == "all" { shared = shared $0 "\n" }
+    sec == role { own = own $0 "\n" }
+    END { printf "%s%s", shared, own }' "$1"
+}
+
 BRIEF_CONTENT=$(cat "$TEMPLATE")
 BRIEF_CONTENT=${BRIEF_CONTENT//\{TASK\}/$(brief_escape "$INTENT")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{SPEC\}/$(brief_escape "$SPEC")}
@@ -177,6 +193,8 @@ BRIEF_CONTENT=${BRIEF_CONTENT//\{INBOX_DIR\}/$(brief_escape "$INBOX_DIR")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{REPORT_FILE\}/$(brief_escape "$REPORT_FILE")}
 BRIEF_CONTENT=${BRIEF_CONTENT//\{TURN_FILE\}/$(brief_escape "$(chief_task_path "$ID" turn-ended)")}
 printf '%s\n' "$BRIEF_CONTENT" > "$BRIEF"
+DOD=$([ ! -f "$CONFIG/definition-of-done" ] || chief_dod_items "$CONFIG/definition-of-done" "$MODE")
+[[ $DOD != *[![:space:]]* ]] || printf '%s\n' "$DOD" >> "$BRIEF"
 [ -z "$FROM" ] || chief_prior_work "$FROM" >> "$BRIEF"
 
 LIFECYCLE_CONTENT=$(cat "$LIFECYCLE_TEMPLATE")
