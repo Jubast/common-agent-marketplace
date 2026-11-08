@@ -32,7 +32,7 @@ Check the skills available to you (listed by name and description) at the start 
    Whenever you end a turn and are about to wait for input, run `touch {TURN_FILE}` first: it is how Chief tells a quietly idle worker from a stalled one.
 7. Use `needs-decision: {summary of options}` for any choice that belongs to a human (product tradeoffs, destructive actions, ambiguous scope) and then stop until answered.
 8. Use `blocked: {why}` if you hit the same obstacle twice in a row, and stop.
-9. Before reporting `done`: the project's checks pass, the work is committed, and the tree is clean.
+9. Before reporting `done`: the project's checks pass, the work is committed, and the tree is clean. Then your last status line is `done: <short commit sha> <one-line summary>` (e.g. `done: a1b2c3d added the limiter`) or `failed: {why}`.
 10. Record each Definition of done item in `{REPORT_FILE}`: `- [x] <item> - <evidence>`, or `- [ ] n/a - <why>` when it does not apply (e.g. it would ask a human, push, or go beyond the spec).
 
 # Project docs
@@ -46,5 +46,4 @@ Chief may steer you mid-task through `{INBOX_DIR}`. When a message tells you an 
 
 # Definition of done
 - The intent above is satisfied, nothing more, nothing less.
-- Your last status line is `done: <short commit sha> <one-line summary>` (e.g. `done: a1b2c3d added the limiter`) or `failed: {why}`.
 - Meet the project's `## Definition of done` in `AGENTS.md`/`CLAUDE.md`: items outside any subheading, under `### All`, or under `### Builder`.
