@@ -176,7 +176,7 @@ strategy = all
 copilot
 claude:sonnet args="--verbose"
 EOF2
-  assert_equal "$(chief_agent_count reviewer):$(chief_agent_count builder)" "2:1"
+  assert_equal "$(chief_agent_pool_size reviewer):$(chief_agent_pool_size builder)" "2:0"
   CHIEF_AGENT_PICK=2 chief_agent_select reviewer
   assert_equal "$SEL_MODEL|$SEL_ARGS" "sonnet|--verbose"
   chief_agent_select reviewer peek
@@ -243,4 +243,62 @@ EOF2
   assert_output ""
   run bad_config '[brainstormer]'
   assert_output ""
+}
+
+@test "review mode: parallel by default, set in [reviewer] only, validated" {
+  assert_equal "$(chief_agent_review_mode)" parallel
+  cfg <<'EOF2'
+[reviewer]
+mode = sequential   # cheap first
+claude
+EOF2
+  assert_equal "$(chief_agent_review_mode)" sequential
+  for m in first ask parallel; do printf '[reviewer]\nmode=%s\nclaude\n' "$m" | cfg; assert_equal "$(chief_agent_review_mode)" "$m"; done
+  printf '[reviewer]\nmode = all\n' | cfg
+  run chief_agent_review_mode; assert_failure; assert_output --partial "unknown mode 'all'"
+  printf 'mode = first\n' | cfg
+  run chief_agent_review_mode; assert_failure; assert_output --partial "only for the [reviewer] section"
+  printf '[builder]\nmode = first\n' | cfg
+  run chief_agent_review_mode; assert_failure; assert_output --partial "only for the [reviewer] section"
+}
+
+@test "pick: CHIEF_AGENT_PICK selects that entry under any strategy" {
+  cfg <<'EOF2'
+strategy = round-robin
+claude:opus
+copilot:opus
+codex
+EOF2
+  CHIEF_AGENT_PICK=2 chief_agent_select builder
+  assert_equal "$SEL_AGENT:$SEL_MODEL" "copilot:opus"
+  assert_not_exist "$STATE/agent-cursor-builder"
+  CHIEF_AGENT_PICK=4 run chief_agent_select builder
+  assert_failure; assert_output --partial "no pool entry 4"
+}
+
+@test "review picks: the entries a mode arms, narrowed by --only" {
+  picks() { chief_agent_review_picks "$@" | paste -sd' ' -; }
+  assert_equal "$(picks parallel)" "0"          # no pool
+  cfg <<'EOF2'
+[reviewer]
+claude:haiku
+copilot:haiku
+codex
+EOF2
+  assert_equal "$(picks parallel):$(picks sequential):$(picks first)" "0:1:1"
+  assert_equal "$(picks parallel 3,1,3):$(picks sequential 2)" "3 1:2"
+  cfg <<'EOF2'
+[reviewer]
+strategy = all
+claude:haiku
+copilot:haiku
+codex
+EOF2
+  assert_equal "$(picks parallel):$(picks sequential):$(picks first)" "1 2 3:1:1"
+  assert_equal "$(picks parallel 2)" "2"
+  for bad in "first 1" "sequential 1,2" "parallel 4" "parallel 0" "parallel x"; do
+    run chief_agent_review_picks $bad; assert_failure
+  done
+  cfg <<< "# no pool"
+  run chief_agent_review_picks parallel 1; assert_failure; assert_output --partial "needs a pool"
 }
