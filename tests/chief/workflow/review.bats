@@ -157,7 +157,7 @@ round_two() {
   round_one b-2
   timeout 90 "$BIN/chief-teardown.sh" b-2-rv >/dev/null
   run chief_review b-2
-  assert_output --partial "reviewer b-2-rv was torn down"
+  assert_output --partial "torn down: nothing to run"
 }
 
 @test "long id: the reviewer id is fitted, reused after a failure, found in round 2" {
