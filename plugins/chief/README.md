@@ -60,6 +60,7 @@ Workers run on `claude` (default), `codex` or `copilot`, on herdr and Orca alike
 
    [reviewer]                   # and for reviewers
    strategy = all               # chief-review.sh runs one reviewer per entry
+   mode = sequential            # reviewer only: parallel (default) | sequential | first | ask
    copilot
    claude:sonnet
 
@@ -67,7 +68,7 @@ Workers run on `claude` (default), `codex` or `copilot`, on herdr and Orca alike
    claude:opus
    ```
 
-   Sections are the worker roles: `[builder]`, `[researcher]`, `[reviewer]`, `[brainstormer]`; any other name is an error. `#` starts a comment. Per entry, `weight=`, `args=` and `command=` may come in any order. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<role>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights. `all` is for `[reviewer]`: see the review loop.
+   Sections are the worker roles: `[builder]`, `[researcher]`, `[reviewer]`, `[brainstormer]`; any other name is an error. `#` starts a comment. Per entry, `weight=`, `args=` and `command=` may come in any order. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<role>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights. `all` and `mode` are for `[reviewer]`: see the review loop.
 3. Else `claude` with its default model.
 
 The choice is recorded in the task's meta (`agent`, `model`, `args`, `command`) and reused by relaunch; `chief-crew-state.sh`, `chief-backlog.sh list|show` (in-flight) and the session digest show `[agent: <agent>[:<model>]]`. Spawn fails before creating anything for an unknown agent, a malformed profile or weight, a missing CLI, or a bad `command=` / `args=` / model combination below. Models are passed to the agent unvalidated.
@@ -100,11 +101,14 @@ The launch line each worker runs is the adapter's `agent_command` in `bin/lib/ag
 
 ## Review
 
-The operator decides, per builder, whether it is reviewed; Chief asks after every builder `done` and never starts a review itself (unless told "review everything this session"). `chief-review.sh <builder>` needs the builder's last status `done`, a clean worktree and a commit ahead of the default branch.
+The operator decides, per builder, whether it is reviewed; Chief asks after every builder `done` and never starts a review itself (unless told "review everything this session"). `chief-review.sh <builder> [--mode parallel|sequential|first] [--only <n>[,<n>...]]` needs the builder's last status `done`, a clean worktree and a commit ahead of the default branch.
 
 - **Round 1** files backlog item `<builder>-rv` and spawns a reviewer (`--mode reviewer`, branch `chore/<builder>-rv`, the `[reviewer]` pool). Its spec pins the builder's HEAD SHA, names the branch and base, points at the builder's brief and `done` line. Meta links: `for=<builder>` on the reviewer, `reviewer=` and `review_round=` on the builder.
-- **Several reviewers:** under `strategy = all`, round 1 spawns `<builder>-rv-1`, `-2`... (one per entry, all or none) and later rounds re-arm each live one. The watcher wakes Chief only when no sibling is still working; a failed, stale or torn-down one never holds the others.
-- **Later rounds** re-arm the same reviewer: its `report.md` is archived as `report.round-<N-1>.md`, the round message goes to its inbox, the backlog item returns to in-flight, and `working: round N requested` is appended to its status. The same commit is refused while the reviewer is working.
+- **Several reviewers:** under `strategy = all`, round 1 spawns `<builder>-rv-1`, `-2`... (one per pool entry, in file order; all or none) and later rounds re-arm each live one. The watcher wakes Chief only when no sibling is still working; a failed, stale or torn-down one never holds the others.
+- **Run modes:** `mode` in `[reviewer]` (default `parallel`), or `--mode` for one review, picks which pool entries a review arms. `parallel`: as above (the whole pool under `strategy = all`, else the strategy's single pick, `<builder>-rv`). `first`: entry 1 only. `sequential`: one entry per run, starting at entry 1; the script prints the next command and Chief runs it only on PASS, so the first non-PASS stops the review and a new commit starts again at entry 1. `ask`: Chief asks the operator for the mode and entries at every review and passes `--mode`/`--only`; the script itself refuses it. `--only 2,3` arms those entries (numbers in file order) instead, under any mode but `first`; `sequential` takes one.
+  - A reviewer records its pool entry (`pick=`, 0: the strategy chose) and `armed=<round>@<sha>`. A run re-arms the entry's live reviewer, spawns one for an entry with none, and skips a torn-down one. Ids are numbered, so entries on one model but different agents stay distinct.
+  - Nothing waits or gates: a run starts reviewers and returns, so an interrupted run leaves its started reviewers linked, and every finished reviewer still wakes Chief.
+- **Later rounds** re-arm the same reviewer: its `report.md` is archived as `report.round-<R>.md` for the round R it last ran, the round message goes to its inbox, the backlog item returns to in-flight, and `working: round N requested` is appended to its status. A new commit, or a re-run of an entry that already reviewed the commit, is a new round; the next entry of a sequential run is not. The same commit is refused while the reviewer is working.
 - **The reviewer** resets its scratch worktree, detaches at the pinned SHA and reviews the full `base...sha` diff every round against the 9-item checklist in its brief, then verifies earlier findings. It writes `report.md` (`Verdict`, `Target`, `Blocking`, `Suggestions`, `Checklist`, `Prior findings`) and ends with `done: round N PASS @<sha7>` or `done: round N FAIL (<n> blocking) @<sha7>`; `failed` means the review could not be completed. It never posts, pushes or merges. A builder's `done` line starts with its short commit SHA, so every re-report is a new line to the watcher.
 - **Chief** presents the verdict, holds the reviewer, and on the operator's yes sends the findings to the builder; the builder fixes them with new commits and reports `done` again. Findings go to a PR only when the operator asks.
 - **Teardown** (including `--abandon`) removes only the local branch and worktree, never the remote branch. A builder's teardown also discards its reviewer once the builder's own teardown succeeds; a refused builder leaves it alone. A reviewer can be torn down alone; that ends review of that builder, and a manual `--mode reviewer` spawn is the way to review it again. `chief-crew-state.sh` and the session digest show `[for: <builder>]` / `[reviewer: <id>]`.
