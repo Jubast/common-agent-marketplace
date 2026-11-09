@@ -9,9 +9,10 @@ Each plugin under `plugins/` is a self-contained directory with its own
 manifest and skills, plus hooks where needed. The root
 `.claude-plugin/marketplace.json` lists every plugin and where to find it.
 Manifests and skills are read directly by both Claude Code and Copilot CLI;
-no plugin ships agents yet, and `chief` and `using-orca` rely on Claude Code
-hooks. See [CONTRIBUTING.md](CONTRIBUTING.md) for what's shared between the
-two platforms and what isn't.
+no plugin ships agents yet, and `using-orca` relies on Claude Code hooks
+(`chief` has its own adapters for Claude Code, Codex CLI and Copilot CLI).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for what's shared between the two
+platforms and what isn't.
 
 ## Installing
 
@@ -50,10 +51,11 @@ copilot plugin install <plugin-name>
   messages, then creates or updates a pull/merge request with a
   conventional-commit-style title and structured body. A SessionStart hook
   requires all four skills.
-- [`chief`](plugins/chief/) — a lightweight supervisor for Claude Code:
-  dispatches work to isolated builder/researcher/reviewer/brainstormer
-  agents over the herdr or Orca backend, tracks a plain-markdown backlog,
-  and supervises them with a near-zero-token watch loop.
+- [`chief`](plugins/chief/) — a lightweight supervisor for coding agents
+  (Claude Code, Codex CLI, Copilot CLI): dispatches work to isolated
+  builder/researcher/reviewer/brainstormer agents over the herdr or Orca
+  backend, tracks a plain-markdown backlog, and supervises them with a
+  near-zero-token watch loop.
 
 ## Adding a plugin
 

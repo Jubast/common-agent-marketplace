@@ -3,11 +3,17 @@
 # additionalContext, plus a backlog/in-flight digest when one exists. Stands
 # down entirely inside a spawned builder's own worktree/session - see
 # bin/lib/worktree.sh for why that check is race-free.
+#
+# Copilot (COPILOT_CLI set) reads a top-level additionalContext; Codex and
+# Claude Code read the nested hookSpecificOutput.
 set -euo pipefail
 
 CHIEF_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../bin/lib/worktree.sh
 . "$CHIEF_PLUGIN_ROOT/bin/lib/worktree.sh"
+
+# Copilot runs plugin hooks from the plugin root; the session's dir is COPILOT_PROJECT_DIR.
+[ -z "${COPILOT_CLI:-}" ] || cd "${COPILOT_PROJECT_DIR:-.}"
 
 if chief_is_linked_worktree; then
   echo '{}'
@@ -25,6 +31,7 @@ SKILL_FILE="$CHIEF_ROOT/skills/using-chief/SKILL.md"
 BACKEND_CONFIG="$CONFIG/backend"
 
 digest="## Configuration"$'\n'
+digest+="chief plugin dir: $CHIEF_ROOT (the <chief-plugin-dir> in the skills' commands)"$'\n'
 if [ -f "$BACKEND_CONFIG" ]; then
   digest+="backend: $(cat "$BACKEND_CONFIG") (from .chief/config/backend)"$'\n'
   if [ -f "$CONFIG/agents" ]; then
@@ -82,4 +89,8 @@ You MUST follow the 'using-chief' identity and job description below. It applies
 
 $combined
 </EXTREMELY_IMPORTANT>")
-printf '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "%s"}}\n' "$escaped"
+if [ -n "${COPILOT_CLI:-}" ]; then
+  printf '{"additionalContext": "%s"}\n' "$escaped"
+else
+  printf '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "%s"}}\n' "$escaped"
+fi

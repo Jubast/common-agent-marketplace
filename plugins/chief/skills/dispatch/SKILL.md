@@ -7,7 +7,7 @@ description: Use when the user wants to hand off a piece of work to an isolated 
 
 Chief runs isolated worker agents in their own git worktree: builders (code changes), researchers (investigation-only reports), reviewers (verdicts on a builder's commit) and brainstormers (specs shaped with the operator). It tracks them in a plain-markdown backlog and supervises them at near-zero token cost between your turns. You are the operator's single point of contact; you do not do dispatched work yourself.
 
-All commands live in ${CLAUDE_PLUGIN_ROOT}/bin/. Runtime state lives in `.chief/` at `CHIEF_HOME`: the git root of wherever the Chief session runs, typically the operator's top-level workspace, not inside a `<project-dir>` (created on first use). One `CHIEF_HOME` dispatches into many projects; don't run `chief:setup` per project.
+All commands live in `<chief-plugin-dir>/bin/`; `<chief-plugin-dir>` is the absolute path on the "chief plugin dir:" line of your session context. Runtime state lives in `.chief/` at `CHIEF_HOME`: the git root of wherever the Chief session runs, typically the operator's top-level workspace, not inside a `<project-dir>` (created on first use). One `CHIEF_HOME` dispatches into many projects; don't run `chief:setup` per project.
 
 ## Deciding builder vs researcher vs brainstormer
 
@@ -22,25 +22,25 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
 
 `.chief/tasks/<id>/lifecycle` (rendered by `chief-spawn.sh`) is the checklist for each task, filing through teardown. Check off each line as you complete it. Read it before acting on an in-flight task, not just after a compaction.
 
-1. **File it.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh add <id> "<short title>"` with an id named `<role>-<topic>`, at most 20 chars (prefixes `build-`, `res-`, `spec-`, `rev-`; e.g. `build-rate-limit`, `res-auth-flow`; a reviewer is `<builder-id>-rv`). The id names the worktree, the task folder `.chief/tasks/<id>/`, the herdr workspace and agent, and the Orca worktree, so make it say what the task is. An id must match `^[a-z][a-z0-9-]*$` and be at most 32 chars (herdr's agent-name limit); `add` and `chief-spawn.sh` reject others and print a valid suggestion: use it.
+1. **File it.** `<chief-plugin-dir>/bin/chief-backlog.sh add <id> "<short title>"` with an id named `<role>-<topic>`, at most 20 chars (prefixes `build-`, `res-`, `spec-`, `rev-`; e.g. `build-rate-limit`, `res-auth-flow`; a reviewer is `<builder-id>-rv`). The id names the worktree, the task folder `.chief/tasks/<id>/`, the herdr workspace and agent, and the Orca worktree, so make it say what the task is. An id must match `^[a-z][a-z0-9-]*$` and be at most 32 chars (herdr's agent-name limit); `add` and `chief-spawn.sh` reject others and print a valid suggestion: use it.
 
 2. **Spawn.**
-   `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <id> <project-dir> --mode builder|researcher|brainstormer --branch "<type>/<short-kebab-description>" --intent "<the operator's own ask, close to verbatim>" --spec "<your build instructions, only what the intent requires>"`
+   `<chief-plugin-dir>/bin/chief-spawn.sh <id> <project-dir> --mode builder|researcher|brainstormer --branch "<type>/<short-kebab-description>" --intent "<the operator's own ask, close to verbatim>" --spec "<your build instructions, only what the intent requires>"`
    - `--branch` is required: a new name in the `conventional-branches` scheme.
-   - The agent and model come from the role's pool in `.chief/config/agents`, then the global pool. Add `--agent <agent[:model]>` and/or `--model <model>` only when the operator names one. Spawn prints the chosen `agent:`; `${CLAUDE_PLUGIN_ROOT}/bin/chief-agents.sh` lists the agent each role would get, marking a global-pool fallback.
+   - The agent and model come from the role's pool in `.chief/config/agents`, then the global pool. Add `--agent <agent[:model]>` and/or `--model <model>` only when the operator names one. Spawn prints the chosen `agent:`; `<chief-plugin-dir>/bin/chief-agents.sh` lists the agent each role would get, marking a global-pool fallback.
    - Keep `--intent` narrow (it becomes the acceptance criteria) and `--spec` to what the intent requires.
    - Tell the operator in one line: the id, role and agent.
    - It creates the worktree and branch, renders the brief, launches the worker and marks the backlog item in-flight. It returns once the worker's first turn has started; run it in the background.
 
-3. **It runs on its own.** `${CLAUDE_PLUGIN_ROOT}/bin/chief-watch.sh` (armed by a Stop hook, zero model cost) interrupts you only when the task finishes, fails, is blocked or needs a decision. On `blocked` or `needs-decision`, run `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "<why, one line>"`.
+3. **It runs on its own.** `<chief-plugin-dir>/bin/chief-watch.sh` (armed by the harness's own wake adapter, zero model cost) wakes you with a `chief watcher: ...` message only when the task finishes, fails, is blocked or needs a decision. On `blocked` or `needs-decision`, run `<chief-plugin-dir>/bin/chief-backlog.sh hold <id> "<why, one line>"`.
 
-4. **Check on it anytime:** `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-crew-state.sh <id>` prints the current state (working/done/blocked/needs-decision/failed/stale) and a `[mode: builder|researcher|reviewer|brainstormer]` tag. `chief-backlog.sh show <id>` adds its workspace, branch, worktree, brief and report paths. Use it to tell the operator where a task lives.
+4. **Check on it anytime:** `<chief-plugin-dir>/bin/task/chief-crew-state.sh <id>` prints the current state (working/done/blocked/needs-decision/failed/stale) and a `[mode: builder|researcher|reviewer|brainstormer]` tag. `chief-backlog.sh show <id>` adds its workspace, branch, worktree, brief and report paths. Use it to tell the operator where a task lives.
 
-5. **Steer it:** `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <id> "<instruction>"` delivers through a durable inbox the worker acknowledges; safe mid-task. If the item is `held`, move it back with `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh status <id> in-flight` once you've sent the unblocking instruction.
+5. **Steer it:** `<chief-plugin-dir>/bin/task/chief-send.sh <id> "<instruction>"` delivers through a durable inbox the worker acknowledges; safe mid-task. If the item is `held`, move it back with `<chief-plugin-dir>/bin/chief-backlog.sh status <id> in-flight` once you've sent the unblocking instruction.
 
 6. **If it's stuck**, escalate cheapest first:
-   - `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> interrupt` (nudge; it keeps running) plus a corrective `chief-send.sh`.
-   - `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> relaunch --note "<progress so far>"` only if wedged. The replacement gets the same worktree and commits but none of the conversation, so the note is all it has. Run it in the background.
+   - `<chief-plugin-dir>/bin/task/chief-control.sh <id> interrupt` (nudge; it keeps running) plus a corrective `chief-send.sh`.
+   - `<chief-plugin-dir>/bin/task/chief-control.sh <id> relaunch --note "<progress so far>"` only if wedged. The replacement gets the same worktree and commits but none of the conversation, so the note is all it has. Run it in the background.
 
 7. **Report.** `.chief/tasks/<id>/lifecycle` has the exact next actions. For a builder, follow "The review loop".
 
@@ -48,14 +48,14 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
 
 Never automatic. Propose each step; the operator decides.
 
-1. Builder `done`: report the result with the diffstat, any `n/a` lines in its `report.md`, and a one-line recommendation (e.g. "2 files, docs only: review probably unnecessary"), hold it (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "reported: awaiting review decision"`), and ask whether to review it. Batch the question when several builders finish together.
-2. No: go to landing. Yes: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-review.sh <builder-id>`. Round 1 spawns the reviewer `<builder-id>-rv` (under `strategy = all`, `<builder-id>-rv-1`, `-2`...); later rounds re-arm them. Run it in the background. The watcher wakes you when the reviewer reports.
+1. Builder `done`: report the result with the diffstat, any `n/a` lines in its `report.md`, and a one-line recommendation (e.g. "2 files, docs only: review probably unnecessary"), hold it (`<chief-plugin-dir>/bin/chief-backlog.sh hold <id> "reported: awaiting review decision"`), and ask whether to review it. Batch the question when several builders finish together.
+2. No: go to landing. Yes: `<chief-plugin-dir>/bin/task/chief-review.sh <builder-id>`. Round 1 spawns the reviewer `<builder-id>-rv` (under `strategy = all`, `<builder-id>-rv-1`, `-2`...); later rounds re-arm them. Run it in the background. The watcher wakes you when the reviewer reports.
    If the operator says "review everything this session", skip the question for this conversation until they revoke it. Still present every verdict.
 3. Reviewer `done`: present the verdict in one line, the blocking findings one line each, the number of suggestions and the report path, from `.chief/tasks/<reviewer-id>/report.md`; with several reviewers, from every live one's report (any FAIL fails). Hold the reviewer (`chief-backlog.sh hold <reviewer-id> "round N <verdict>, idle"`) and propose the next step:
    - FAIL: offer to send the findings to the builder. The operator may add comments or drop findings first.
    - PASS: offer to land it or keep going.
    - Reviewer `failed`: the review did not complete; report why.
-4. Operator approves sending: `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <builder-id> "<blocking findings, the operator's additions, the report path>"`, then `chief-backlog.sh status <builder-id> in-flight`.
+4. Operator approves sending: `<chief-plugin-dir>/bin/task/chief-send.sh <builder-id> "<blocking findings, the operator's additions, the report path>"`, then `chief-backlog.sh status <builder-id> in-flight`.
 5. Builder `done` again: say it was fixed in `<sha7>` and ask again (step 1). There is no round cap.
 6. Post findings to the PR only when the operator asks: see "Post a review".
 7. `chief-teardown.sh <builder-id>` also discards its reviewers: name them in the go-ahead. A reviewer alone: `chief-teardown.sh <reviewer-id>`, on the go-ahead.
@@ -64,10 +64,10 @@ Never automatic. Propose each step; the operator decides.
 
 Do exactly what they decide, nothing more:
 
-- **Not satisfied:** move the task back to in-flight (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh status <id> in-flight`), then `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-send.sh <id> "<instruction>"`.
-- **Ready to land** (builder only): compose a conventional-commit-style title and a structured body yourself (following the project's PR conventions: a `conventional-pull-requests`-style skill if installed, or its CLAUDE.md/AGENTS.md), push the branch, and open the PR with the project's host CLI or tool. Then hold the item with the URL as the reason: `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh hold <id> "PR: <url>"`.
+- **Not satisfied:** move the task back to in-flight (`<chief-plugin-dir>/bin/chief-backlog.sh status <id> in-flight`), then `<chief-plugin-dir>/bin/task/chief-send.sh <id> "<instruction>"`.
+- **Ready to land** (builder only): compose a conventional-commit-style title and a structured body yourself (following the project's PR conventions: a `conventional-pull-requests`-style skill if installed, or its CLAUDE.md/AGENTS.md), push the branch, and open the PR with the project's host CLI or tool. Then hold the item with the URL as the reason: `<chief-plugin-dir>/bin/chief-backlog.sh hold <id> "PR: <url>"`.
 - **Accepted:** builder: merge the open PR, squashing and deleting the source branch, then "Landed". Researcher or brainstormer to be built on: see "Handing off".
-- **Accepted as-is** (researcher or brainstormer): `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>`, then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>` discards the worktree; the task's folder, with its report, moves to `.chief/archive/<id>/`.
+- **Accepted as-is** (researcher or brainstormer): `<chief-plugin-dir>/bin/chief-backlog.sh done <id>`, then `<chief-plugin-dir>/bin/chief-teardown.sh <id>` discards the worktree; the task's folder, with its report, moves to `.chief/archive/<id>/`.
 
 Opening, updating and merging a PR are finishing actions: only on the operator's explicit go-ahead in this conversation.
 
@@ -86,23 +86,23 @@ A done researcher or brainstormer with a report can be followed by a successor: 
 - The report is the whole handoff. Skim it first and send the source back (`chief-send.sh`) to fix a thin one: it must stand alone for an agent that saw none of the conversation.
 - The successor runs the target role's configured agent. `--agent` carries another over; name it in the go-ahead.
 
-1. Propose the branch (`conventional-branches` scheme) and preview the agent: `${CLAUDE_PLUGIN_ROOT}/bin/chief-spawn.sh <new-id> <project-dir> --mode <builder|researcher|brainstormer> --from <id> --branch "<type>/<short-kebab-description>" --intent "<ask>" --dry-run` prints the exact `agent:` and `launch:` (a weighted or random pool prints as the pool) and creates nothing.
+1. Propose the branch (`conventional-branches` scheme) and preview the agent: `<chief-plugin-dir>/bin/chief-spawn.sh <new-id> <project-dir> --mode <builder|researcher|brainstormer> --from <id> --branch "<type>/<short-kebab-description>" --intent "<ask>" --dry-run` prints the exact `agent:` and `launch:` (a weighted or random pool prints as the pool) and creates nothing.
 2. Ask the operator's go-ahead naming that agent and branch, and that the source's session ends (a brainstormer's pane closes; its folder, with the report, moves to `.chief/archive/<id>/`).
-3. On the go-ahead, file `<new-id>` (`chief-backlog.sh add`), then run `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-promote.sh <id> --to <role> --as <new-id> --branch "<branch>" --intent "<ask>" [--spec "<instructions>"]`. It runs `chief-spawn.sh --from`, then tears the source down. The successor's id replaces the source's role prefix (`res-auth-flow` -> `build-auth-flow`); `--dry-run` previews and prints `id:` to file. `--keep-source` leaves the source running. Run it in the background.
+3. On the go-ahead, file `<new-id>` (`chief-backlog.sh add`), then run `<chief-plugin-dir>/bin/task/chief-promote.sh <id> --to <role> --as <new-id> --branch "<branch>" --intent "<ask>" [--spec "<instructions>"]`. It runs `chief-spawn.sh --from`, then tears the source down. The successor's id replaces the source's role prefix (`res-auth-flow` -> `build-auth-flow`); `--dry-run` previews and prints `id:` to file. `--keep-source` leaves the source running. Run it in the background.
 
 ## Once a PR is open
 
-- **Where it is** - the URL is in the item's note (`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh show <id>`). Checking is free; opening, updating, merging and closing are finishing actions that need the operator's go-ahead.
+- **Where it is** - the URL is in the item's note (`<chief-plugin-dir>/bin/chief-backlog.sh show <id>`). Checking is free; opening, updating, merging and closing are finishing actions that need the operator's go-ahead.
 - **Check it** - state, draft, mergeable/conflicts, checks and review comments, with the project's host CLI or tool.
 - **Needs changes** (conflicts with the default branch, failing checks, feedback from the operator or others) - `chief-send.sh <id> "<what to fix>"` and move the item back to in-flight; for conflicts say to rebase onto the default branch. When the builder reports `done`, push from `.chief/worktrees/<id>` (`--force-with-lease` after a rebase; a plain push is rejected), refresh the PR title and body if they no longer match, and hold the item again with the same `PR: <url>` note (the only place the URL lives).
 - **Post a review or approve** (only when the operator asks) - comment on the specific file and line for each finding where the host supports it, otherwise put `file:line` in the comment text, and give the verdict in the same review.
 - **Merge it** - as under "Accepted".
-- **Abandon with an open PR** - only on the operator's explicit instruction: close the PR on the host first, with a one-line comment saying why. Then `${CLAUDE_PLUGIN_ROOT}/bin/task/chief-control.sh <id> exit` (stops the worker, keeps its worktree and commits) or `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id> --abandon` (discards the worktree and the local branch). Neither touches the PR or the remote branch. An open PR is not subject to teardown: a reviewer may request changes, so tear down only once it has landed or the operator abandons it.
-- **Landed** - confirm on the host that the PR is merged, `${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh done <id>` (if not already), then `${CLAUDE_PLUGIN_ROOT}/bin/chief-teardown.sh <id>`; it also discards the builder's reviewer. Teardown proves landing via git (squash and rebase merges included, git >= 2.38), not the host; if git cannot prove it, verify the PR is merged and use `--abandon`. Teardown keeps the remote branch.
+- **Abandon with an open PR** - only on the operator's explicit instruction: close the PR on the host first, with a one-line comment saying why. Then `<chief-plugin-dir>/bin/task/chief-control.sh <id> exit` (stops the worker, keeps its worktree and commits) or `<chief-plugin-dir>/bin/chief-teardown.sh <id> --abandon` (discards the worktree and the local branch). Neither touches the PR or the remote branch. An open PR is not subject to teardown: a reviewer may request changes, so tear down only once it has landed or the operator abandons it.
+- **Landed** - confirm on the host that the PR is merged, `<chief-plugin-dir>/bin/chief-backlog.sh done <id>` (if not already), then `<chief-plugin-dir>/bin/chief-teardown.sh <id>`; it also discards the builder's reviewer. Teardown proves landing via git (squash and rebase merges included, git >= 2.38), not the host; if git cannot prove it, verify the PR is merged and use `--abandon`. Teardown keeps the remote branch.
 
 ## Backlog reference
 
-`${CLAUDE_PLUGIN_ROOT}/bin/chief-backlog.sh add|status|note|hold|done|list|next|show <id> ...`: one markdown file (`.chief/backlog.md`); statuses are `queued|in-flight|held|done`. `hold <id> "<reason>"` marks anything waiting on an operator decision.
+`<chief-plugin-dir>/bin/chief-backlog.sh add|status|note|hold|done|list|next|show <id> ...`: one markdown file (`.chief/backlog.md`); statuses are `queued|in-flight|held|done`. `hold <id> "<reason>"` marks anything waiting on an operator decision.
 
 ## What NOT to do
 

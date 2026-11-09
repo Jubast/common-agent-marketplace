@@ -1,10 +1,23 @@
 # Chief
 
-A lightweight supervisor for Claude Code: dispatches work to isolated builder/researcher/reviewer/brainstormer agents over the herdr or Orca backend, tracks a plain-markdown backlog, and supervises them with a near-zero-token watch loop. (Verbatim from `.claude-plugin/plugin.json`'s `description` - see "Maintaining these docs" below.)
+A lightweight supervisor for coding agents (Claude Code, Codex CLI, Copilot CLI): dispatches work to isolated builder/researcher/reviewer/brainstormer agents over the herdr or Orca backend, tracks a plain-markdown backlog, and supervises them with a near-zero-token watch loop. (Verbatim from `.claude-plugin/plugin.json`'s `description` - see "Maintaining these docs" below.)
 
-Scoped down hard from bigger multi-agent supervisors on purpose: **Claude Code only**, **herdr or Orca backend only** (configurable via `.chief/config/backend`, default `herdr`), one delivery mode (branch + you approve every merge - no auto-merge). Every script is meant to be short enough to read start to finish.
+Scoped down hard from bigger multi-agent supervisors on purpose: **Chief itself on Claude Code, Codex CLI or Copilot CLI** (see Harnesses), **herdr or Orca backend only** (configurable via `.chief/config/backend`, default `herdr`), one delivery mode (branch + you approve every merge - no auto-merge). Every script is meant to be short enough to read start to finish.
 
 Inspired by [Firstmate](https://github.com/kunchenguid/firstmate), which does the same job across many more harnesses, backends, and delivery modes - Chief keeps its core ideas (isolated worktrees per task, an intent/spec brief split, a closed status vocabulary, a durable steering inbox, refuse-before-discard teardown, and a near-zero-token Stop-hook watch loop) while cutting everything scoped to that broader generality.
+
+## Harnesses
+
+Chief's own (operator-facing) session runs on any of three CLIs; they differ only in how identity is injected and how the idle session is woken. Workers are independent of this (see Agents).
+
+| | Claude Code | Codex CLI | Copilot CLI |
+|---|---|---|---|
+| Identity | `SessionStart` hook, nested `hookSpecificOutput` | `hooks/hooks.codex.json` `SessionStart`, same output | `hooks/hooks.json` `SessionStart`, top-level `additionalContext` (the nested form is ignored) |
+| Wake | `Stop` hook with `asyncRewake` (`stop-watch-claude.sh`) | async `Stop` hook, then `codex queue` (`stop-watch-codex.sh`) | extension calling `session.send` (`extensions/chief-watch/extension.mjs`) |
+| Needs | nothing | Chief's hooks trusted in `/hooks`, again when an update changes them; a `codex` with `queue` | `experimental` on: launch with `--experimental` or `/settings experimental on` |
+| Tested | 2.1.312 | codex-cli 0.162.1 | 1.0.107 |
+
+`session-start.sh` tells them apart by `COPILOT_CLI`, else `PLUGIN_ROOT` (Codex or Copilot; Claude Code never sets it), else Claude Code. `stop-watch-claude.sh` exits when `PLUGIN_ROOT` is set, since Copilot also loads `hooks.json`. `stop-watch-codex.sh` queues only while a Codex TUI runs in the session's cwd (Linux `/proc`; elsewhere it always queues). `chief-setup.sh` warns about a `codex` without `queue` and about Copilot with `experimental` off.
 
 ## Layout
 
@@ -13,7 +26,8 @@ Inspired by [Firstmate](https://github.com/kunchenguid/firstmate), which does th
 - `skills/using-chief` - the identity/job-description skill, force-injected every session via the `SessionStart` hook so Chief always knows its role without being asked.
 - `skills/setup` - one-time CHIEF_HOME config (backend choice + gitignoring `.chief/`); only relevant before `.chief/config/backend` exists, which the `SessionStart` digest flags explicitly.
 - `skills/dispatch` - the operator-facing entry point; load this to hand off work.
-- `hooks/` - `SessionStart` (injects `using-chief`, a configuration status line, and a backlog/in-flight digest) and `Stop` (the token-saving watch arm; `chief-watch.sh` wakes you once per state change - the delivered line is kept as the task's `notify-baseline`, and a stale alert's idle counter and the trailing metadata tags (`[mode: ...]` and the tags after it) don't count as a change). One watcher runs per `CHIEF_HOME`: the newest takes over via `state/watch.owner` and older ones exit silently, so a manual `chief-watch.sh` run takes ownership too, and with several Chief sessions the most recent turn end gets the alerts. Both stand down entirely inside a spawned builder's own worktree - see `worktree.sh`.
+- `hooks/` - `SessionStart` (injects `using-chief`, a configuration status line and a backlog/in-flight digest) and `Stop` (the token-saving watch arm): `hooks.json` for Claude Code and Copilot, `hooks.codex.json` for Codex (named by `.codex-plugin/plugin.json`). `chief-watch.sh` wakes you once per state change (the delivered line is the task's `notify-baseline`; a stale alert's idle counter and the trailing metadata tags don't count as a change); one watcher runs per `CHIEF_HOME`, the newest takes over via `state/watch.owner`. `watch-reason.sh` is its shared entry behind each wake adapter, and all of them stand down in a spawned builder's own worktree (`worktree.sh`).
+- `extensions/chief-watch/` - Copilot's wake adapter.
 
 Runtime state lives at `.chief/` under `CHIEF_HOME` - by default the outermost git root enclosing wherever the Chief session runs, so the operator's top-level workspace even when run from inside a project or one of its worktrees; never inside a project - created on first use, not part of the plugin package. `chief-setup.sh` gitignores it for you. Layout (see `bin/lib/paths.sh`): `tasks/<id>/` is one folder per task (`meta`, `status`, `inbox/`, `lifecycle`, `turn-ended`, `brief.md`, `report.md`, `evidence/`); teardown moves it to `archive/<id>/`. `state/` holds only global machine state (locks, agent cursors, trust-owned, the watcher heartbeat and `watch.owner`). `backlog.md`, `config/` and `worktrees/<id>` complete it.
 
@@ -127,7 +141,7 @@ Best-effort only: forms like `git -C . push` or `sh -c '...'` do not match. GitH
 
 ## Status
 
-Core lifecycle (backlog, spawn, send, control/relaunch, crew-state, watch, teardown, handoff) is implemented and tested end-to-end on a real herdr (`tests/chief/{unit,workflow,backends,harness}/*.bats`, with a zero-cost stand-in agent; `tests/chief/manual/herdr-real.sh` is the opt-in run with a real `claude` turn, `CHIEF_TEST_HERDR=1`). The **Orca adapter** (`bin/lib/backends/orca.sh`) follows the same flow - bypass-permissions launch, spawn rollback, relaunch, teardown - and is tested on a real headless Orca in `tests/chief/backends/orca.bats`. The **copilot adapter**'s screen needles and a real researcher spawn are checked against the real Copilot CLI in `tests/chief/manual/copilot.sh` (opt-in, `CHIEF_TEST_COPILOT=1`).
+Core lifecycle (backlog, spawn, send, control/relaunch, crew-state, watch, teardown, handoff) is implemented and tested end-to-end on a real herdr (`tests/chief/{unit,workflow,backends,harness}/*.bats`, with a zero-cost stand-in agent; `unit/hook-harness.bats` covers the Codex and Copilot adapters with fake CLIs; `tests/chief/live/` holds the opt-in tests with real CLIs and tokens, including Chief itself on Claude Code, Codex and Copilot). The **Orca adapter** (`bin/lib/backends/orca.sh`) follows the same flow - bypass-permissions launch, spawn rollback, relaunch, teardown - and is tested on a real headless Orca in `tests/chief/backends/orca.bats`. The **copilot adapter**'s screen needles and a real researcher spawn are checked against the real Copilot CLI in `tests/chief/live/copilot-spawn.bats`.
 
 ## Maintaining these docs
 

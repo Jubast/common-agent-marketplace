@@ -4,13 +4,14 @@
 #
 # These are functional/integration tests of Chief's own bash scripts, run on a
 # real herdr or a real headless Orca with a zero-cost stand-in agent. Tests
-# that spend real tokens live in manual/ and are never run here. Skill-BEHAVIOR
+# that spend real tokens live in live/ and run only with --only-live. Skill-BEHAVIOR
 # tests (does Claude actually follow using-chief/dispatch/setup correctly) live
 # in tests/claude-code/ instead.
 #
-#   run-tests.sh [--jobs N] [--junit DIR] [--no-orca | --only-orca] [bats args...] [path...]
+#   run-tests.sh [--jobs N] [--junit DIR] [--no-orca | --only-orca | --only-live] [bats args...] [path...]
 # --jobs needs GNU parallel (else the run is serial); --junit writes
 # DIR/report.xml; --no-orca / --only-orca split the herdr and Orca CI jobs;
+# --only-live runs live/ (real CLIs, real tokens, one file at a time) and nothing else;
 # a path (a folder or .bats file, e.g. tests/chief/unit) replaces the default of
 # the whole suite; other args go to bats.
 set -uo pipefail
@@ -20,26 +21,30 @@ TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BATS="$TESTS_DIR/node_modules/.bin/bats"
 JOBS=4
 JUNIT=""
-TAGS=''
+TAGS='!live'
 BATS_ARGS=()
 PATHS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --jobs) JOBS=$2; shift 2 ;;
     --junit) JUNIT=$2; shift 2 ;;
-    --no-orca) TAGS='!orca'; shift ;;
+    --no-orca) TAGS='!orca,!live'; shift ;;
     --only-orca) TAGS='orca'; shift ;;
+    --only-live) TAGS='live'; shift ;;
     *.bats) PATHS+=("$1"); shift ;;
     -*) BATS_ARGS+=("$1"); shift ;;
     *) if [ -d "$1" ]; then PATHS+=("$1"); else BATS_ARGS+=("$1"); fi; shift ;;
   esac
 done
 
+TEST_TIMEOUT=300  # the slowest default test takes about 45 s; a hang must not last until the job limit
+[ "$TAGS" != live ] || { JOBS=1; TEST_TIMEOUT=900; }  # real tokens: one file at a time, slow turns
+
 if [ ! -x "$BATS" ] || [ "$TESTS_DIR/package-lock.json" -nt "$BATS" ]; then
   npm --prefix "$TESTS_DIR" ci --no-audit --no-fund >/dev/null || exit 1
 fi
 export BATS_LIB_PATH="$TESTS_DIR/node_modules"
-export BATS_TEST_TIMEOUT=300  # the slowest test takes about 45 s; a hang must not last until the job limit
+export BATS_TEST_TIMEOUT=$TEST_TIMEOUT
 bats_cmd=("$BATS" -r --setup-suite-file "$SCRIPT_DIR/setup_suite.bash")
 [ -z "$TAGS" ] || bats_cmd+=(--filter-tags "$TAGS")
 if command -v parallel >/dev/null; then
