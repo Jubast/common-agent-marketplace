@@ -74,6 +74,8 @@ chief_agent_release() {  # <id> <dir> - agent_release with the task's adapter
 # .chief/config/agents (no file: claude):
 #   strategy = first | round-robin | random | weighted | all  (default first;
 #                         all: chief-review.sh runs one reviewer per entry)
+#   mode = parallel | sequential | first | ask  (default parallel; [reviewer] only:
+#                         how chief-review.sh runs the pool)
 #   <agent>[:<model>] [weight=N] [args="<extra CLI args>"] [command="<launch command>"]
 #   [builder] [researcher] [reviewer] [brainstormer]
 #                         a pool (and strategy) for that role only; each falls
@@ -82,7 +84,9 @@ chief_agent_release() {  # <id> <dir> - agent_release with the task's adapter
 # chief_agent_select <role> [peek] sets SEL_AGENT, SEL_MODEL, SEL_ARGS,
 # SEL_COMMAND and POOL_SRC (the role, global, or default when no pool is
 # configured). weighted and random draw from $CHIEF_AGENT_RANDOM when it is set
-# (a test hook), else from $RANDOM; random ignores weights. peek advances no
+# (a test hook), else from $RANDOM; random ignores weights. A set
+# $CHIEF_AGENT_PICK (entry number, set by chief-review.sh) picks that entry
+# under any strategy; all takes entry 1 without it. peek advances no
 # cursor and, for weighted and random, picks nothing: it sets SEL_POOL_DESC.
 
 CHIEF_ROLES="builder researcher reviewer brainstormer"
@@ -123,7 +127,7 @@ _chief_agent_entry() {
 _chief_agent_read() {
   local want=$1 file="$CONFIG/agents" line entry section="" n=0
   local gstrategy="" sstrategy="" gpool="" spool=""
-  STRATEGY=first POOL="" POOL_SRC=default
+  STRATEGY=first POOL="" POOL_SRC=default REVIEW_MODE=parallel
   [ -f "$file" ] || return 0
   while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
@@ -144,6 +148,15 @@ _chief_agent_read() {
           *) echo "chief-agent: $file:$n: unknown strategy '$entry'" >&2; return 1 ;;
         esac
         if [ -z "$section" ]; then gstrategy=$entry; elif [ "$section" = "$want" ]; then sstrategy=$entry; fi ;;
+      mode*=*)
+        read -r entry <<< "${line#*=}"
+        entry=${entry%%#*}; read -r entry <<< "$entry"
+        case "$entry" in
+          parallel|sequential|first|ask) ;;
+          *) echo "chief-agent: $file:$n: unknown mode '$entry'" >&2; return 1 ;;
+        esac
+        [ "$section" = reviewer ] || { echo "chief-agent: $file:$n: mode is only for the [reviewer] section" >&2; return 1; }
+        REVIEW_MODE=$entry ;;
       *)
         entry=$(_chief_agent_entry "$line") || { echo "chief-agent: $file:$n: $line" >&2; return 1; }
         if [ -z "$section" ]; then gpool+="$entry"$'\n'; elif [ "$section" = "$want" ]; then spool+="$entry"$'\n'; fi ;;
@@ -165,9 +178,14 @@ chief_agent_select() {  # <role> [peek]
       '{ printf "%s%s%s%s", (NR > 1 ? ", " : ""), $1, ($2 != "" ? ":" $2 : ""), (w ? " (" $3 ")" : "") }' <<< "$POOL")"
     return 0
   fi
+  if [ "$STRATEGY" = all ] || [ -n "${CHIEF_AGENT_PICK:-}" ]; then
+    rec=$(sed -n "${CHIEF_AGENT_PICK:-1}p" <<< "$POOL")
+    [ -n "$rec" ] || { echo "chief-agent: no pool entry ${CHIEF_AGENT_PICK:-1}" >&2; return 1; }
+    IFS=$SEP read -r SEL_AGENT SEL_MODEL _ SEL_COMMAND SEL_ARGS <<< "$rec"
+    return 0
+  fi
   case "$STRATEGY" in
     first) rec=$(head -n 1 <<< "$POOL") ;;
-    all) rec=$(sed -n "${CHIEF_AGENT_PICK:-1}p" <<< "$POOL") ;;  # entry number, set by chief-review.sh
     round-robin)
       chief_lock_acquire "$STATE/.agent-select.lock" 10 || { echo "chief-agent: selection lock busy" >&2; return 1; }
       cursor=$(cat "$STATE/agent-cursor-$section" 2>/dev/null || true)
@@ -186,9 +204,40 @@ chief_agent_select() {  # <role> [peek]
   IFS=$SEP read -r SEL_AGENT SEL_MODEL _ SEL_COMMAND SEL_ARGS <<< "$rec"
 }
 
-chief_agent_count() {  # <role> - workers per spawn: the pool size under all, else 1
+chief_agent_pool_size() {  # <role> - the number of pool entries (0: none configured)
   _chief_agent_read "$1" || return 1
-  if [ "$STRATEGY" = all ]; then grep -c '' <<< "$POOL"; else echo 1; fi
+  if [ -z "$POOL" ]; then echo 0; else grep -c '' <<< "$POOL"; fi
+}
+
+chief_agent_review_mode() {  # - the [reviewer] mode from the config (default parallel)
+  _chief_agent_read reviewer || return 1
+  echo "$REVIEW_MODE"
+}
+
+# chief_agent_review_picks <parallel|sequential|first> [only] - the pool entry
+# numbers one review arms, one per line; 0 lets the strategy choose. parallel is
+# the whole pool under strategy all, else the strategy's single pick;
+# sequential and first start at entry 1. [only] (comma-separated entry numbers)
+# replaces that with chosen entries; sequential takes one, first none.
+chief_agent_review_picks() {
+  local mode=$1 only=${2:-} n pick picks=""
+  _chief_agent_read reviewer || return 1
+  n=$(chief_agent_pool_size reviewer)
+  if [ -n "$only" ]; then
+    [ "$n" -gt 0 ] || { echo "chief-review: --only needs a pool in the agents config" >&2; return 1; }
+    [ "$mode" != first ] || { echo "chief-review: --only does not apply to mode first" >&2; return 1; }
+    [[ $mode != sequential || $only != *,* ]] || { echo "chief-review: mode sequential takes one --only entry per run" >&2; return 1; }
+    for pick in ${only//,/ }; do
+      [[ $pick =~ ^[1-9][0-9]*$ ]] && [ "$pick" -le "$n" ] \
+        || { echo "chief-review: --only '$pick' is not a reviewer pool entry (1-$n)" >&2; return 1; }
+      [[ " $picks " == *" $pick "* ]] || picks+="${picks:+ }$pick"
+    done
+    tr ' ' '\n' <<< "$picks"
+  elif [ "$n" -eq 0 ]; then echo 0
+  elif [ "$mode" = parallel ] && [ "$STRATEGY" = all ]; then seq "$n"
+  elif [ "$mode" = parallel ]; then echo 0
+  else echo 1
+  fi
 }
 
 chief_agent_note() {  # after chief_agent_select - the marker for a pool that is not the role's own
