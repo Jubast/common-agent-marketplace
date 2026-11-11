@@ -85,7 +85,7 @@ To run bats yourself, pass `-r` and `--setup-suite-file tests/chief/setup_suite.
 
 Requires `git`, `bash`, `jq`, `herdr` (v0.9.3) and `node`/`npm`; the hc file also needs hc (0.1.20)
 and the Orca file Orca. A missing backend skips its tests, unless
-`CHIEF_TEST_REQUIRE_BACKENDS=1` (set by both CI jobs) makes that a failure.
+`CHIEF_TEST_REQUIRE_BACKENDS=1` (set by the CI jobs) makes that a failure.
 
 ## Writing tests
 

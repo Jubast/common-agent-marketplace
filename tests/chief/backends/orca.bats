@@ -226,7 +226,7 @@ second_task() {
   standin_mode "$ID" never-ready
   run --separate-stderr backend_relaunch "$ID" "$BRIEF"
   assert_failure 1
-  assert_regex "$stderr" "agent not ready"
+  assert_regex "$stderr" "agent .* not ready"
   assert_equal "$(terminals "$WT")" 0
 }
 
@@ -324,7 +324,7 @@ second_task() {
   standin_mode "$LID" never-ready
   run timeout 120 "$BIN/chief-spawn.sh" "$LID" "$P" --mode builder --branch "feat/$LID" --intent test --spec test
   assert_failure 1
-  assert_output --partial "agent not ready"
+  assert_output --regexp "agent .* not ready"
   rolled_back
   assert_equal "$(branch_count "feat/$LID")" 0
   assert_not_exist "$CHIEF_HOME/tasks/$LID/meta"

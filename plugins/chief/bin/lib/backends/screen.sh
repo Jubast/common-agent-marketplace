@@ -41,7 +41,7 @@ _chief_screen_start_ready() {
   reason="no ready screen after ${timeout}s"
   printf '%s' "$screen" | tr -s '[:space:]' ' ' | grep -Eq -- "$(agent_trust_text)" \
     && reason="stopped at the folder-trust dialog"
-  echo "chief-backend-${CHIEF_BACKEND:-?}: agent $handle not ready ($reason); screen:" >&2
+  echo "chief-backend-$CHIEF_BACKEND: agent $handle not ready ($reason); screen:" >&2
   printf '%s\n' "$screen" | grep -v '^[[:space:]]*$' | tail -5 | sed 's/^/  /' >&2
   return 1
 }
@@ -49,7 +49,7 @@ _chief_screen_start_ready() {
 # _chief_screen_prompt <handle> <text> <wait-s> - sends <text>, then settles it.
 _chief_screen_prompt() {
   _chief_screen_send "$1" "$2" \
-    || { echo "chief-backend-${CHIEF_BACKEND:-?}: sending the prompt to $1 failed" >&2; return 1; }
+    || { echo "chief-backend-$CHIEF_BACKEND: sending the prompt to $1 failed" >&2; return 1; }
   _chief_screen_settle "$@"
 }
 
@@ -69,14 +69,14 @@ _chief_screen_settle() {
       printf '%s\n' "$screen" | chief_agent_input_line | chief_agent_has_text "$needle" || return 0
       _chief_screen_keys "$handle" enter >/dev/null 2>&1
       _chief_screen_wait_submitted "$handle" "$needle" "$wait" && return 0
-      echo "chief-backend-${CHIEF_BACKEND:-?}: prompt for $handle still unsubmitted after Enter" >&2
+      echo "chief-backend-$CHIEF_BACKEND: prompt for $handle still unsubmitted after Enter" >&2
       return 1
     fi
     sleep 0.5
     waited=$((waited + 1))
   done
   _chief_screen_send "$handle" "$text" \
-    || { echo "chief-backend-${CHIEF_BACKEND:-?}: sending the prompt to $handle failed" >&2; return 1; }
+    || { echo "chief-backend-$CHIEF_BACKEND: sending the prompt to $handle failed" >&2; return 1; }
 }
 
 # _chief_screen_wait_submitted <handle> <needle> <wait-s> - polls until the

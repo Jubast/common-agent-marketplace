@@ -73,6 +73,7 @@ _chief_screen_send() {  # <handle> <text>
 }
 
 _chief_screen_keys() {  # <handle> enter - the only key Orca's adapter presses
+  [ "${2:-}" = enter ] || return 1
   orca terminal send --terminal "$1" --enter
 }
 
