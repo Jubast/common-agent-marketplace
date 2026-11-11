@@ -3,7 +3,7 @@
 # readiness): readiness, trust dialog, prompt delivery. Sourced by the adapter,
 # which must define, for its own terminal <handle>:
 #   _chief_screen_read <handle>            -> the rendered screen
-#   _chief_screen_send <handle> <text>     -> types <text> and Enter (prompt only)
+#   _chief_screen_send <handle> <text>     -> types <text> and Enter (prompts only)
 #   _chief_screen_keys <handle> <key>...   -> presses keys (enter, down...)
 
 # _chief_screen_trust_dialog_ours <screen> <worktree> - the screen shows the
@@ -46,18 +46,23 @@ _chief_screen_start_ready() {
   return 1
 }
 
-# _chief_screen_prompt <handle> <text> <wait-s> - submit <text> and check the
-# screen: the text (or the agent's pasted-text placeholder) showing up means
+# _chief_screen_prompt <handle> <text> <wait-s> - sends <text>, then settles it.
+_chief_screen_prompt() {
+  _chief_screen_send "$1" "$2" \
+    || { echo "chief-backend-${CHIEF_BACKEND:-?}: sending the prompt to $1 failed" >&2; return 1; }
+  _chief_screen_settle "$@"
+}
+
+# _chief_screen_settle <handle> <text> <wait-s> - checks the screen after <text>
+# was sent: the text (or the agent's pasted-text placeholder) showing up means
 # it landed. If it still sits in the live input line a bare Enter submits it,
 # and the prompt counts as sent only once it has left that line; not landed
 # within <wait-s> seconds is resent once. Does NOT wait for the turn to
 # finish - a first turn on a large task can legitimately run long.
-_chief_screen_prompt() {
+_chief_screen_settle() {
   local handle=$1 text=$2 wait=$3
   local needle screen waited=0 limit=$(( wait * 2 ))
   needle=$(printf '%s' "$text" | tr -s '[:space:]' ' ' | cut -c1-24)
-  _chief_screen_send "$handle" "$text" \
-    || { echo "chief-backend-${CHIEF_BACKEND:-?}: sending the prompt to $handle failed" >&2; return 1; }
   while [ "$waited" -lt "$limit" ]; do
     screen=$(_chief_screen_read "$handle")
     if printf '%s' "$screen" | chief_agent_has_text "$needle"; then
