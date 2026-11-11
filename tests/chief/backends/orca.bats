@@ -83,7 +83,7 @@ rolled_back() {
   assert_equal "$(cat "$STANDIN_DIR/$ID.args")" "--dangerously-skip-permissions"
   assert_equal "$(standin_turn_count "$ID")" 1
   assert_output --partial "orca:term_"
-  run _chief_orca_screen "${EP#orca:}"
+  run _chief_screen_read "${EP#orca:}"
   assert_output --partial "bypass permissions"
 }
 
