@@ -2,7 +2,7 @@
 # chief-setup.sh - one-time CHIEF_HOME setup: pick a backend, verify it's on
 # PATH, gitignore runtime state. Safe to re-run (idempotent).
 #
-# Usage: chief-setup.sh --backend herdr|orca
+# Usage: chief-setup.sh --backend herdr|orca|hc
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
@@ -18,8 +18,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 case "$BACKEND" in
-  herdr|orca) ;;
-  *) fail "usage: chief-setup.sh --backend herdr|orca" ;;
+  herdr|orca|hc) ;;
+  *) fail "usage: chief-setup.sh --backend herdr|orca|hc" ;;
 esac
 
 echo "$BACKEND" > "$CONFIG/backend"

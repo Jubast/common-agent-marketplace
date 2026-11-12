@@ -14,6 +14,9 @@
 #   lose-enter[=N]  ignore the first N Enters (the text stays in the input box)
 #   drop[=N]        swallow the first N submitted prompts without a turn
 #   slow-work[=S]   idle for S seconds (default 6) after a prompt, then work
+#   no-report       never report status to herdr-core (hc)
+# In an hc terminal (HC_TERMINAL_ID set) it reports its status over OSC 7501:
+# idle, working, then done; nothing at the trust dialog, as real claude.
 # While $STANDIN_DIR/hold/<name> exists, a turn stays `working`.
 name=$(basename "$PWD"); dir=${STANDIN_DIR:?}
 echo $$ > "$dir/$name.pid"; echo "$*" > "$dir/$name.args"
@@ -30,6 +33,9 @@ state=ready; lose=0; drop=0; slow=0; lost=0; dropped=0; down=0
 ! mode_val slow-work || slow=${REPLY:-6}
 
 stty -icanon -echo 2>/dev/null; printf '\e[?2004h'
+report() {  # idle|working|done; herdr-core's own status protocol
+  [ -z "${HC_TERMINAL_ID:-}" ] || [[ $modes == *" no-report "* ]] || printf '\e]7501;state=%s:app=standin\a' "$1"
+}
 draw() {  # $1: ready|working
   # Claude Code's terminal title: spinner while working, star when idle
   [ "$1" = working ] && printf '\e]0;⠂ Claude Code\a' || printf '\e]0;✳ Claude Code\a'
@@ -39,6 +45,7 @@ draw() {  # $1: ready|working
       " Claude Code'll be able to read, edit, and execute files here." " ❯ No, exit" "   Yes, I trust this folder" " Enter to confirm · Esc to cancel"
     return
   fi
+  if [ "$1" = working ]; then report working; elif [ "$turns" -gt 0 ]; then report done; else report idle; fi
   printf '%s\n' "fake claude" "${hist[@]}" ""
   [ "$1" = working ] && printf '✻ Working… (1s · esc to interrupt)\n'
   if [ "$pasted" -gt 0 ]; then printf '❯ [Pasted text #1 +%s lines]\n' "$pasted"; else printf '❯ %s\n' "$buf"; fi

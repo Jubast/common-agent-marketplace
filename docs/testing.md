@@ -143,7 +143,7 @@ Provenance section for the diff summary.
   repo — `tests/claude-code/` already covers both "describes itself
   right" and "actually works" without a separate tmux/multi-CLI harness.
 - **CI for `tests/chief/` only.** `.github/workflows/tests.yml` runs the free
-  Chief suite on pull requests, as a herdr job and a headless-Orca job; `tests/claude-code/`, `tests/marketplace/` and
+  Chief suite on pull requests, as a herdr job, an hc job and a headless-Orca job; `tests/claude-code/`, `tests/marketplace/` and
   `tests/convert-pdf-to-md/` stay local/manual. `tests/chief/live/` (real tokens, opt-in)
   never runs in CI; see `tests/chief/README.md`.
 

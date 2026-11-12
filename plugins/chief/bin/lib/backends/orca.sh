@@ -27,6 +27,9 @@
 # whole workspace). backend_teardown also tells Orca to forget the worktree,
 # which plain `git worktree remove` would leave as a stale entry.
 
+# shellcheck source=/dev/null
+. "$CHIEF_ROOT/bin/lib/backends/screen.sh"
+
 _chief_orca_handle() {  # <id> -> the task's terminal handle
   chief_meta_get "$1" endpoint | sed 's/^orca://'
 }
@@ -59,74 +62,19 @@ _chief_orca_find_worktree() {
     | head -n1
 }
 
-_chief_orca_screen() {  # <handle> -> the terminal's rendered screen
+# The hooks screen.sh drives.
+_chief_screen_read() {  # <handle> -> the terminal's rendered screen
   orca terminal read --terminal "$1" --screen --json 2>/dev/null \
     | jq -r '.result.terminal.tail // [] | join("\n")'
 }
 
-# _chief_orca_wait_screen <handle> <egrep-pattern> [timeout-s] - polls the
-# rendered screen until it matches. Never guess the agent's readiness from
-# `tui-idle`: it reports the bare shell as idle before the agent has started,
-# and a prompt sent into that gap is silently dropped.
-_chief_orca_wait_screen() {
-  local handle=$1 pattern=$2 timeout=${3:-${CHIEF_ORCA_START_WAIT:-30}} waited=0
-  while [ "$waited" -lt $((timeout * 2)) ]; do
-    _chief_orca_screen "$handle" | grep -Eq "$pattern" && return 0
-    sleep 0.5
-    waited=$((waited + 1))
-  done
-  return 1
+_chief_screen_send() {  # <handle> <text>
+  orca terminal send --terminal "$1" --text "$2" --enter --wait-submit 5 >/dev/null 2>&1
 }
 
-# _chief_orca_start_ready <handle> - the agent shows agent_ready_text; otherwise
-# the worker would sit on a prompt nobody answers.
-_chief_orca_start_ready() {
-  local handle=$1
-  # A transient hint ("paste again to expand") can cover the status line.
-  _chief_orca_wait_screen "$handle" "$(agent_ready_text)" && return 0
-  echo "chief-backend-orca: agent not ready in $handle (folder-trust dialog? Chief and Orca must share CLAUDE_CONFIG_DIR); screen:" >&2
-  _chief_orca_screen "$handle" | grep -v '^[[:space:]]*$' | tail -5 | sed 's/^/  /' >&2
-  return 1
-}
-
-# _chief_orca_prompt <handle> <text> - submit <text> to <handle> and check the
-# screen: the text (or the agent's pasted-text placeholder) showing up means
-# it landed. If it still sits in the live input line a bare Enter submits it,
-# and the prompt counts as sent only once it has left that line; not landed
-# within CHIEF_ORCA_PROMPT_WAIT seconds is resent once. Does NOT wait for the
-# turn to finish - a first turn on a large task can legitimately run long.
-_chief_orca_prompt() {
-  local handle=$1 text=$2
-  local needle screen waited=0 limit=$(( ${CHIEF_ORCA_PROMPT_WAIT:-20} * 2 ))
-  needle=$(printf '%s' "$text" | tr -s '[:space:]' ' ' | cut -c1-24)
-  orca terminal send --terminal "$handle" --text "$text" --enter --wait-submit 5 >/dev/null 2>&1 \
-    || { echo "chief-backend-orca: 'orca terminal send' failed for $handle" >&2; return 1; }
-  while [ "$waited" -lt "$limit" ]; do
-    screen=$(_chief_orca_screen "$handle")
-    if printf '%s' "$screen" | chief_agent_has_text "$needle"; then
-      printf '%s\n' "$screen" | chief_agent_input_line | chief_agent_has_text "$needle" || return 0
-      orca terminal send --terminal "$handle" --enter >/dev/null 2>&1
-      _chief_orca_wait_submitted "$handle" "$needle" && return 0
-      echo "chief-backend-orca: prompt for $handle still unsubmitted after Enter" >&2
-      return 1
-    fi
-    sleep 0.5
-    waited=$((waited + 1))
-  done
-  orca terminal send --terminal "$handle" --text "$text" --enter --wait-submit 5 >/dev/null 2>&1 \
-    || { echo "chief-backend-orca: 'orca terminal send' failed for $handle" >&2; return 1; }
-}
-
-# _chief_orca_wait_submitted <handle> <needle> - polls until the prompt has left
-# the live input line
-_chief_orca_wait_submitted() {
-  local handle=$1 needle=$2 waited=0
-  while [ "$waited" -lt $(( ${CHIEF_ORCA_PROMPT_WAIT:-20} * 2 )) ]; do
-    _chief_orca_screen "$handle" | chief_agent_input_line | chief_agent_has_text "$needle" || return 0
-    sleep 0.5
-    waited=$((waited + 1))
-  done
-  return 1
+_chief_screen_keys() {  # <handle> enter - the only key Orca's adapter presses
+  [ "${2:-}" = enter ] || return 1
+  orca terminal send --terminal "$1" --enter
 }
 
 # _chief_orca_launch <worktree> <brief_path> -> creates a terminal in an
@@ -143,7 +91,8 @@ _chief_orca_launch() {
   [ -n "$handle" ] \
     || { echo "chief-backend-orca: could not read terminal handle from: $json" >&2; return 1; }
 
-  { _chief_orca_start_ready "$handle" && _chief_orca_prompt "$handle" "$(cat "$brief_path")"; } \
+  { _chief_screen_start_ready "$handle" "${CHIEF_ORCA_START_WAIT:-30}" \
+      && _chief_screen_prompt "$handle" "$(cat "$brief_path")" "${CHIEF_ORCA_PROMPT_WAIT:-20}"; } \
     || { _chief_orca_close_tab "$handle"; return 1; }
 
   printf '%s\n' "$handle"

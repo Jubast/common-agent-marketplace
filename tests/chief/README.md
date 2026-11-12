@@ -8,11 +8,11 @@ The folder says what a test needs to run; the file name says what it tests.
 |---|---|---|
 | `unit/` | no backend, no agent | One library, CLI or template per file: `meta`, `lock`, `id`, `backlog`, `agent-*`, `hook-harness` (the Codex and Copilot adapters), `templates`, `static`... About 40 s in total |
 | `workflow/` | a real herdr and the stand-in agent | Chief's scripts end to end: `spawn`, `spawn-agents`, `spawn-rollback`, `handoff`, `promote`, `send`, `control`, `teardown`, `review`, `review-all`, `crew-state`, `watch`, `hooks`, `lifecycle`, `spawn-sync` |
-| `backends/` | a real herdr, or (`orca`) a real headless Orca | The adapter contract of `backends/herdr.sh` and `backends/orca.sh` |
+| `backends/` | a real herdr, or (`hc`) a real herdr-core, or (`orca`) a real headless Orca | The adapter contract of `backends/herdr.sh`, `backends/hc.sh` and `backends/orca.sh` |
 | `harness/` | herdr (`standin`, the server guard) or nothing | The test doubles and the zero-cost guard |
 | `live/` | real herdr and agent CLIs, real tokens | Opt-in tests (below), run only by `run-tests.sh --only-live` |
 
-`lib/` holds the shared helpers (`common`, `orca`, `live`), `fixtures/` the stand-in agent and the faulty
+`lib/` holds the shared helpers (`common`, `hc`, `orca`, `live`), `fixtures/` the stand-in agent and the faulty
 `herdr` wrapper, `ci/` the pinned installers.
 
 ## Real herdr with a stand-in agent
@@ -38,6 +38,16 @@ Loading `lib/common` strips `HERDR_*`, `CHIEF_*` (except `CHIEF_TEST_*`) and
 `tests/.cache/bin`, which the suite prefers over the herdr on `PATH`. Only tests
 that start a server need herdr (`chief_herdr_require`); the `unit/` tier and the
 Orca job do not.
+
+## Real herdr-core (`backends/hc.bats`)
+
+One core per test (`lib/hc.bash`: own `HC_SESSION` and short `XDG_*` dirs, `hc server stop` in
+`teardown`), so the file runs in parallel like the herdr files. Terminals inherit the core's
+environment: it gets a scrubbed `PATH` holding only the stand-ins, and `STANDIN_DIR`. Inside an hc
+terminal the stand-in reports its status over OSC 7501 (`idle`, `working`, `done`) like real claude;
+the `no-report` mode suppresses that, so the screen path is exercised. Needs `tests/chief/ci/install-hc.sh`
+(or `hc` on `PATH`); without it the file skips, unless `CHIEF_TEST_REQUIRE_BACKENDS=1`. CI runs it as
+`chief-hc` (`run-tests.sh --only-hc`); the herdr job runs `--no-orca --no-hc`.
 
 ## Real headless Orca (`backends/orca.bats`)
 
@@ -66,16 +76,16 @@ herdr files; on a small machine use `--no-orca`, then `--only-orca`.
 `.bats` files run on [bats-core](https://github.com/bats-core/bats-core) pinned
 in `tests/package.json` (bats 1.14.0, bats-assert, bats-support, bats-file;
 `run-tests.sh` runs `npm ci` on first use, so Node and npm are needed). Options:
-`run-tests.sh [--jobs N] [--junit DIR] [--no-orca | --only-orca | --only-live] [bats args...] [path...]`.
+`run-tests.sh [--jobs N] [--junit DIR] [--no-orca] [--no-hc] [--only-orca | --only-hc | --only-live] [bats args...] [path...]`.
 A path (a folder or a `.bats` file) replaces the default of the whole suite. `--jobs`
 needs GNU `parallel` (without it the run warns and goes serial, slowly);
 `--junit` writes `DIR/report.xml`. Every test gets `BATS_TEST_TIMEOUT` (300 s).
 To run bats yourself, pass `-r` and `--setup-suite-file tests/chief/setup_suite.bash`
 (bats only looks for it beside the path it is given).
 
-Requires `git`, `bash`, `jq`, `herdr` (v0.9.3) and `node`/`npm`; the Orca file
-also needs Orca. A missing backend skips its tests, unless
-`CHIEF_TEST_REQUIRE_BACKENDS=1` (set by both CI jobs) makes that a failure.
+Requires `git`, `bash`, `jq`, `herdr` (v0.9.3) and `node`/`npm`; the hc file also needs hc (0.1.20)
+and the Orca file Orca. A missing backend skips its tests, unless
+`CHIEF_TEST_REQUIRE_BACKENDS=1` (set by the CI jobs) makes that a failure.
 
 ## Writing tests
 

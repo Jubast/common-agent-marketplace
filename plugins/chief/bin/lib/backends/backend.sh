@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # backend.sh - loads the configured backend adapter and nothing else.
 # Every chief-*.sh script that needs a worker terminal sources this (after
-# paths.sh AND meta.sh - the herdr/orca adapters call
-# chief_meta_get to recover their own endpoint identifier); nothing above
-# this file should know whether it's talking to herdr or Orca.
+# paths.sh AND meta.sh - the adapters call chief_meta_get); nothing above this
+# file should know whether it's talking to herdr, Orca or hc.
 #
 # Adapter contract - each backends/<name>.sh must define all of:
 #   backend_spawn   <id> <project-dir> <brief-path> <branch>
@@ -67,9 +66,9 @@ fi
 CHIEF_BACKEND="${CHIEF_BACKEND:-herdr}"
 
 case "$CHIEF_BACKEND" in
-  herdr|orca) ;;
+  herdr|orca|hc) ;;
   *)
-    echo "chief-backend: unsupported backend '$CHIEF_BACKEND' (must be herdr or orca)" >&2
+    echo "chief-backend: unsupported backend '$CHIEF_BACKEND' (must be herdr, orca or hc)" >&2
     exit 1
     ;;
 esac

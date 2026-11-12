@@ -4,11 +4,11 @@
 # chief_project and chief_herdr_server for a test that spawns tasks.
 
 # chief_isolate - runs when this file is loaded: nothing from the caller's
-# environment (an operator's herdr, a Chief worker's CHIEF_*, a git identity)
+# environment (an operator's herdr or hc, a Chief worker's CHIEF_*, a git identity)
 # reaches a test. Per-test paths need BATS_TEST_TMPDIR, so setup_file skips them.
 chief_isolate() {
   local v
-  for v in $(compgen -e | grep -E '^(HERDR_|CHIEF_)' | grep -v '^CHIEF_TEST_'); do unset "$v"; done
+  for v in $(compgen -e | grep -E '^(HERDR_|HC_|CHIEF_)' | grep -v '^CHIEF_TEST_'); do unset "$v"; done
   unset CLAUDE_PROJECT_DIR
   export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1

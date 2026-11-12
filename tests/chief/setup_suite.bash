@@ -7,8 +7,8 @@ setup_suite() {
 }
 
 # teardown_suite - a server or temp dir still around is a leak (a skipped
-# teardown); kill it and fail. Servers are logged by chief_herdr_server and
-# chief_orca_server.
+# teardown); kill it and fail. Servers are logged by chief_herdr_server,
+# chief_hc_server and chief_orca_server.
 teardown_suite() {
   local d standin f leaked=0
   if [ -f "$BATS_SUITE_TMPDIR/orcas" ]; then
@@ -17,6 +17,13 @@ teardown_suite() {
       [ -d "$d" ] || continue
       leaked=$((leaked + 1)); _chief_orca_reap "$d"; rm -rf "$d"
     done < "$BATS_SUITE_TMPDIR/orcas"
+  fi
+  if [ -f "$BATS_SUITE_TMPDIR/hcs" ]; then
+    . "$(dirname "${BASH_SOURCE[0]}")/lib/hc.bash"
+    while read -r d standin; do
+      [ -d "$d" ] || continue
+      leaked=$((leaked + 1)); chief_hc_reap "$d" "$standin"
+    done < "$BATS_SUITE_TMPDIR/hcs"
   fi
   if [ -f "$BATS_SUITE_TMPDIR/servers" ]; then
     while read -r d standin; do

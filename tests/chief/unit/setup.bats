@@ -36,6 +36,16 @@ setup() {
   assert_equal "$(cat "$CHIEF_HOME/config/backend")" orca
 }
 
+@test "config: accepts the hc backend" {
+  mkdir -p "$W/p1" && cd "$W/p1" && git init -q
+  export CHIEF_HOME="$W/p1/.chief"
+  fake_cli hc 0
+  run "$SETUP" --backend hc
+  assert_success
+  assert_equal "$(cat "$CHIEF_HOME/config/backend")" hc
+  assert_output --partial "'hc' found on PATH"
+}
+
 @test "gitignore: keeps existing content and appends .chief/" {
   mkdir -p "$W/p2" && cd "$W/p2" && git init -q
   echo "node_modules/" > .gitignore
