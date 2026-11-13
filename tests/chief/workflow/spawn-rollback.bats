@@ -13,6 +13,8 @@ setup() {
 
 teardown() { chief_herdr_stop; }
 
+STALLED='{"error":{"code":"agent_prompt_stalled","message":"agent prompt produced no observed working or blocked state within 5000 ms; current status is idle"}}'
+
 assert_rolled_back() {  # <id>
   assert_not_exist "$CHIEF_HOME/worktrees/$1"
   assert_not_exist "$CHIEF_HOME/tasks/$1/meta"
@@ -85,4 +87,65 @@ PATCH
   run chief_spawn t-locked builder
   assert_success
   assert_not_exist "$CHIEF_HOME/tasks/t-locked/spawning"
+}
+
+# --- a first turn that never starts: one automatic retry, then a clean failure ---
+
+@test "retry: a first turn that never starts is retried once and the spawn succeeds" {
+  chief_herdr_fault "agent prompt" 2 before 1 "$STALLED"
+  run chief_spawn t-retry builder
+  assert_success
+  assert_output --partial "spawned:"
+  assert_exist "$CHIEF_HOME/tasks/t-retry/evidence/spawn-screen.1.txt"
+  assert_equal "$(standin_turn_count t-retry)" 1
+}
+
+@test "retry: a second failed attempt rolls back and keeps each attempt's screen" {
+  standin_mode t-retry drop=2
+  run chief_spawn t-retry builder
+  assert_failure 1
+  assert_output --partial "no first turn started on either attempt"
+  assert_rolled_back t-retry
+  assert_exist "$CHIEF_HOME/tasks/t-retry/evidence/spawn-screen.1.txt"
+  assert_exist "$CHIEF_HOME/tasks/t-retry/evidence/spawn-screen.2.txt"
+}
+
+@test "retry: a final failure drops the queued backlog record" {
+  standin_mode t-q drop=2
+  "$BIN/chief-backlog.sh" add t-q "queued" >/dev/null
+  run chief_spawn t-q builder
+  assert_failure 1
+  assert_equal "$("$BIN/chief-backlog.sh" show t-q)" ""
+}
+
+@test "retry: a final failure leaves a live backlog record" {
+  standin_mode t-live drop=2
+  "$BIN/chief-backlog.sh" add t-live "live" >/dev/null
+  "$BIN/chief-backlog.sh" status t-live in-flight >/dev/null
+  run chief_spawn t-live builder
+  assert_failure 1
+  run "$BIN/chief-backlog.sh" show t-live
+  assert_output --partial "[in-flight]"
+}
+
+@test "retry: a new spawn of the same id keeps earlier screens, renamed with a stamp" {
+  standin_mode t-again drop=2
+  run chief_spawn t-again builder
+  assert_failure 1
+  run chief_spawn t-again builder
+  assert_failure 1
+  E="$CHIEF_HOME/tasks/t-again/evidence"
+  assert_exist "$E/spawn-screen.1.txt"
+  assert_exist "$E/spawn-screen.2.txt"
+  assert_equal "$(ls "$E"/*-spawn-screen.*.txt | wc -l)" 2
+}
+
+@test "retry: the rollback names where the screens are, unless the caller moves them" {
+  standin_mode t-where drop=2
+  run chief_spawn t-where builder
+  assert_failure 1
+  assert_output --partial "(screens in $CHIEF_HOME/tasks/t-where/evidence/)"
+  CHIEF_EVIDENCE_MOVED= run chief_spawn t-where builder
+  assert_failure 1
+  refute_output --partial "screens in"
 }

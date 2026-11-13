@@ -157,11 +157,11 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 
 # --- prompt: 'blocked' is not 'turn started' --------------------------------
 
-@test "prompt: fails without a retry when herdr replies blocked" {
+@test "prompt: returns 3 without a retry when herdr replies blocked" {
   started_agent
-  chief_herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
+  chief_herdr_fault "agent prompt" 100 before 0 "$BLOCKED"
   run _chief_herdr_prompt t1 "$BRIEF"
-  assert_failure 1
+  assert_failure 3
   assert_equal "$(fault_hits 1)" 1
 }
 
@@ -191,11 +191,11 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(standin_keys t1)" "enter-lost"
 }
 
-@test "stall: fails without a resend when the Enter started no turn" {
+@test "stall: returns 3 without a resend when the Enter started no turn" {
   standin_mode t1 lose-enter=2
   started_agent
   run _chief_herdr_prompt t1 "$BRIEF"
-  assert_failure 1
+  assert_failure 3
   assert_equal "$(standin_turn_count t1)" 0
   assert_equal "$(standin_keys t1)" $'enter-lost\nenter-lost'
 }
@@ -226,13 +226,62 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
   assert_equal "$(standin_keys t1)" "dropped"
 }
 
-@test "stall: stops after one resend and says no turn started" {
+@test "stall: stops after one resend and returns 3 saying no turn started" {
   standin_mode t1 drop=2
   started_agent
   run _chief_herdr_prompt t1 "$SHORT"
-  assert_failure 1
+  assert_failure 3
   assert_output --partial "no turn started"
   assert_equal "$(standin_keys t1)" $'dropped\ndropped'
+}
+
+# a stalled reply for a worker that is visibly working counts as a started turn:
+# the brief is never resent and no Enter is sent.
+stalled_prompt() { chief_herdr_fault "agent prompt" 100 before 1 "$STALLED"; }
+grow_status_in() { ( sleep "$1"; echo "working: reading" >> "$CHIEF_HOME/tasks/t1/status" ) >/dev/null 2>&1 & }
+
+@test "active: a status line that appeared during the wait counts as working" {
+  mkdir -p "$CHIEF_HOME/tasks/t1"; : > "$CHIEF_HOME/tasks/t1/status"
+  started_agent
+  grow_status_in 1
+  CHIEF_HERDR_ACTIVITY_WAIT=3 run _chief_herdr_worker_active t1 0
+  assert_success
+}
+
+@test "active: a screen that changes during the wait counts as working" {
+  mkdir -p "$CHIEF_HOME/tasks/t1"; : > "$CHIEF_HOME/tasks/t1/status"
+  started_agent
+  ( sleep 1; herdr pane send-text "$PANE" "typing" ) >/dev/null 2>&1 &
+  CHIEF_HERDR_ACTIVITY_WAIT=3 run _chief_herdr_worker_active t1 0
+  assert_success
+}
+
+@test "active: an idle worker with an unchanged screen is not working" {
+  mkdir -p "$CHIEF_HOME/tasks/t1"; : > "$CHIEF_HOME/tasks/t1/status"
+  started_agent
+  CHIEF_HERDR_ACTIVITY_WAIT=1 run _chief_herdr_worker_active t1 0
+  assert_failure 1
+}
+
+@test "stall: a worker whose status grows before recovery is not resent or sent Enter" {
+  mkdir -p "$CHIEF_HOME/tasks/t1"; : > "$CHIEF_HOME/tasks/t1/status"
+  started_agent
+  stalled_prompt
+  grow_status_in 1
+  CHIEF_HERDR_ACTIVITY_WAIT=3 run _chief_herdr_prompt t1 "$SHORT"
+  assert_success
+  assert_equal "$(fault_hits 1)" 1
+  assert_equal "$(standin_keys t1)" ""
+}
+
+@test "stall: a worker whose status grows during recovery is not failed" {
+  mkdir -p "$CHIEF_HOME/tasks/t1"; : > "$CHIEF_HOME/tasks/t1/status"
+  started_agent
+  stalled_prompt
+  grow_status_in 3
+  CHIEF_HERDR_ACTIVITY_WAIT=2 run _chief_herdr_prompt t1 "$SHORT"
+  assert_success
+  assert_equal "$(standin_turn_count t1)" 0
 }
 
 @test "stall: names an unanswered permission prompt at a blocked agent" {
@@ -247,7 +296,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 # --- spawn / relaunch --------------------------------------------------------
 
 @test "spawn: a blocked reply fails and rolls back, closing the Chief-created workspaces" {
-  chief_herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
+  chief_herdr_fault "agent prompt" 100 before 0 "$BLOCKED"
   run chief_spawn s1 researcher
   assert_failure 1
   refute_output --partial "spawned:"
@@ -259,7 +308,7 @@ BLOCKED='{"result":{"agent":{"agent_status":"blocked"}}}'
 
 @test "spawn: a blocked reply keeps a primary workspace the operator opened" {
   herdr workspace create --cwd "$WORK/project" --label mine --no-focus >/dev/null
-  chief_herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
+  chief_herdr_fault "agent prompt" 100 before 0 "$BLOCKED"
   run chief_spawn s1 researcher
   assert_failure 1
   run workspace_labels
@@ -293,7 +342,7 @@ relaunchable_task() {
 
 @test "relaunch: a blocked reply fails, closes the workspace and records no endpoint" {
   relaunchable_task
-  chief_herdr_fault "agent prompt" 100 after 0 "$BLOCKED"
+  chief_herdr_fault "agent prompt" 100 before 0 "$BLOCKED"
   run backend_relaunch r1 "$WORK/brief.md"
   assert_failure 1
   assert_equal "$(chief_meta_get r1 endpoint)" "$OLD_ENDPOINT"
