@@ -1,5 +1,8 @@
 # Contributing
 
+Agents: start with [AGENTS.md](AGENTS.md). How the repo fits together is in
+[ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Adding a new plugin
 
 Each plugin is a self-contained directory under `plugins/<new-plugin-name>/`:
@@ -7,23 +10,27 @@ Each plugin is a self-contained directory under `plugins/<new-plugin-name>/`:
 ```
 plugins/<new-plugin-name>/
 ├── .claude-plugin/
-│   └── plugin.json      # name, description, version, author, license
+│   └── plugin.json      # name, description, version, author, license, keywords
+├── .codex-plugin/        # optional — only for a plugin with Codex hooks (chief)
+│   └── plugin.json
 ├── skills/               # optional — see "Skill conventions" below
 │   └── <skill-name>/
 │       └── SKILL.md
 ├── agents/               # optional — see "Agent conventions" below
 │   └── <agent-name>.md
+├── hooks/                # optional — hooks.json and the scripts it runs
+│   └── hooks.json
 └── README.md
 ```
 
 1. Create `plugins/<new-plugin-name>/.claude-plugin/plugin.json` — `name`
    (kebab-case, matches the directory), `description`, `version`, `author`
    (the marketplace owner unless the plugin has a different author),
-   `license`. A new plugin sets its initial `version` in `plugin.json`
+   `license`, `keywords`. A new plugin sets its initial `version` in `plugin.json`
    and the same value in its `marketplace.json` entry. Don't touch
    `metadata.version`.
 2. Add the plugin's skill(s) and/or agent(s), following the conventions
-   below.
+   below, plus `hooks/` and `.codex-plugin/` where the plugin needs them.
 3. Write `plugins/<new-plugin-name>/README.md` describing the plugin.
 4. Add an entry to `.claude-plugin/marketplace.json`'s `plugins` array —
    this single file is read by both Claude Code and Copilot CLI, see
@@ -90,14 +97,28 @@ Both platforms are built on the same Open Plugin Spec:
   you need a Copilot CLI agent, test the collision behavior first and
   update this note with what you find.
 
+## Commits and PRs
+
+- **Commits and PR titles** are conventional: `<type>(<scope>): <summary>`.
+  Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`,
+  `ci`, `chore`. The scope is the plugin name (`feat(chief):`); repo-wide
+  changes have none (`docs:`). Mark a breaking change with `!`
+  (`feat(chief)!:`).
+- **Branches** are `<type>/<short-kebab>`, with the issue number first when
+  there is one (`docs/142-agent-docs`).
+- **PR body** has the sections `Summary`, `Changes` and `Performed Tests`. Leave
+  the box of a test you did not run unticked and say why.
+- **Release PRs** are titled
+  `chore(release): bump <plugin> to X and marketplace to Y`; see
+  "Marketplace versions" above.
+
+The `conventional-changes` plugin in this repo automates all of these.
+
 ## Tooling
 
-Manifests are still validated by hand (JSON parses, referenced paths
-exist, frontmatter fields are present).
+Manifests are validated by hand: `python3 -m json.tool <path>`.
 
-Plugins with real executable code or checkable skill behavior get actual
-tests. See [docs/testing.md](docs/testing.md) for the two tiers
-(`tests/<plugin-name>/` for non-LLM mechanics, `tests/claude-code/` for
-skill-behavior checks) and how to add coverage when you add a new plugin.
-The Chief suite (`tests/chief/`) runs in CI on pull requests (`.github/workflows/tests.yml`, a herdr job, an hc job and an Orca job);
-the other tests run locally, by hand. Another workflow tags marketplace versions.
+Tests and how to add them: [docs/testing.md](docs/testing.md). The Chief suite
+(`tests/chief/`) runs in CI on pull requests (`.github/workflows/tests.yml`, a
+herdr job, an hc job and an Orca job); the other tests run locally, by hand.
+Workflows and repo structure: [ARCHITECTURE.md](ARCHITECTURE.md).
