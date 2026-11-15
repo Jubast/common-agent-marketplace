@@ -67,13 +67,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 common-agent-marketplace/
 ├── .claude-plugin/
 │   └── marketplace.json      # lists every plugin in this repo
-├── .github/workflows/        # tags marketplace releases
+├── .github/workflows/        # chief tests, marketplace release tags
 ├── .devcontainer/            # dev environment
 ├── docs/                     # repo docs (testing)
 ├── plugins/
 │   └── <plugin-name>/        # one directory per plugin
 ├── scripts/                  # devcontainer setup scripts
 ├── tests/                    # per-plugin and marketplace tests
+├── AGENTS.md                 # agent instructions (CLAUDE.md links here)
+├── ARCHITECTURE.md
 ├── CONTRIBUTING.md
 └── LICENSE
 ```
