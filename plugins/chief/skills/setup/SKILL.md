@@ -9,7 +9,7 @@ Needed once per `CHIEF_HOME` (the operator's shared home, typically the top-leve
 
 All commands live in `<chief-plugin-dir>/bin/`; `<chief-plugin-dir>` is the absolute path on the "chief plugin dir:" line of your session context.
 
-1. Ask the operator which backend to use: `herdr` or `orca`. Skip this if they already said.
+1. Ask the operator which backend to use: `herdr`, `orca` or `hc` (herdr-core). Skip this if they already said.
 2. Run `<chief-plugin-dir>/bin/chief-setup.sh --backend <choice>`. It writes the config, checks the tool is on PATH, and adds `.chief/` to `.gitignore` if missing - safe to re-run.
 3. If it warns the backend isn't on PATH, tell the operator: dispatching needs it installed (and, for Orca, running; the PATH check can't confirm that).
    - On Codex, the operator trusts Chief's hooks in `/hooks` (again after a Chief update); on Copilot, `experimental` must be on (`--experimental` or `/settings experimental on`).

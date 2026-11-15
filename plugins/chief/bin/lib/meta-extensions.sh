@@ -3,11 +3,11 @@
 # Sourced by scripts that already sourced paths.sh and meta.sh.
 
 # chief_task_workspace <id> -> the backend's name for the task's workspace:
-# herdr's workspace label and Orca's worktree name are both <id>. Prints
+# herdr's workspace label, Orca's worktree name and hc's task label are all <id>. Prints
 # nothing when the backend has none.
 chief_task_workspace() {
   case "$(chief_meta_get "$1" endpoint 2>/dev/null || true)" in
-    herdr:*|orca:*) printf '%s' "$1" ;;
+    herdr:*|orca:*|hc:*) printf '%s' "$1" ;;
   esac
 }
 

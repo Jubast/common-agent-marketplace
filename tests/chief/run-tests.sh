@@ -3,14 +3,14 @@
 # through the npm-pinned bats in tests/ (installed on first use) and reports a summary.
 #
 # These are functional/integration tests of Chief's own bash scripts, run on a
-# real herdr or a real headless Orca with a zero-cost stand-in agent. Tests
+# real herdr, a real herdr-core (hc) or a real headless Orca with a zero-cost stand-in agent. Tests
 # that spend real tokens live in live/ and run only with --only-live. Skill-BEHAVIOR
 # tests (does Claude actually follow using-chief/dispatch/setup correctly) live
 # in tests/claude-code/ instead.
 #
-#   run-tests.sh [--jobs N] [--junit DIR] [--no-orca | --only-orca | --only-live] [bats args...] [path...]
+#   run-tests.sh [--jobs N] [--junit DIR] [--no-orca] [--no-hc] [--only-orca | --only-hc | --only-live] [bats args...] [path...]
 # --jobs needs GNU parallel (else the run is serial); --junit writes
-# DIR/report.xml; --no-orca / --only-orca split the herdr and Orca CI jobs;
+# DIR/report.xml; --no-orca/--no-hc and --only-orca/--only-hc split the herdr, Orca and hc CI jobs;
 # --only-live runs live/ (real CLIs, real tokens, one file at a time) and nothing else;
 # a path (a folder or .bats file, e.g. tests/chief/unit) replaces the default of
 # the whole suite; other args go to bats.
@@ -28,8 +28,10 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --jobs) JOBS=$2; shift 2 ;;
     --junit) JUNIT=$2; shift 2 ;;
-    --no-orca) TAGS='!orca,!live'; shift ;;
+    --no-orca) TAGS+=',!orca'; shift ;;
+    --no-hc) TAGS+=',!hc'; shift ;;
     --only-orca) TAGS='orca'; shift ;;
+    --only-hc) TAGS='hc'; shift ;;
     --only-live) TAGS='live'; shift ;;
     *.bats) PATHS+=("$1"); shift ;;
     -*) BATS_ARGS+=("$1"); shift ;;

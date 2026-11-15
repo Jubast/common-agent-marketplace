@@ -53,7 +53,7 @@ copilot plugin install <plugin-name>
   requires all four skills.
 - [`chief`](plugins/chief/) — a lightweight supervisor for coding agents
   (Claude Code, Codex CLI, Copilot CLI): dispatches work to isolated
-  builder/researcher/reviewer/brainstormer agents over the herdr or Orca
+  builder/researcher/reviewer/brainstormer agents over the herdr, Orca or hc
   backend, tracks a plain-markdown backlog, and supervises them with a
   near-zero-token watch loop.
 

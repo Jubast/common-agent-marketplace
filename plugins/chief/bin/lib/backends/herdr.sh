@@ -49,6 +49,9 @@ CHIEF_HERDR_AGENT_START_TIMEOUT_MS="${CHIEF_HERDR_AGENT_START_TIMEOUT_MS:-30000}
 CHIEF_HERDR_SUBMIT_TIMEOUT_MS="${CHIEF_HERDR_SUBMIT_TIMEOUT_MS:-30000}"
 CHIEF_HERDR_PROMPT_WAIT="${CHIEF_HERDR_PROMPT_WAIT:-20}"
 
+# shellcheck source=/dev/null
+. "$CHIEF_ROOT/bin/lib/backends/screen.sh"
+
 _chief_herdr_workspace_id() {  # <pane-id> -> workspace id ("w2:p1" -> "w2")
   printf '%s' "$1" | cut -d: -f1
 }
@@ -100,26 +103,18 @@ _chief_herdr_screen() {  # <id> [source] -> the agent's screen
   herdr agent read "$1" --source "${2:-recent-unwrapped}" --lines 40 2>/dev/null
 }
 
-# _chief_herdr_trust_dialog_ours <screen> <worktree> - the screen shows the
-# agent's folder-trust dialog for <worktree> (its path wraps across lines)
-_chief_herdr_trust_dialog_ours() {
-  local screen=$1 worktree=$2 flat d
-  printf '%s' "$screen" | tr -s '[:space:]' ' ' | grep -Eq -- "$(agent_trust_text)" || return 1
-  flat=$(printf '%s' "$screen" | tr -d '[:space:]')
-  for d in "$worktree" "$(realpath -m "$worktree")"; do
-    [[ $flat == *"$(printf '%s' "$d" | tr -d '[:space:]')"* ]] && return 0
-  done
-  return 1
-}
+# The hooks screen.sh drives (readiness and the trust dialog).
+_chief_screen_read() { _chief_herdr_screen "$1"; }
+_chief_screen_keys() { herdr agent send-keys "$@"; }
 
 # _chief_herdr_start_agent <id> <pane-id> <worktree> - start the agent in
 # <pane-id> under live name <id>, with the agent's own args, never inherited
 # from the operator's session. `agent start` is no evidence of readiness (it
-# returns "idle" before the TUI renders): poll the screen for agent_ready_text.
-# A folder-trust dialog for <worktree> (pre-trust is the fast path, but a
-# concurrent claude can drop its entry) is accepted once with agent_trust_keys.
+# returns "idle" before the TUI renders): see _chief_screen_start_ready, which
+# also accepts the folder-trust dialog for <worktree> once (pre-trust is the
+# fast path, but a concurrent claude can drop its entry).
 _chief_herdr_start_agent() {
-  local id=$1 pane_id=$2 worktree=$3 cmd args="" out screen keys reason waited=0 pressed=0
+  local id=$1 pane_id=$2 worktree=$3 cmd args="" out waited=0
   local limit=$(( CHIEF_HERDR_START_WAIT * 2 ))
   cmd=$(chief_agent_command)
   [[ $cmd != *' '* ]] || args=${cmd#* }  # herdr runs the agent's own executable: pass the words after the first
@@ -133,25 +128,7 @@ _chief_herdr_start_agent() {
     sleep 0.5
     waited=$((waited + 1))
   done
-  waited=0
-  while :; do
-    screen=$(_chief_herdr_screen "$id")
-    printf '%s' "$screen" | grep -Eq -- "$(agent_ready_text)" && return 0
-    keys=$(agent_trust_keys)
-    if [ "$pressed" = 0 ] && [ -n "$keys" ] && _chief_herdr_trust_dialog_ours "$screen" "$worktree"; then
-      herdr agent send-keys "$id" $keys >/dev/null 2>&1
-      pressed=1
-    fi
-    [ "$waited" -lt "$limit" ] || break
-    sleep 0.5
-    waited=$((waited + 1))
-  done
-  reason="no ready screen after ${CHIEF_HERDR_START_WAIT}s"
-  printf '%s' "$screen" | tr -s '[:space:]' ' ' | grep -Eq -- "$(agent_trust_text)" \
-    && reason="stopped at the folder-trust dialog"
-  echo "chief-backend-herdr: agent $id not ready ($reason); screen:" >&2
-  printf '%s\n' "$screen" | grep -v '^[[:space:]]*$' | tail -5 | sed 's/^/  /' >&2
-  return 1
+  _chief_screen_start_ready "$id" "$CHIEF_HERDR_START_WAIT" "$worktree"
 }
 
 # _chief_herdr_turn_started <reply> - herdr's reply shows the turn running or

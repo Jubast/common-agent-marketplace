@@ -141,9 +141,11 @@ backlog_task_meta() {
   assert_output --partial "  workspace: t-1"
 }
 
-@test "show: names the workspace of an Orca task from its endpoint" {
-  backlog_task_meta old-o orca:h
-  "$BL" add old-o "Orca task" >/dev/null
-  run "$BL" show old-o
-  assert_output --partial "  workspace: old-o"
+@test "show: names the workspace of an Orca or hc task from its endpoint" {
+  for e in orca:h hc:t3; do
+    backlog_task_meta "old-${e%%:*}" "$e"
+    "$BL" add "old-${e%%:*}" "Task" >/dev/null
+    run "$BL" show "old-${e%%:*}"
+    assert_output --partial "  workspace: old-${e%%:*}"
+  done
 }

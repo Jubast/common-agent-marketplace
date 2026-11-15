@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # id.sh - the task-id rules. Sourced by scripts that already sourced paths.sh and meta.sh.
 
-CHIEF_ID_MAX=32  # herdr's agent-name limit; Orca has none, so one rule for both
+CHIEF_ID_MAX=32  # herdr's agent-name and hc's terminal-name limit; Orca has none, so one rule for all
 
 # chief_id_check <id> - fails, suggesting a valid id, unless <id> is lowercase
-# letters, digits and -, starts with a letter and fits CHIEF_ID_MAX.
+# letters, digits and -, starts with a letter, fits CHIEF_ID_MAX and is not
+# shaped like an hc terminal address (t7, t1b).
 chief_id_check() {
-  [[ $1 =~ ^[a-z][a-z0-9-]*$ ]] && [ "${#1}" -le "$CHIEF_ID_MAX" ] && return 0
-  echo "invalid task id '$1': lowercase letters, digits and -, starting with a letter, at most $CHIEF_ID_MAX chars (try '$(chief_id_compose "$1")')" >&2
+  [[ $1 =~ ^[a-z][a-z0-9-]*$ ]] && [ "${#1}" -le "$CHIEF_ID_MAX" ] && ! _chief_id_address_shaped "$1" && return 0
+  echo "invalid task id '$1': lowercase letters, digits and -, starting with a letter, at most $CHIEF_ID_MAX chars, not like t7 (try '$(chief_id_compose "$1")')" >&2
   return 1
 }
+
+_chief_id_address_shaped() { [[ $1 =~ ^t[0-9]+[a-z]?$ ]]; }
 
 # chief_id_compose <base> [suffix] -> <base>-<suffix> as a valid id: the base
 # cut by whole words to fit, -2, -3... while a task with that id exists.
@@ -24,7 +27,7 @@ chief_id_compose() {
       case $id in *-*) id=${id%-*} ;; *) id=${id:0:$(( CHIEF_ID_MAX - ${#tail} ))} ;; esac
     done
     id+=$tail
-    chief_meta_exists "$id" || { printf '%s\n' "$id"; return; }
+    chief_meta_exists "$id" || _chief_id_address_shaped "$id" || { printf '%s\n' "$id"; return; }
     n=$((n + 1))
   done
 }

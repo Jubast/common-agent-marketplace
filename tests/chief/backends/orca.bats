@@ -83,7 +83,7 @@ rolled_back() {
   assert_equal "$(cat "$STANDIN_DIR/$ID.args")" "--dangerously-skip-permissions"
   assert_equal "$(standin_turn_count "$ID")" 1
   assert_output --partial "orca:term_"
-  run _chief_orca_screen "${EP#orca:}"
+  run _chief_screen_read "${EP#orca:}"
   assert_output --partial "bypass permissions"
 }
 
@@ -226,7 +226,7 @@ second_task() {
   standin_mode "$ID" never-ready
   run --separate-stderr backend_relaunch "$ID" "$BRIEF"
   assert_failure 1
-  assert_regex "$stderr" "agent not ready"
+  assert_regex "$stderr" "agent .* not ready"
   assert_equal "$(terminals "$WT")" 0
 }
 
@@ -324,7 +324,7 @@ second_task() {
   standin_mode "$LID" never-ready
   run timeout 120 "$BIN/chief-spawn.sh" "$LID" "$P" --mode builder --branch "feat/$LID" --intent test --spec test
   assert_failure 1
-  assert_output --partial "agent not ready"
+  assert_output --regexp "agent .* not ready"
   rolled_back
   assert_equal "$(branch_count "feat/$LID")" 0
   assert_not_exist "$CHIEF_HOME/tasks/$LID/meta"

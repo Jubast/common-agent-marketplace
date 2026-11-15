@@ -143,9 +143,9 @@ fails_case "command substitution in --args" b-10 "args" "" --args '$(x)'
 # --- what the agent process receives on herdr -------------------------------
 
 @test "launch: a model and extra args reach the agent's own executable" {
-  chief_spawn_quiet t1 --agent claude:gpt-5 --args "--search"
-  eventually 10 test -s "$STANDIN_DIR/t1.args"
-  assert_equal "$(cat "$STANDIN_DIR/t1.args")" "--dangerously-skip-permissions --model gpt-5 --search"
+  chief_spawn_quiet ta --agent claude:gpt-5 --args "--search"
+  eventually 10 test -s "$STANDIN_DIR/ta.args"
+  assert_equal "$(cat "$STANDIN_DIR/ta.args")" "--dangerously-skip-permissions --model gpt-5 --search"
 }
 
 @test "launch: a command with the same executable by path supplies the args" {
@@ -159,7 +159,7 @@ fails_case "command substitution in --args" b-10 "args" "" --args '$(x)'
 
 @test "launch: a bare command override passes no arguments" {
   agents_config 'claude command="claude"\n'
-  chief_spawn_quiet t4
-  eventually 10 test -e "$STANDIN_DIR/t4.args"
-  assert_equal "$(cat "$STANDIN_DIR/t4.args")" ""
+  chief_spawn_quiet tb
+  eventually 10 test -e "$STANDIN_DIR/tb.args"
+  assert_equal "$(cat "$STANDIN_DIR/tb.args")" ""
 }

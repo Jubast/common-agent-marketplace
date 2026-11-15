@@ -99,5 +99,5 @@ Plugins with real executable code or checkable skill behavior get actual
 tests. See [docs/testing.md](docs/testing.md) for the two tiers
 (`tests/<plugin-name>/` for non-LLM mechanics, `tests/claude-code/` for
 skill-behavior checks) and how to add coverage when you add a new plugin.
-The Chief suite (`tests/chief/`) runs in CI on pull requests (`.github/workflows/tests.yml`, a herdr job and an Orca job);
+The Chief suite (`tests/chief/`) runs in CI on pull requests (`.github/workflows/tests.yml`, a herdr job, an hc job and an Orca job);
 the other tests run locally, by hand. Another workflow tags marketplace versions.

@@ -18,6 +18,11 @@ setup() {
   done
 }
 
+@test "check: refuses an id shaped like an hc address" {
+  for bad in t7 t12 t1b; do run -1 chief_id_check "$bad"; done
+  for ok in tx t12ab t7-x; do chief_id_check "$ok"; done
+}
+
 @test "check: suggests a valid id" {
   run -1 chief_id_check 'Build Foo.Bar'
   assert_output --partial "try 'build-foo-bar'"
@@ -32,6 +37,10 @@ setup() {
 
 @test "compose: cuts the base before the suffix, never the suffix" {
   assert_equal "$(chief_id_compose build-keycloak-name rv-mastracode)" "build-keycloak-rv-mastracode"
+}
+
+@test "compose: never returns an id shaped like an hc address" {
+  assert_equal "$(chief_id_compose t7)" "t7-2"
 }
 
 @test "compose: an empty base becomes t-<suffix>" {
