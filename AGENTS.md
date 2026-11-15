@@ -18,16 +18,13 @@ GitHub Copilot CLI. Most plugins are skills, some with a `SessionStart` hook.
 
 ## Working rules
 
-- **Conventional commits, branches and PRs**, as in
-  [CONTRIBUTING.md](CONTRIBUTING.md#commits-and-prs). The scope is the plugin name:
-  `feat(chief):`, `docs:`, `chore(release):`, `!` for a breaking change. Branches
-  are `<type>/<short-kebab>`.
-- **PR body** has `Summary`, `Changes` and `Performed Tests`. Leave the box of a
-  test you did not run unticked and say why.
+- **Commits, branches and PRs** follow
+  [Commits and PRs](CONTRIBUTING.md#commits-and-prs).
 - **No AI attribution** in commits or PRs: no `Co-Authored-By`, no "Generated
   with" line, no trailers.
 - **Never bump `version` or `metadata.version`, and never tag by hand**, in a
-  feature or fix PR. See [Marketplace versions](CONTRIBUTING.md#marketplace-versions).
+  feature or fix PR. The one exception is a new plugin's initial `version`. See
+  [Marketplace versions](CONTRIBUTING.md#marketplace-versions).
 - **Chief tests** follow [tests/chief/README.md](tests/chief/README.md): the
   zero-cost stand-in agent, `eventually` instead of `sleep`, pinned exit codes.
   Never run `tests/chief/live/` unless asked.
@@ -41,7 +38,8 @@ GitHub Copilot CLI. Most plugins are skills, some with a `SessionStart` hook.
   entry and the root [README.md](README.md) plugin list. For chief it is also the
   first line of [plugins/chief/README.md](plugins/chief/README.md), verbatim.
 - A plugin's `version` is the same in its `plugin.json` and its
-  `marketplace.json` entry.
+  `marketplace.json` entry. For chief,
+  `plugins/chief/.codex-plugin/plugin.json` carries that version too.
 - A new chief backend, agent or CI job touches
   [plugins/chief/README.md](plugins/chief/README.md),
   [tests/chief/README.md](tests/chief/README.md),
@@ -76,4 +74,5 @@ python3 -m json.tool <manifest>             # every manifest you touched
 ### Reviewer
 
 - The builder's commands above were re-run, not taken from the report.
-- No `version`, `metadata.version` or tag changed outside a release PR.
+- No `version`, `metadata.version` or tag changed outside a release PR, except
+  a new plugin's initial `version`.

@@ -48,8 +48,8 @@ listed in that file at that commit.
 
 - Don't bump plugin versions or `metadata.version` in feature or fix
   PRs. Maintainers bump them together in a dedicated release PR: each
-  changed plugin's `plugin.json`, its entry in `marketplace.json`, and
-  `metadata.version`. A merged change reaches installs with the next
+  changed plugin's `plugin.json` (and `.codex-plugin/plugin.json` where it
+  has one), its entry in `marketplace.json`, and `metadata.version`. A merged change reaches installs with the next
   release.
 - Marketplace `metadata.version` (while 0.x): bump the minor for plugin
   additions, removals or breaking changes, and the patch for any other
