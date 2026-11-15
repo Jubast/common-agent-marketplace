@@ -157,8 +157,8 @@ One owner per fact - don't restate one doc's content in another:
   only; never restated here.
 - Step-by-step process for one workflow -> that step's own `SKILL.md`
   (`skills/dispatch`, `skills/setup`).
-- Stable architecture and extension points (backend adapters) -> a future `plugins/chief/ARCHITECTURE.md`, created once the
-  "Layout" section above actually needs to split out, not pre-emptively.
+- How Chief fits into the repo (structure only) -> the root [ARCHITECTURE.md](../../ARCHITECTURE.md), which links here.
+  Chief's own layout and extension points (backend and agent adapters) stay in "Layout" and "Agents" above.
 
 This plugin's one-line pitch lives in `.claude-plugin/plugin.json`'s
 `description`; this file's opening line quotes it verbatim rather than

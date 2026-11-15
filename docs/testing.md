@@ -3,11 +3,12 @@
 Three kinds of tests, the first two mirroring how
 [obra/superpowers](https://github.com/obra/superpowers) tests itself
 (see its own `docs/testing.md`), adapted for hosting multiple plugins
-instead of one:
+instead of one. [ARCHITECTURE.md](../ARCHITECTURE.md) shows where they sit:
 
 - **`tests/<plugin-name>/`** — does a plugin's non-LLM executable code
-  work? Plain pytest, no `claude` CLI, no API key. Currently:
-  `tests/convert-pdf-to-md/test_convert_pdf_to_md.py`.
+  work? No `claude` CLI, no API key. Currently:
+  `tests/convert-pdf-to-md/test_convert_pdf_to_md.py` (pytest) and
+  `tests/chief/` (bats, see [tests/chief/README.md](../tests/chief/README.md)).
 - **`tests/claude-code/`** — does a skill actually get followed? Bash
   scripts shelling out to `claude -p` (headless mode), asserting on
   captured output via `test-helpers.sh`. Split into fast tests (run by
@@ -66,8 +67,8 @@ used to isolate their real installs by overriding `$HOME` alone, on the
 assumption that a CLI's config always lives under `$HOME`. That assumption
 doesn't hold: **as of 2026-09**, Claude Code resolves its config directory
 from `$CLAUDE_CONFIG_DIR` when that env var is set, ignoring `$HOME`
-entirely. This repo's own devcontainers (`.devcontainer/chief`,
-`.devcontainer/orca`) set `CLAUDE_CONFIG_DIR` globally, so a `HOME`-only
+entirely. This repo's Orca devcontainer (`.devcontainer/orca`) sets
+`CLAUDE_CONFIG_DIR` globally, so a `HOME`-only
 override there silently installed test plugins into the real, shared
 Claude Code config — confirmed by reproducing it directly (installing a
 plugin under a throwaway `$HOME` and watching it appear in
@@ -139,8 +140,8 @@ Provenance section for the diff summary.
 - **No frontmatter schema validator.** Matches superpowers: none exists
   there either. Malformed SKILL.md/agent frontmatter fails to load at
   runtime and surfaces naturally.
-- **No `evals/`-style drill harness.** Disproportionate to a four-plugin
-  repo — `tests/claude-code/` already covers both "describes itself
+- **No `evals/`-style drill harness.** Disproportionate to a repo this
+  small — `tests/claude-code/` already covers both "describes itself
   right" and "actually works" without a separate tmux/multi-CLI harness.
 - **CI for `tests/chief/` only.** `.github/workflows/tests.yml` runs the free
   Chief suite on pull requests, as a herdr job, an hc job and a headless-Orca job; `tests/claude-code/`, `tests/marketplace/` and
