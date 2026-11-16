@@ -67,7 +67,7 @@ used to isolate their real installs by overriding `$HOME` alone, on the
 assumption that a CLI's config always lives under `$HOME`. That assumption
 doesn't hold: **as of 2026-09**, Claude Code resolves its config directory
 from `$CLAUDE_CONFIG_DIR` when that env var is set, ignoring `$HOME`
-entirely. This repo's Orca devcontainer (`.devcontainer/orca`) sets
+entirely. This repo's devcontainer (`.devcontainer`) sets
 `CLAUDE_CONFIG_DIR` globally, so a `HOME`-only
 override there silently installed test plugins into the real, shared
 Claude Code config — confirmed by reproducing it directly (installing a

@@ -68,11 +68,11 @@ common-agent-marketplace/
 ├── .claude-plugin/
 │   └── marketplace.json      # lists every plugin in this repo
 ├── .github/workflows/        # chief tests, marketplace release tags
-├── .devcontainer/            # dev environment
+├── .devcontainer/            # dev environment (devcontainer.json, Dockerfile)
 ├── docs/                     # repo docs (testing)
 ├── plugins/
 │   └── <plugin-name>/        # one directory per plugin
-├── scripts/                  # devcontainer setup scripts
+├── scripts/                  # devcontainer setup and Orca start scripts
 ├── tests/                    # per-plugin and marketplace tests
 ├── AGENTS.md                 # agent instructions (CLAUDE.md links here)
 ├── ARCHITECTURE.md
