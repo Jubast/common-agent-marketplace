@@ -6,8 +6,8 @@
 # discarded on exit) so this never touches the real, possibly-shared
 # ~/.claude config. HOME alone is not enough: Claude Code resolves its
 # config directory from $CLAUDE_CONFIG_DIR when that's set in the
-# environment, ignoring $HOME entirely -- and this repo's Orca devcontainer
-# (.devcontainer/orca) sets CLAUDE_CONFIG_DIR globally.
+# environment, ignoring $HOME entirely -- and this repo's devcontainer
+# (.devcontainer) sets CLAUDE_CONFIG_DIR globally.
 #
 # A safety net (see cleanup()) also guards against a leak regardless of
 # whether the env-var isolation above holds -- but it never touches or reads

@@ -2,12 +2,51 @@
   "name": "common-agent-marketplace",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
   "remoteUser": "vscode",
+  "appPort": ["2253:2222", "127.0.0.1:6768:6768"],
+  "mounts": [
+    "source=${localWorkspaceFolderBasename}-ssh-host-keys,target=/etc/ssh,type=volume",
+    "source=${localWorkspaceFolderBasename}-claude-code-data,target=/home/vscode/.claude,type=volume",
+    "source=${localWorkspaceFolderBasename}-codex-data,target=/home/vscode/.codex,type=volume",
+    "source=${localWorkspaceFolderBasename}-copilot-data,target=/home/vscode/.copilot,type=volume",
+    "source=${localWorkspaceFolderBasename}-gh-cli-data,target=/home/vscode/.config/gh,type=volume",
+    "source=${localWorkspaceFolderBasename}-orca-config,target=/home/vscode/.config/orca,type=volume"
+  ],
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {
       "installZsh": false,
       "installOhMyZsh": false,
       "upgradePackages": true
+    },
+    "ghcr.io/devcontainers/features/sshd:1": {},
+    "ghcr.io/devcontainers/features/node:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/jubast/devcontainer-features/herdr:1": {
+      "plugins": "persiyanov/herdr-reviewr"
+    },
+    "ghcr.io/jubast/devcontainer-features/herdr-core:1": {},
+    "ghcr.io/jubast/devcontainer-features/orca:1": {},
+    "ghcr.io/jubast/devcontainer-features/claude:2": {
+      "marketplaces": "Jubast/common-agent-marketplace#v0.3.0",
+      "plugins": "chief@common-agent-marketplace, conventional-changes@common-agent-marketplace"
+    },
+    "ghcr.io/jubast/devcontainer-features/codex:2": {
+      "marketplaces": "Jubast/common-agent-marketplace@v0.3.0",
+      "plugins": "chief@common-agent-marketplace, conventional-changes@common-agent-marketplace"
+    },
+    "ghcr.io/jubast/devcontainer-features/copilot:2": {
+      "marketplaces": "Jubast/common-agent-marketplace#v0.3.0",
+      "plugins": "chief@common-agent-marketplace, conventional-changes@common-agent-marketplace"
     }
   },
-  "postCreateCommand": "bash scripts/setup.sh"
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
+    "DISABLE_AUTOUPDATER": "1",
+    "SHELL": "/bin/bash",
+    "ORCA_PAIRING_ADDRESS": "127.0.0.1",
+    "SSH_AUTHORIZED_KEY": "${localEnv:SSH_AUTHORIZED_KEY}"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/home/vscode/workspaces/${localWorkspaceFolderBasename},type=bind",
+  "workspaceFolder": "/home/vscode/workspaces/${localWorkspaceFolderBasename}",
+  "postCreateCommand": "bash scripts/setup.sh",
+  "postStartCommand": "bash scripts/orca-serve.sh"
 }

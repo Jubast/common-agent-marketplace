@@ -66,8 +66,14 @@ See [docs/testing.md](docs/testing.md) and
 
 ## Dev environment
 
-- `.devcontainer/devcontainer.json` is the default config; `.devcontainer/orca/`
-  is a variant that sets `DEVCONTAINER_ENVIRONMENT=orca`.
-- Both run `scripts/setup.sh`, which dispatches to
-  `scripts/setup.<DEVCONTAINER_ENVIRONMENT>.sh` when that file exists
-  (`scripts/setup.orca.sh`).
+- `.devcontainer/devcontainer.json` is the only config. Its features install
+  the herdr, `hc` (herdr-core) and Orca backends and the Claude Code, Codex and
+  Copilot CLIs, with this repo's `chief` and `conventional-changes` plugins.
+- `scripts/setup.sh` (`postCreateCommand`) fixes volume ownership and `$HOME`
+  for SSH logins and sets up key-only SSH. `scripts/orca-serve.sh`
+  (`postStartCommand`) starts the Orca server, bound to `127.0.0.1:6768`.
+- SSH is on host port 2253 (container 2222), public-key login only. Before
+  creating the container, export your public key on the host, for example
+  `export SSH_AUTHORIZED_KEY="$(cat ~/.ssh/id_ed25519.pub)"`; `setup.sh`
+  installs it as `~/.ssh/authorized_keys`. The herdr app connects with the
+  matching private key.

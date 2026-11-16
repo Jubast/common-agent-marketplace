@@ -72,7 +72,7 @@ common-agent-marketplace/
 ├── docs/                     # repo docs (testing)
 ├── plugins/
 │   └── <plugin-name>/        # one directory per plugin
-├── scripts/                  # devcontainer setup scripts
+├── scripts/                  # devcontainer setup and Orca start scripts
 ├── tests/                    # per-plugin and marketplace tests
 ├── AGENTS.md                 # agent instructions (CLAUDE.md links here)
 ├── ARCHITECTURE.md
