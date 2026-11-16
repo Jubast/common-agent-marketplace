@@ -75,7 +75,6 @@ See [docs/testing.md](docs/testing.md) and
   for SSH logins and sets up key-only SSH. `scripts/orca-serve.sh`
   (`postStartCommand`) starts the Orca server, bound to `127.0.0.1:6768`.
 - SSH is on host port 2253 (container 2222), public-key login only. Before
-  creating the container, export your public key on the host, for example
-  `export SSH_AUTHORIZED_KEY="$(cat ~/.ssh/id_ed25519.pub)"`; `setup.sh`
-  installs it as `~/.ssh/authorized_keys`. The herdr app connects with the
-  matching private key.
+  creating the container, put your public key in `.devcontainer/authorized_keys`
+  (gitignored); `setup.sh` installs it as `~/.ssh/authorized_keys`. The herdr
+  app connects with the matching private key.

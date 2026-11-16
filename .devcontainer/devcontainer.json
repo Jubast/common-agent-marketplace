@@ -11,6 +11,7 @@
     "source=${localWorkspaceFolderBasename}-codex-data,target=/home/vscode/.codex,type=volume",
     "source=${localWorkspaceFolderBasename}-copilot-data,target=/home/vscode/.copilot,type=volume",
     "source=${localWorkspaceFolderBasename}-gh-cli-data,target=/home/vscode/.config/gh,type=volume",
+    "source=${localWorkspaceFolderBasename}-history,target=/home/vscode/.history,type=volume",
     "source=${localWorkspaceFolderBasename}-orca-config,target=/home/vscode/.config/orca,type=volume"
   ],
   "features": {
@@ -44,8 +45,7 @@
     "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
     "DISABLE_AUTOUPDATER": "1",
     "SHELL": "/bin/bash",
-    "ORCA_PAIRING_ADDRESS": "127.0.0.1",
-    "SSH_AUTHORIZED_KEY": "${localEnv:SSH_AUTHORIZED_KEY}"
+    "ORCA_PAIRING_ADDRESS": "127.0.0.1"
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/home/vscode/workspaces/${localWorkspaceFolderBasename},type=bind",
   "workspaceFolder": "/home/vscode/workspaces/${localWorkspaceFolderBasename}",

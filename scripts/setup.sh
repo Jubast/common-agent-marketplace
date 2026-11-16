@@ -20,6 +20,7 @@ ROOT_OWNED_VOLUME_DIRS=(
   "$HOME/.copilot"
   "$HOME/.config/gh"
   "$HOME/.config/orca"
+  "$HOME/.history"
   "$HOME/workspaces"
 )
 
@@ -43,14 +44,14 @@ fi
 BASHRC
 fi
 
-# SSH login is by public key only; the key comes from the host's SSH_AUTHORIZED_KEY.
-if [ -n "${SSH_AUTHORIZED_KEY:-}" ]; then
+# SSH login is by public key only; the key is the gitignored .devcontainer/authorized_keys.
+authorized_keys="$workspace_dir/.devcontainer/authorized_keys"
+if [ -f "$authorized_keys" ]; then
   echo "setup: installing the authorized SSH key"
   install -d -m 700 "$HOME/.ssh"
-  printf '%s\n' "$SSH_AUTHORIZED_KEY" >"$HOME/.ssh/authorized_keys"
-  chmod 600 "$HOME/.ssh/authorized_keys"
+  install -m 600 "$authorized_keys" "$HOME/.ssh/authorized_keys"
 else
-  echo "setup: SSH_AUTHORIZED_KEY is not set on the host, SSH login is disabled" >&2
+  echo "setup: .devcontainer/authorized_keys not found, SSH login is disabled" >&2
 fi
 
 echo "setup: disabling SSH password login"
