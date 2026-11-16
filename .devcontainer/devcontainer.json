@@ -1,6 +1,8 @@
 {
   "name": "common-agent-marketplace",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "build": {
+    "dockerfile": "./Dockerfile"
+  },
   "remoteUser": "vscode",
   "appPort": ["2253:2222", "127.0.0.1:6768:6768"],
   "mounts": [

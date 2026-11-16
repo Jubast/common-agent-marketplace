@@ -69,6 +69,8 @@ See [docs/testing.md](docs/testing.md) and
 - `.devcontainer/devcontainer.json` is the only config. Its features install
   the herdr, `hc` (herdr-core) and Orca backends and the Claude Code, Codex and
   Copilot CLIs, with this repo's `chief` and `conventional-changes` plugins.
+  Its `Dockerfile` only adds an `apt-get` wrapper that lets features install
+  under podman.
 - `scripts/setup.sh` (`postCreateCommand`) fixes volume ownership and `$HOME`
   for SSH logins and sets up key-only SSH. `scripts/orca-serve.sh`
   (`postStartCommand`) starts the Orca server, bound to `127.0.0.1:6768`.

@@ -68,7 +68,7 @@ common-agent-marketplace/
 ├── .claude-plugin/
 │   └── marketplace.json      # lists every plugin in this repo
 ├── .github/workflows/        # chief tests, marketplace release tags
-├── .devcontainer/            # dev environment
+├── .devcontainer/            # dev environment (devcontainer.json, Dockerfile)
 ├── docs/                     # repo docs (testing)
 ├── plugins/
 │   └── <plugin-name>/        # one directory per plugin
