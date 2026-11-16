@@ -91,6 +91,7 @@ The launch line each worker runs is the adapter's `agent_command` in `bin/lib/ag
 - Items before any header, or under `[all]`, go to every role; `[builder]`, `[researcher]`, `[reviewer]` and `[brainstormer]` sections go to that role only. An unknown section warns and is ignored.
 - Projects add their own as a `## Definition of done` section in `AGENTS.md`/`CLAUDE.md`, with optional `### <Role>` and `### All` subheadings (items outside any subheading go to every role). The workers read it; Chief does not parse it.
 - The role's items are appended to the `# Definition of done` section at the end of its brief. Workers record one evidence line per item in their report (the reviewer under `Notes`); the reviewer also verifies the builder's.
+- Builder, researcher and reviewer briefs require checking project-root and workspace-root (`.chief/`'s parent) `AGENTS.md`/`CLAUDE.md` for container and concurrent-worker instructions when podman or docker is available, and following any found. Evidence names the instruction files, or says "none found" or "no container engine".
 - Keep it to a handful of checkable items; backtick a command for a mechanical item.
 
 ## Handoff

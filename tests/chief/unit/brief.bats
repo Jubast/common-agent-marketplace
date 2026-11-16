@@ -34,3 +34,17 @@ setup() {
   run diff "$BRIEF.orig" "$BRIEF"
   assert_success
 }
+
+container_item_survives_checkpoint() {  # <role>
+  local template="$REPO_ROOT/plugins/chief/templates/brief-$1.md"
+  cp "$template" "$BRIEF"
+  printf '\n# Relaunch checkpoint (T1)\nprogress note\n' >> "$BRIEF"
+  chief_brief_strip_section "$BRIEF" "# Relaunch checkpoint"
+  assert_equal "$(cat "$BRIEF")" "$(cat "$template")"
+  assert_contains_all "$(sed -n '/^# Definition of done$/,$p' "$BRIEF")" \
+    'If podman or docker is available' 'containers and concurrent workers' 'Evidence:' \
+    '"none found" or "no container engine"'
+}
+for role in builder researcher reviewer; do
+  bats_test_function --description "strip_section: keeps $role container evidence after a checkpoint" -- container_item_survives_checkpoint "$role"
+done

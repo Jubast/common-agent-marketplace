@@ -39,7 +39,9 @@ Details and contracts are in [plugins/chief/README.md](plugins/chief/README.md).
   `stop-watch-claude.sh`, `stop-watch-codex.sh` or
   `extensions/chief-watch/extension.mjs`, all through `watch-reason.sh`.
 - **Templates:** `templates/brief-<role>.md` and `templates/lifecycle-<role>.md`
-  per worker role, rendered at spawn.
+  per worker role, rendered at spawn. Builder, researcher and reviewer briefs
+  include the container-instruction check documented in
+  [Chief's README](plugins/chief/README.md).
 - **Runtime state:** `.chief/` under `CHIEF_HOME`, outside the plugin package
   (paths in `bin/lib/paths.sh`).
 

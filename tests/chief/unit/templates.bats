@@ -43,6 +43,22 @@ for role in builder researcher brainstormer reviewer; do
   bats_test_function --description "$role brief: ends with the one # Definition of done section" -- ends_with_one_definition_of_done "$role"
 done
 
+container_instructions() {  # <role>
+  local items; items=$(sed -n '/^# Definition of done$/,$p' <<< "$(brief "$1")")
+  assert_contains_all "$items" 'If podman or docker is available' 'check AGENTS.md/CLAUDE.md' \
+    'in the project root and in the workspace root (the folder that holds .chief/)' \
+    'for instructions on containers and concurrent workers, and follow any you find' \
+    'Evidence: one line naming the file(s) with such instructions' '"none found" or "no container engine"'
+  [ "$(grep -c '^- If podman or docker is available' <<< "$items")" = 1 ]
+}
+for role in builder researcher reviewer; do
+  bats_test_function --description "$role brief: checks both roots for container rules with evidence" -- container_instructions "$role"
+done
+
+@test "brainstormer brief: has no container instruction item" {
+  refute_contains_any "$(brief brainstormer)" 'If podman or docker is available' 'no container engine'
+}
+
 @test "reviewer brief: reads the project's Definition of done from the base and records its own items under Notes" {
   assert_contains_all "$(brief reviewer)" 'git show <base>:AGENTS.md' 'under `### Builder`' 'under `### Reviewer`' 'Notes:'
 }

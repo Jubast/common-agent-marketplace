@@ -62,4 +62,5 @@ Only Blocking entries can make a FAIL; Suggestions never do. Use `none` for an e
 Chief starts later rounds through `{INBOX_DIR}`: list `{INBOX_DIR}/*.msg`, act on each in order, then move it to `{INBOX_DIR}/handled/`.
 
 # Definition of done
+- If podman or docker is available, check AGENTS.md/CLAUDE.md in the project root and in the workspace root (the folder that holds .chief/) for instructions on containers and concurrent workers, and follow any you find. Evidence: one line naming the file(s) with such instructions, or "none found" or "no container engine".
 - Meet the project's `## Definition of done` in `AGENTS.md`/`CLAUDE.md`: items outside any subheading, under `### All`, or under `### Reviewer`.

@@ -34,5 +34,6 @@ Check the skills available to you (listed by name and description) at the start 
 Chief may steer you mid-task through `{INBOX_DIR}`. When a message tells you an instruction is waiting there - or at any natural checkpoint when you're unsure what to do next - list `{INBOX_DIR}/*.msg`, read and act on each in order, then acknowledge by moving it: `mv {INBOX_DIR}/NNN.msg {INBOX_DIR}/handled/`. An empty or absent inbox needs no action.
 
 # Definition of done
+- If podman or docker is available, check AGENTS.md/CLAUDE.md in the project root and in the workspace root (the folder that holds .chief/) for instructions on containers and concurrent workers, and follow any you find. Evidence: one line naming the file(s) with such instructions, or "none found" or "no container engine".
 - `{REPORT_FILE}` is self-contained: a different agent that never saw this conversation can act on it alone. It states the decisions and their rationale, the options you rejected, constraints, file/symbol pointers, and open items.
 - Meet the project's `## Definition of done` in `AGENTS.md`/`CLAUDE.md`: items outside any subheading, under `### All`, or under `### Researcher`.
