@@ -1,22 +1,39 @@
 #!/usr/bin/env bash
-# Devcontainer setup, run via postCreateCommand (idempotent).
+# Devcontainer setup, run via postCreateCommand. Idempotent.
 set -euo pipefail
 
-# The runtime injects HOME=/root into /etc/environment, so SSH logins get the wrong $HOME.
-sudo sed -i '/^HOME=/d' /etc/environment
+# The container runtime injects a stray HOME="/root" into /etc/environment,
+# which gives SSH logins the wrong $HOME.
+if grep -q '^HOME=' /etc/environment 2>/dev/null; then
+  echo "setup: removing stray HOME override from /etc/environment"
+  sudo sed -i '/^HOME=/d' /etc/environment
+fi
+
+# This script's own $HOME may still be the stale value; resolve it from /etc/passwd.
 HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
 
-# Named volumes and the workspace mount's parent come up root-owned.
-for dir in "$HOME/.config" "$HOME/.claude" "$HOME/.codex" "$HOME/.copilot" \
-  "$HOME/.config/gh" "$HOME/.config/orca" "$HOME/workspaces"; do
+# Named volumes, and the parents Docker creates for them, come up root-owned.
+ROOT_OWNED_VOLUME_DIRS=(
+  "$HOME/.config"
+  "$HOME/.claude"
+  "$HOME/.codex"
+  "$HOME/.copilot"
+  "$HOME/.config/gh"
+  "$HOME/.config/orca"
+  "$HOME/workspaces"
+)
+
+for dir in "${ROOT_OWNED_VOLUME_DIRS[@]}"; do
   if [ -d "$dir" ] && [ ! -O "$dir" ]; then
+    echo "setup: fixing ownership of $dir"
     sudo chown "$(id -u):$(id -g)" "$dir"
   fi
 done
 
-# sshd ignores workspaceFolder: start SSH logins in the workspace.
+# sshd ignores workspaceFolder, so SSH logins start in $HOME; cd into the workspace instead.
 workspace_dir="$(cd "$(dirname "$0")/.." && pwd)"
-if ! grep -q '# ssh-workspace-cd' "$HOME/.bashrc"; then
+if ! grep -q '# ssh-workspace-cd' "$HOME/.bashrc" 2>/dev/null; then
+  echo "setup: making SSH logins start in $workspace_dir"
   cat >>"$HOME/.bashrc" <<BASHRC
 
 # ssh-workspace-cd
@@ -26,8 +43,9 @@ fi
 BASHRC
 fi
 
-# Key-only SSH: the public key comes from the host's SSH_AUTHORIZED_KEY.
+# SSH login is by public key only; the key comes from the host's SSH_AUTHORIZED_KEY.
 if [ -n "${SSH_AUTHORIZED_KEY:-}" ]; then
+  echo "setup: installing the authorized SSH key"
   install -d -m 700 "$HOME/.ssh"
   printf '%s\n' "$SSH_AUTHORIZED_KEY" >"$HOME/.ssh/authorized_keys"
   chmod 600 "$HOME/.ssh/authorized_keys"
@@ -35,6 +53,7 @@ else
   echo "setup: SSH_AUTHORIZED_KEY is not set on the host, SSH login is disabled" >&2
 fi
 
+echo "setup: disabling SSH password login"
 printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\n' |
   sudo tee /etc/ssh/sshd_config.d/10-key-only.conf >/dev/null
 sudo /etc/init.d/ssh reload
