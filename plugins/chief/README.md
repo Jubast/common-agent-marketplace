@@ -22,7 +22,7 @@ Chief's own (operator-facing) session runs on any of three CLIs; they differ onl
 ## Layout
 
 - `bin/` - the lifecycle scripts, split into `bin/` (`chief-spawn`, `chief-watch`, `chief-teardown`, `chief-backlog`, `chief-setup`, `chief-agents`), `bin/task/` (`chief-control`, `chief-crew-state`, `chief-send`, `chief-promote`, `chief-review`); and `bin/lib/` (`paths.sh`/`home.sh`/`meta.sh`/`lock.sh`/`brief.sh`/`meta-extensions.sh` helpers, `bin/lib/agents/` with the loader and selector `agent.sh` (a task's adapter from its meta; profile selection from `.chief/config/agents`) and the adapters `{claude,codex,copilot}.sh` - the agent's launch command, screen texts and folder pre-trust - `git-sync.sh` - best-effort freshening of a project's default-branch checkout against origin, used by spawn/teardown - `worktree.sh` - the guard that tells a spawned builder's own session apart from the operator-facing one - `bin/lib/backends/` with the loader `backend.sh` and its adapters `{herdr,orca,hc}.sh` and the screen helpers `screen.sh` they share).
-- `templates/` - a brief template (`brief-<role>.md`) and a per-task lifecycle checklist (`lifecycle-<role>.md`) per worker role (`builder`, `researcher`, `reviewer`, `brainstormer`) rendered into `tasks/<id>/lifecycle` at spawn time, mirroring `skills/dispatch/SKILL.md`'s own steps so Chief can recover in-flight progress after a context compaction.
+- `templates/` - a brief template (`brief-<role>.md`) and a per-task lifecycle checklist (`lifecycle-<role>.md`) per worker role (`builder`, `researcher`, `deep-researcher`, `reviewer`, `brainstormer`) rendered into `tasks/<id>/lifecycle` at spawn time, mirroring `skills/dispatch/SKILL.md`'s own steps so Chief can recover in-flight progress after a context compaction. `brief-researcher-deep.md` is an optional researcher add-on.
 - `skills/using-chief` - the identity/job-description skill, force-injected every session via the `SessionStart` hook so Chief always knows its role without being asked.
 - `skills/setup` - one-time CHIEF_HOME config (backend choice + gitignoring `.chief/`); only relevant before `.chief/config/backend` exists, which the `SessionStart` digest flags explicitly.
 - `skills/dispatch` - the operator-facing entry point; load this to hand off work.
@@ -35,7 +35,7 @@ Spawn syncs the project's default branch from origin (best-effort), then creates
 
 ## Naming
 
-Task ids read `<role>-<topic>`, at most 20 chars (`build-rate-limit`, `res-auth-flow`; prefixes `build-`, `res-`, `spec-`, `rev-`); a reviewer is `<builder-id>-rv` and a successor replaces the source's prefix. The one id is the backlog id, task folder, worktree, herdr workspace label and agent name, Orca worktree name and hc terminal name and label. It must match `^[a-z][a-z0-9-]*$`, be at most 32 chars (herdr's agent-name and hc's terminal-name limit) and not look like an hc address (`t7`, `t1b`); `chief-backlog.sh add` and `chief-spawn.sh` reject others and print a valid suggestion. `chief-backlog.sh show <id>` prints a task's workspace, branch, worktree, brief and report paths.
+Task ids read `<role>-<topic>`, at most 20 chars (`build-rate-limit`, `res-auth-flow`, `deep-auth-flow`; prefixes `build-`, `res-`, `deep-`, `spec-`, `rev-`); a reviewer is `<builder-id>-rv` and a successor replaces the source's prefix. The one id is the backlog id, task folder, worktree, herdr workspace label and agent name, Orca worktree name and hc terminal name and label. It must match `^[a-z][a-z0-9-]*$`, be at most 32 chars (herdr's agent-name and hc's terminal-name limit) and not look like an hc address (`t7`, `t1b`); `chief-backlog.sh add` and `chief-spawn.sh` reject others and print a valid suggestion. `chief-backlog.sh show <id>` prints a task's workspace, branch, worktree, brief and report paths.
 
 ## Agents
 
@@ -58,6 +58,10 @@ Workers run on `claude` (default), `codex` or `copilot`, on every backend; all b
    claude:haiku
    codex:gpt-5-mini
 
+   [deep-researcher]            # optional stronger-model follow-up to research
+   strategy = first
+   claude:opus
+
    [reviewer]                   # and for reviewers
    strategy = all               # chief-review.sh runs one reviewer per entry
    mode = sequential            # reviewer only: parallel (default) | sequential | first | ask
@@ -68,7 +72,7 @@ Workers run on `claude` (default), `codex` or `copilot`, on every backend; all b
    claude:opus
    ```
 
-   Sections are the worker roles: `[builder]`, `[researcher]`, `[reviewer]`, `[brainstormer]`; any other name is an error. `#` starts a comment. Per entry, `weight=`, `args=` and `command=` may come in any order. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<role>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights. `all` and `mode` are for `[reviewer]`: see the review loop.
+   Sections are the worker roles: `[builder]`, `[researcher]`, `[deep-researcher]`, `[reviewer]`, `[brainstormer]`; any other name is an error. `#` starts a comment. Per entry, `weight=`, `args=` and `command=` may come in any order. `first` takes the first entry; `round-robin` rotates (cursor in `state/agent-cursor-<role>`, updated under a lock so parallel spawns differ); `weighted` draws by `weight=`; `random` is `weighted` with equal weights. `all` and `mode` are for `[reviewer]`: see the review loop.
 3. Else `claude` with its default model.
 
 The choice is recorded in the task's meta (`agent`, `model`, `args`, `command`) and reused by relaunch; `chief-crew-state.sh`, `chief-backlog.sh list|show` (in-flight) and the session digest show `[agent: <agent>[:<model>]]`. Spawn fails before creating anything for an unknown agent, a malformed profile or weight, a missing CLI, or a bad `command=` / `args=` / model combination below. Models are passed to the agent unvalidated.
@@ -88,16 +92,24 @@ The launch line each worker runs is the adapter's `agent_command` in `bin/lib/ag
 
 `.chief/config/definition-of-done` (optional) lists items the workers must meet, as markdown bullets:
 
-- Items before any header, or under `[all]`, go to every role; `[builder]`, `[researcher]`, `[reviewer]` and `[brainstormer]` sections go to that role only. An unknown section warns and is ignored.
+- Items before any header, or under `[all]`, go to every role; `[builder]`, `[researcher]`, `[deep-researcher]`, `[reviewer]` and `[brainstormer]` sections go to that role only. An unknown section warns and is ignored.
 - Projects add their own as a `## Definition of done` section in `AGENTS.md`/`CLAUDE.md`, with optional `### <Role>` and `### All` subheadings (items outside any subheading go to every role). The workers read it; Chief does not parse it.
 - The role's items are appended to the `# Definition of done` section at the end of its brief. Workers record one evidence line per item in their report (the reviewer under `Notes`); the reviewer also verifies the builder's.
 - Keep it to a handful of checkable items; backtick a command for a mechanical item.
 
 ## Handoff
 
-`chief-spawn.sh <id> <project> --mode <role> --from <src> ...` starts a **successor** of a done researcher (or brainstormer) with a non-empty `tasks/<src>/report.md`: a fresh worktree on a synced default branch, a brief with the `from=` lineage (oldest first) and the source's report appended under `# Prior work`, `from=<src>` in meta. Targets are `builder`, `researcher` or `brainstormer`, never the source's own role; builders and reviewers are never sources. The successor gets the **target role's** configured agent, never the source's; `--agent` carries one over explicitly. The source is left untouched.
+`chief-spawn.sh <id> <project> --mode <role> --from <src> ...` starts a **successor** of a done researcher, deep-researcher or brainstormer with a non-empty report: a fresh worktree on a synced default branch, a brief with the `from=` lineage (oldest first) and the source's report appended under `# Prior work`, `from=<src>` in meta and `[from: <src>]` in crew-state. A researcher can feed builder, brainstormer or deep-researcher; a brainstormer can feed builder or researcher; a deep-researcher can feed builder or brainstormer. Builders and reviewers are never sources. Research reports are context, not instructions; brainstormer specs are authoritative. The successor gets the **target role's** configured agent, never the source's; `--agent` carries one over explicitly. The source is left untouched.
 
 `--dry-run` validates everything and prints `agent:` and `launch:` (or the pool for a weighted/random strategy) without creating anything or advancing a cursor, so a go-ahead can name the exact agent. `chief-promote.sh <src> --to <role> --branch <name> --intent "..." [--as <new-id>] [--keep-source] [--dry-run] [spawn flags]` is a thin wrapper: the successor's id is the source's with its role prefix replaced (`res-auth-flow` -> `build-auth-flow`) unless `--as` (file it in the backlog first; `--dry-run` prints `id:`), then the source is torn down unless `--keep-source`; its folder, with the report, survives under `archive/`.
+
+### Two-stage research
+
+An own non-empty `[deep-researcher]` pool enables the two-stage pipeline: a cheap researcher surveys the question, then a stronger deep-researcher verifies and deepens its options, extends research if needed and recommends exactly one. Without that pool (global/default fallback does not count), researcher briefs are unchanged and Chief does not propose stage 2.
+
+The researcher add-on ends its report with `## Deep research`, `Verdict: warranted | not warranted - <reason>`, zero or more `### Option <n>: <title>` entries (summary, evidence, open questions, confidence), and a required `### Searched` log. A deep-researcher handoff requires `Verdict: warranted` and at least one option heading or a non-empty search log; zero options can warrant deeper investigation.
+
+Stage 2 receives the report through `# Prior work`, avoids redoing searched ground without a reason, and explains why any supplied options fell short before adding its own. Its report ends with `Recommendation: Option <n|new: title>` and `New options added: yes|no`. It never pushes or opens a PR; teardown discards its worktree and archives its report, like a researcher. Retries can use the original researcher's archived report. Operator approval and reporting follow [`dispatch`](skills/dispatch/SKILL.md#two-stage-research); no automatic chaining or cost accounting.
 
 ## Review
 

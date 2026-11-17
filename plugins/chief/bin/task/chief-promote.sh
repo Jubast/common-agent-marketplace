@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# chief-promote.sh - hand a done researcher or brainstormer off to a successor
+# chief-promote.sh - hand a done researcher, deep-researcher or brainstormer off to a successor
 # worker (chief-spawn.sh --from), then retire the source. The successor runs the
 # --to role's configured agent, not the source's; pass --agent to override.
 #
 # Usage: chief-promote.sh <id> --to <role> --branch <name> --intent "..." \
 #          [--as <new-id>] [--keep-source] [--dry-run] [--spec/--agent/--model/--args ...]
-# <new-id> defaults to <id> with its role prefix (build- res- spec- rev-)
+# <new-id> defaults to <id> with its role prefix (build- res- deep- spec- rev-)
 # replaced by the --to role's, and must already be filed in the backlog.
 # --keep-source leaves the source running; --dry-run prints the id, the agent
 # and the launch line only. Other flags go to chief-spawn.sh.
@@ -36,8 +36,8 @@ done
 if [ -n "$NEW" ]; then
   chief_id_check "$NEW" || exit 1
 else
-  case "$TO" in builder) p=build ;; researcher) p=res ;; brainstormer) p=spec ;; *) p=rev ;; esac
-  NEW=$(chief_id_compose "$p-$(sed -E 's/^(build|res|spec|rev|research|brainstorm)-//' <<< "$ID")")
+  case "$TO" in builder) p=build ;; researcher) p=res ;; deep-researcher) p=deep ;; brainstormer) p=spec ;; *) p=rev ;; esac
+  NEW=$(chief_id_compose "$p-$(sed -E 's/^(build|res|deep|spec|rev|research|brainstorm)-//' <<< "$ID")")
 fi
 PROJECT=$(chief_meta_require "$ID" project)
 [ "$DRY" -eq 1 ] || [ -n "$("$CHIEF_ROOT/bin/chief-backlog.sh" show "$NEW")" ] || fail "$NEW is not in the backlog - file it first (chief-backlog.sh add)"

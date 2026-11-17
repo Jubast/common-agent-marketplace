@@ -12,8 +12,9 @@ squeezed() { "$AGENTS" | tr -s ' '; }
 
 @test "no config: prints one line per role with claude flagged as the default" {
   run squeezed
-  assert_equal "${#lines[@]}" 4
+  assert_equal "${#lines[@]}" 5
   assert_output --partial "builder: claude (no pool configured)"
+  assert_output --partial "deep-researcher: claude (no pool configured)"
 }
 
 @test "pools: a role's own pool has no marker, the others show the global fallback" {

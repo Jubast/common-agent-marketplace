@@ -74,6 +74,18 @@ aged() { touch -d "@$(($(date +%s) - $2))" "$CHIEF_HOME/tasks/$1/turn-ended"; }
   state t-3; assert_output --partial "state: stale"
 }
 
+@test "lineage: any successor shows from alongside its mode and agent" {
+  for role in builder researcher deep-researcher brainstormer; do
+    task_meta t-1 "$role" $'agent=claude\nmodel=opus\nfrom=res-auth\n'
+    echo "done: wrote report" > "$CHIEF_HOME/tasks/t-1/status"
+    state t-1
+    assert_contains_all "$output" "[mode: $role] [agent: claude:opus]" "[from: res-auth]"
+  done
+  task_meta t-1 researcher
+  state t-1
+  refute_output --partial "[from:"
+}
+
 @test "brainstormer: waiting on the operator in its pane is never stale" {
   task_meta bs-1 brainstormer $'attach=tail -f x.log\n'
   echo "working: brainstorming with operator" >> "$CHIEF_HOME/tasks/bs-1/status"

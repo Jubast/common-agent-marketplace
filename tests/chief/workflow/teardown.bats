@@ -51,6 +51,19 @@ spawn_pushed() {  # <id> <mode> <branch>
   assert_output --partial "[done]"
 }
 
+@test "deep-researcher: discards scratch commits and archives its report" {
+  spawn_mode deep-auth deep-researcher feat/deep-auth
+  chief_commit_file deep-auth scratch.txt scratch >/dev/null
+  chief_finish deep-auth $'Recommendation: Option 1\nNew options added: no'
+  run td deep-auth
+  assert_success
+  assert_not_exist "$CHIEF_HOME/worktrees/deep-auth"
+  assert_not_exist "$CHIEF_HOME/tasks/deep-auth"
+  assert_equal "$(cat "$ARCHIVE/deep-auth/report.md")" $'Recommendation: Option 1\nNew options added: no'
+  assert_equal "$(chief_meta_get deep-auth status)" torn-down
+  assert_equal "$(git -C "$WORK/project" branch --list feat/deep-auth)" ""
+}
+
 @test "builder: is refused without --abandon, even after done" {
   spawn_mode b-1 builder feat/b-1
   chief_commit_file b-1 hello.txt hello

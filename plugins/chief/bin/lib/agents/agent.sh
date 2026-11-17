@@ -77,7 +77,7 @@ chief_agent_release() {  # <id> <dir> - agent_release with the task's adapter
 #   mode = parallel | sequential | first | ask  (default parallel; [reviewer] only:
 #                         how chief-review.sh runs the pool)
 #   <agent>[:<model>] [weight=N] [args="<extra CLI args>"] [command="<launch command>"]
-#   [builder] [researcher] [reviewer] [brainstormer]
+#   [builder] [researcher] [deep-researcher] [reviewer] [brainstormer]
 #                         a pool (and strategy) for that role only; each falls
 #                         back to the global one. '#' starts a comment.
 #
@@ -89,7 +89,7 @@ chief_agent_release() {  # <id> <dir> - agent_release with the task's adapter
 # under any strategy; all takes entry 1 without it. peek advances no
 # cursor and, for weighted and random, picks nothing: it sets SEL_POOL_DESC.
 
-CHIEF_ROLES="builder researcher reviewer brainstormer"
+CHIEF_ROLES="builder researcher deep-researcher reviewer brainstormer"
 SEP=$'\x1f'
 
 chief_agent_profile() {  # <agent[:model]> - validates, sets P_AGENT and P_MODEL

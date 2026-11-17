@@ -97,3 +97,33 @@ done_researcher() {
   sed -i '/^branch=/d' "$TASKS/r-6/meta"
   chief_refused "build-r-6 is running but tearing down r-6 failed" promote r-6 --to builder --branch feat/p-6 --intent x
 }
+
+@test "deep promotion: uses deep prefix and strips it for the next builder" {
+  done_researcher res-auth
+  chief_finish res-auth $'Verdict: warranted\n### Option 1: tokens'
+  printf '[deep-researcher]\nclaude:opus\n' >> "$CHIEF_HOME/config/agents"
+  run promote res-auth --to deep-researcher --branch feat/deep-auth --intent x --dry-run
+  assert_success
+  assert_output --partial "id: deep-auth"
+  assert_output --partial "agent: claude:opus"
+  "$BIN/chief-backlog.sh" add deep-auth "deep research" >/dev/null
+  run promote res-auth --to deep-researcher --branch feat/deep-auth --intent x
+  assert_success
+  assert_equal "$(chief_meta deep-auth from)" res-auth
+  assert_exist "$ARCHIVE/res-auth/report.md"
+  chief_finish deep-auth $'Recommendation: Option 1\nNew options added: no'
+  run promote deep-auth --to builder --branch feat/build-auth --intent x --dry-run
+  assert_success
+  assert_output --partial "id: build-auth"
+}
+
+@test "deep promotion: refuses an unwarranted report without retiring its source" {
+  done_researcher res-auth
+  "$BIN/chief-backlog.sh" add deep-auth "deep research" >/dev/null
+  for dry in "" --dry-run; do
+    chief_refused "needs Verdict: warranted" promote res-auth --to deep-researcher \
+      --branch feat/deep-auth --intent x $dry
+    assert_not_exist "$TASKS/deep-auth"
+    assert_equal "$(chief_meta res-auth status)" working
+  done
+}

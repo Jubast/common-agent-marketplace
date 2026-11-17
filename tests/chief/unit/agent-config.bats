@@ -245,6 +245,22 @@ EOF2
   assert_output ""
 }
 
+@test "deep-researcher: own pool is distinct from global and default fallback" {
+  chief_agent_select deep-researcher peek
+  assert_equal "$SEL_AGENT:$SEL_MODEL|$POOL_SRC" "claude:|default"
+  cfg <<< $'claude:sonnet\n[deep-researcher]\n# no own entries'
+  chief_agent_select deep-researcher peek
+  assert_equal "$SEL_MODEL|$POOL_SRC" "sonnet|global"
+  cfg <<< $'claude:sonnet\n[researcher]\nclaude:haiku\n[deep-researcher]\nclaude:opus'
+  chief_agent_select deep-researcher peek
+  assert_equal "$SEL_MODEL|$POOL_SRC" "opus|deep-researcher"
+  chief_agent_select researcher peek
+  assert_equal "$SEL_MODEL|$POOL_SRC" "haiku|researcher"
+  run "$BIN/chief-agents.sh"
+  assert_success
+  assert_output --regexp 'deep-researcher: +claude:opus'
+}
+
 @test "review mode: parallel by default, set in [reviewer] only, validated" {
   assert_equal "$(chief_agent_review_mode)" parallel
   cfg <<'EOF2'
