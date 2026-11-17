@@ -61,7 +61,7 @@ _chief_discard() {  # <reason-for-the-echo-line>
 
 case "$MODE" in
   builder) ;;
-  researcher|reviewer|brainstormer)
+  researcher|deep-researcher|reviewer|brainstormer)
     _chief_discard "$MODE, discarded - its deliverable is the report, not this worktree"
     exit 0 ;;
 esac

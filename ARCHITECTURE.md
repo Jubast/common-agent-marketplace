@@ -33,13 +33,19 @@ Details and contracts are in [plugins/chief/README.md](plugins/chief/README.md).
   screen-driven parts they share. The contract is in the header of `backend.sh`.
 - **Agent adapter seam:** `bin/lib/agents/agent.sh` loads a task's adapter, one
   of `claude.sh`, `codex.sh` or `copilot.sh`. The contract is in its header.
+- **Research handoffs:** an own `[deep-researcher]` pool enables the researcher
+  brief add-on. After a warranted report and operator approval, spawn/promote
+  hands it to a stronger-model deep-researcher through `--from`. Role checks,
+  lineage tags and report-only teardown are shared across herdr, Orca and hc;
+  no backend-specific role routing is needed.
 - **Harness wake paths:** Chief's own session runs on Claude Code, Codex CLI or
   Copilot CLI. `hooks/hooks.json` serves Claude Code and Copilot,
   `hooks/hooks.codex.json` Codex; the idle session is woken by
   `stop-watch-claude.sh`, `stop-watch-codex.sh` or
   `extensions/chief-watch/extension.mjs`, all through `watch-reason.sh`.
 - **Templates:** `templates/brief-<role>.md` and `templates/lifecycle-<role>.md`
-  per worker role, rendered at spawn.
+  per worker role (builder, researcher, deep-researcher, reviewer, brainstormer),
+  rendered at spawn; `brief-researcher-deep.md` is the optional stage-1 add-on.
 - **Runtime state:** `.chief/` under `CHIEF_HOME`, outside the plugin package
   (paths in `bin/lib/paths.sh`).
 

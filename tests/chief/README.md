@@ -48,6 +48,8 @@ terminal the stand-in reports its status over OSC 7501 (`idle`, `working`, `done
 the `no-report` mode suppresses that, so the screen path is exercised. Needs `tests/chief/ci/install-hc.sh`
 (or `hc` on `PATH`); without it the file skips, unless `CHIEF_TEST_REQUIRE_BACKENDS=1`. CI runs it as
 `chief-hc` (`run-tests.sh --only-hc`); the herdr job runs `--no-orca --no-hc`.
+The hc lifecycle cases also cover researcher-to-deep-researcher promotion,
+role-specific models, lineage tags and report-only teardown.
 
 ## Real headless Orca (`backends/orca.bats`)
 

@@ -7,5 +7,6 @@
 - [ ] outcome chosen: handed off to a successor (chief-promote.sh or chief-spawn.sh --from; go-ahead states the exact agent from --dry-run), OR accepted as-is (chief-backlog.sh done, then chief-teardown.sh)
 
 ## Conditional (mark N/A if it never applied)
+- [ ] if Verdict: warranted and [deep-researcher] has its own pool, proposed stage 2 with branch and exact agent from --dry-run; waited for operator go-ahead before chief-promote.sh --to deep-researcher
 - [ ] steered mid-task (chief-send.sh)
 - [ ] escalated (chief-control.sh interrupt/relaunch)

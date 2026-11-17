@@ -22,7 +22,7 @@ lifecycle_names_its_role() {
   local text; text=$(cat "$TEMPLATES/lifecycle-$1.md")
   assert_contains_all "$text" '{TASK_ID}' "($1)"
 }
-for role in builder researcher brainstormer reviewer; do
+for role in builder researcher deep-researcher brainstormer reviewer; do
   bats_test_function --description "$role brief: reports through the status, turn and inbox files" -- brief_protocol "$role"
   bats_test_function --description "$role brief: is agent-neutral and names no skill suite" -- brief_is_agent_neutral "$role"
   bats_test_function --description "$role lifecycle: names its role and the task id" -- lifecycle_names_its_role "$role"
@@ -39,7 +39,7 @@ ends_with_one_definition_of_done() {  # <role>
   [ "$(sed -n '/^# Definition of done$/,$p' <<< "$text" | grep -c '^# ')" = 1 ]
   ! grep -qx '# Done when' <<< "$text"
 }
-for role in builder researcher brainstormer reviewer; do
+for role in builder researcher deep-researcher brainstormer reviewer; do
   bats_test_function --description "$role brief: ends with the one # Definition of done section" -- ends_with_one_definition_of_done "$role"
 done
 
@@ -51,7 +51,7 @@ definition_of_done_is_per_role() {  # <role>
   local subheading; subheading=$(tr a-z A-Z <<< "${1:0:1}")${1:1}
   assert_contains_all "$(brief "$1")" "under \`### $subheading\`" 'under `### All`' '- [ ] n/a - <why>' '{REPORT_FILE}'
 }
-for role in builder researcher brainstormer reviewer; do
+for role in builder researcher deep-researcher brainstormer reviewer; do
   bats_test_function --description "$role brief: meets its own project items and records one evidence line each" -- definition_of_done_is_per_role "$role"
 done
 
@@ -68,7 +68,7 @@ done
 skill_limits() {
   assert_contains_all "$(brief "$1")" "skip a skill's step that would ask a human, push, open a PR, create a worktree, start other agents"
 }
-for role in builder researcher; do
+for role in builder researcher deep-researcher; do
   bats_test_function --description "$role brief: a skill never makes it ask, push or go beyond the spec" -- skill_limits "$role"
 done
 
@@ -108,6 +108,26 @@ done
 
 @test "researcher lifecycle: hands off with chief-promote.sh or chief-spawn.sh --from" {
   assert_contains_all "$(cat "$TEMPLATES/lifecycle-researcher.md")" 'chief-promote.sh' 'chief-spawn.sh --from'
+}
+
+@test "researcher add-on: requires a verdict, option evidence and a search log" {
+  assert_contains_all "$(cat "$TEMPLATES/brief-researcher-deep.md")" '# Deep research handoff' \
+    'Verdict: warranted | not warranted' '### Option 1:' 'Evidence:' 'Open questions for stage 2:' \
+    'Confidence: low | medium | high' '### Searched' 'zero options' 'non-empty search log'
+}
+
+@test "deep-researcher brief: verifies options, extends research and recommends one" {
+  assert_contains_all "$(brief deep-researcher)" '### Searched' 'without stating a reason' \
+    'Verify and deepen each supplied option' 'With zero options' 'explain why they fell short' \
+    'Recommend exactly one option' 'Recommendation: Option <n|new: title>' \
+    'New options added: yes|no' 'Never push to any remote, never open a PR' 'discarded at teardown'
+}
+
+@test "research lifecycles: stage 2 needs approval and reports its recommendation" {
+  assert_contains_all "$(cat "$TEMPLATES/lifecycle-researcher.md")" 'Verdict: warranted' \
+    '[deep-researcher] has its own pool' 'exact agent from --dry-run' 'operator go-ahead'
+  assert_contains_all "$(cat "$TEMPLATES/lifecycle-deep-researcher.md")" \
+    'recommended option' 'New options added: yes|no' 'not the report' 'builder or explicitly requested brainstormer'
 }
 
 @test "brainstormer lifecycle: tells the operator the attach line" {

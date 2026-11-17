@@ -5,7 +5,7 @@ description: Use when the user wants to hand off a piece of work to an isolated 
 
 # Chief: dispatch
 
-Chief runs isolated worker agents in their own git worktree: builders (code changes), researchers (investigation-only reports), reviewers (verdicts on a builder's commit) and brainstormers (specs shaped with the operator). It tracks them in a plain-markdown backlog and supervises them at near-zero token cost between your turns. You are the operator's single point of contact; you do not do dispatched work yourself.
+Chief runs isolated worker agents in their own git worktree: builders (code changes), researchers (investigation-only reports), deep-researchers (stronger-model follow-up reports), reviewers (verdicts on a builder's commit) and brainstormers (specs shaped with the operator). It tracks them in a plain-markdown backlog and supervises them at near-zero token cost between your turns. You are the operator's single point of contact; you do not do dispatched work yourself.
 
 All commands live in `<chief-plugin-dir>/bin/`; `<chief-plugin-dir>` is the absolute path on the "chief plugin dir:" line of your session context. Runtime state lives in `.chief/` at `CHIEF_HOME`: the git root of wherever the Chief session runs, typically the operator's top-level workspace, not inside a `<project-dir>` (created on first use). One `CHIEF_HOME` dispatches into many projects; don't run `chief:setup` per project.
 
@@ -13,6 +13,7 @@ All commands live in `<chief-plugin-dir>/bin/`; `<chief-plugin-dir>` is the abso
 
 - **builder** (default): the deliverable is a code change on a branch. Use for anything with clear enough intent to implement.
 - **researcher**: the deliverable is a written report only, no commit or push. Use only when the operator explicitly wants a separate investigation or design artifact, or uncertainty about *what* to build would make implementing now wasteful.
+- **deep-researcher**: stage 2 of research, verifying and deepening a researcher's options on a stronger model, extending them if needed. Propose only for `Verdict: warranted` with an own `[deep-researcher]` pool, then wait for the operator's go-ahead.
 - **reviewer**: started by the review loop below, never on your own. For an arbitrary branch with no builder, spawn one with `--mode reviewer` and a `--spec` naming the branch, pinned SHA, base and intent.
 - **brainstormer**: the deliverable is a spec shaped in live conversation with the operator. Explicit-only: spawn one only when the operator explicitly asks to brainstorm. Never choose it, default to it, or offer it instead of a clarifying question.
 
@@ -22,7 +23,7 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
 
 `.chief/tasks/<id>/lifecycle` (rendered by `chief-spawn.sh`) is the checklist for each task, filing through teardown. Check off each line as you complete it. Read it before acting on an in-flight task, not just after a compaction.
 
-1. **File it.** `<chief-plugin-dir>/bin/chief-backlog.sh add <id> "<short title>"` with an id named `<role>-<topic>`, at most 20 chars (prefixes `build-`, `res-`, `spec-`, `rev-`; e.g. `build-rate-limit`, `res-auth-flow`; a reviewer is `<builder-id>-rv`). The id names the worktree, the task folder `.chief/tasks/<id>/`, the herdr workspace and agent, and the Orca worktree, so make it say what the task is. An id must match `^[a-z][a-z0-9-]*$` and be at most 32 chars (herdr's agent-name limit); `add` and `chief-spawn.sh` reject others and print a valid suggestion: use it.
+1. **File it.** `<chief-plugin-dir>/bin/chief-backlog.sh add <id> "<short title>"` with an id named `<role>-<topic>`, at most 20 chars (prefixes `build-`, `res-`, `deep-`, `spec-`, `rev-`; e.g. `build-rate-limit`, `res-auth-flow`; a reviewer is `<builder-id>-rv`). The id names the worktree, the task folder `.chief/tasks/<id>/`, the herdr workspace and agent, and the Orca worktree, so make it say what the task is. An id must match `^[a-z][a-z0-9-]*$` and be at most 32 chars (herdr's agent-name limit); `add` and `chief-spawn.sh` reject others and print a valid suggestion: use it.
 
 2. **Spawn.**
    `<chief-plugin-dir>/bin/chief-spawn.sh <id> <project-dir> --mode builder|researcher|brainstormer --branch "<type>/<short-kebab-description>" --intent "<the operator's own ask, close to verbatim>" --spec "<your build instructions, only what the intent requires>"`
@@ -34,7 +35,7 @@ Don't launch a researcher for ordinary ambiguity; ask one concise question inste
 
 3. **It runs on its own.** `<chief-plugin-dir>/bin/chief-watch.sh` (armed by the harness's own wake adapter, zero model cost) wakes you with a `chief watcher: ...` message only when the task finishes, fails, is blocked or needs a decision. On `blocked` or `needs-decision`, run `<chief-plugin-dir>/bin/chief-backlog.sh hold <id> "<why, one line>"`.
 
-4. **Check on it anytime:** `<chief-plugin-dir>/bin/task/chief-crew-state.sh <id>` prints the current state (working/done/blocked/needs-decision/failed/stale) and a `[mode: builder|researcher|reviewer|brainstormer]` tag. `chief-backlog.sh show <id>` adds its workspace, branch, worktree, brief and report paths. Use it to tell the operator where a task lives.
+4. **Check on it anytime:** `<chief-plugin-dir>/bin/task/chief-crew-state.sh <id>` prints the current state (working/done/blocked/needs-decision/failed/stale), `[mode: <role>]`, `[agent: ...]` and, for successors, `[from: <id>]`. `chief-backlog.sh show <id>` adds its workspace, branch, worktree, brief and report paths. Use it to tell the operator where a task lives.
 
 5. **Steer it:** `<chief-plugin-dir>/bin/task/chief-send.sh <id> "<instruction>"` delivers through a durable inbox the worker acknowledges; safe mid-task. If the item is `held`, move it back with `<chief-plugin-dir>/bin/chief-backlog.sh status <id> in-flight` once you've sent the unblocking instruction.
 
@@ -68,7 +69,7 @@ Do exactly what they decide, nothing more:
 - **Not satisfied:** move the task back to in-flight (`<chief-plugin-dir>/bin/chief-backlog.sh status <id> in-flight`), then `<chief-plugin-dir>/bin/task/chief-send.sh <id> "<instruction>"`.
 - **Ready to land** (builder only): compose a conventional-commit-style title and a structured body yourself (following the project's PR conventions: a `conventional-pull-requests`-style skill if installed, or its CLAUDE.md/AGENTS.md), push the branch, and open the PR with the project's host CLI or tool. Then hold the item with the URL as the reason: `<chief-plugin-dir>/bin/chief-backlog.sh hold <id> "PR: <url>"`.
 - **Accepted:** builder: merge the open PR, squashing and deleting the source branch, then "Landed". Researcher or brainstormer to be built on: see "Handing off".
-- **Accepted as-is** (researcher or brainstormer): `<chief-plugin-dir>/bin/chief-backlog.sh done <id>`, then `<chief-plugin-dir>/bin/chief-teardown.sh <id>` discards the worktree; the task's folder, with its report, moves to `.chief/archive/<id>/`.
+- **Accepted as-is** (researcher, deep-researcher or brainstormer): `<chief-plugin-dir>/bin/chief-backlog.sh done <id>`, then `<chief-plugin-dir>/bin/chief-teardown.sh <id>` discards the worktree; the task's folder, with its report, moves to `.chief/archive/<id>/`.
 
 Opening, updating and merging a PR are finishing actions: only on the operator's explicit go-ahead in this conversation.
 
@@ -78,18 +79,30 @@ Spawn it as in step 2 with `--intent` set to the operator's idea. Spawn prints `
 
 Never relay the conversation or answer for the operator. The brainstormer asks its questions in its pane, not through `needs-decision`, and reports `done` only after the operator confirms the spec there. While idle it reads `working · awaiting operator in pane`; `crew-state` and the session digest show its `[attach: ...]`. The spec is `report.md`.
 
-## Handing off a researcher or brainstormer
+## Handing off research or a brainstormer
 
-A done researcher or brainstormer with a report can be followed by a successor: a new worker in a fresh worktree whose brief carries the report (earlier stages are linked).
+A done researcher, deep-researcher or brainstormer with a report can be followed by a successor: a new worker in a fresh worktree whose brief carries the report (earlier stages are linked).
 
-- Targets: builder, researcher (from a brainstormer), brainstormer (from a researcher). Never the source's own role. A brainstormer target needs the operator's explicit ask; never propose it unprompted.
-- A brainstormer's spec reaches the successor as operator-approved and authoritative; a researcher's report as context.
+- Targets: builder; researcher from a brainstormer; deep-researcher from a researcher; brainstormer from either research role. Never the source's own role. A brainstormer target needs the operator's explicit ask; never propose it unprompted.
+- A brainstormer's spec reaches the successor as operator-approved and authoritative; either research role's report as context, not instructions.
 - The report is the whole handoff. Skim it first and send the source back (`chief-send.sh`) to fix a thin one: it must stand alone for an agent that saw none of the conversation.
 - The successor runs the target role's configured agent. `--agent` carries another over; name it in the go-ahead.
 
-1. Propose the branch (`conventional-branches` scheme) and preview the agent: `<chief-plugin-dir>/bin/chief-spawn.sh <new-id> <project-dir> --mode <builder|researcher|brainstormer> --from <id> --branch "<type>/<short-kebab-description>" --intent "<ask>" --dry-run` prints the exact `agent:` and `launch:` (a weighted or random pool prints as the pool) and creates nothing.
+1. Propose the branch (`conventional-branches` scheme) and preview the agent: `<chief-plugin-dir>/bin/chief-spawn.sh <new-id> <project-dir> --mode <builder|researcher|deep-researcher|brainstormer> --from <id> --branch "<type>/<short-kebab-description>" --intent "<ask>" --dry-run` prints the exact `agent:` and `launch:` (a weighted or random pool prints as the pool) and creates nothing.
 2. Ask the operator's go-ahead naming that agent and branch, and that the source's session ends (a brainstormer's pane closes; its folder, with the report, moves to `.chief/archive/<id>/`).
 3. On the go-ahead, file `<new-id>` (`chief-backlog.sh add`), then run `<chief-plugin-dir>/bin/task/chief-promote.sh <id> --to <role> --as <new-id> --branch "<branch>" --intent "<ask>" [--spec "<instructions>"]`. It runs `chief-spawn.sh --from`, then tears the source down. The successor's id replaces the source's role prefix (`res-auth-flow` -> `build-auth-flow`); `--dry-run` previews and prints `id:` to file. `--keep-source` leaves the source running. Run it in the background.
+
+### Two-stage research
+
+When a researcher is done, report it as usual. Also propose stage 2 only if its report has `Verdict: warranted` and `.chief/config/agents` has a non-empty own `[deep-researcher]` pool (not global/default fallback). The researcher add-on is enabled by that same condition, including after a brainstormer handoff.
+
+Preview `chief-promote.sh <res-id> --to deep-researcher --branch "<branch>" --intent "<ask>" --dry-run` (`res-auth-flow` -> `deep-auth-flow`). Propose the branch and exact agent, and wait for approval before filing and promoting. If the preview lists a pool, get the operator's choice of profile and preview again with `--agent <agent:model>`; carry that flag into promote. Never chain automatically.
+
+Stage 2 requires a done researcher with a non-empty report, `Verdict: warranted`, and at least one `### Option ` heading or a non-empty `### Searched` log. It uses that log to avoid repeating work, verifies options, and extends research when they fall short (or none were found).
+
+Deep-researcher `done`: report its conclusion line, `Recommendation: Option ...`, `New options added: yes|no` and report path, not the report's content. Hold it and propose a builder handoff or accepting it as-is; a brainstormer handoff is available only on explicit request. No handoff back to researcher or deep-researcher.
+
+On `failed` or `blocked`, use the normal escalation above. A fresh retry is `chief-spawn.sh <new-id> <project-dir> --mode deep-researcher --from <res-id> --branch "<new-branch>" --intent "<ask>"`, after the same preview and go-ahead; the researcher may already be in `archive/`.
 
 ## Once a PR is open
 

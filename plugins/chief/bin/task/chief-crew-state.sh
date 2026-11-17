@@ -9,11 +9,12 @@
 # "actually stalled" without pane-diffing or any backend-specific heuristic.
 #
 # Usage: chief-crew-state.sh <id>
-# Prints one line: "state: <working|done|blocked|needs-decision|failed|stale> · <detail> [mode: <builder|researcher|reviewer|brainstormer>] [agent: <agent[:model]>]"
+# Prints one line: "state: <working|done|blocked|needs-decision|failed|stale> · <detail> [mode: <role>] [agent: <agent[:model]>]"
 #
 # mode and agent are appended, not prefixed, so it doesn't break prefix matches on
 # state/detail elsewhere. A non-terminal brainstormer also carries [attach: ...];
-# a reviewer carries [for: <builder>], a reviewed builder [reviewer: <id>].
+# a reviewer carries [for: <builder>], a reviewed builder [reviewer: <id>],
+# and any successor [from: <id>].
 #
 # A brainstormer waits on the operator in its own pane, so while idle it always
 # reads "working · awaiting operator in pane", never stale.
@@ -35,7 +36,7 @@ STATUS_FILE=$(chief_task_path "$ID" status)
 TURN_FILE=$(chief_task_path "$ID" turn-ended)
 MODE=$(chief_meta_get "$ID" mode 2>/dev/null || true)
 MODE_SUFFIX=" [mode: ${MODE:-unknown}] [agent: $(chief_meta_agent "$ID")]"
-for link in for reviewer; do
+for link in for reviewer from; do
   LINKED=$(chief_meta_get "$ID" "$link" 2>/dev/null || true)
   [ -z "$LINKED" ] || MODE_SUFFIX+=" [$link: $LINKED]"
 done

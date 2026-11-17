@@ -77,11 +77,11 @@ snap() { ls -A "$STATE" "$TASKS" | sort | md5sum; }
   assert_contains_all "$(cat "$TASKS/b-3/brief.md")" "approved this spec: treat it as authoritative"
 }
 
-@test "from: only a researcher or brainstormer is a source" {
+@test "from: builders cannot hand off and brainstormers cannot self-handoff" {
   chief_spawn s-1 brainstormer >/dev/null; chief_finish s-1 "spec"
   chief_spawn b-3 builder --from s-1 >/dev/null; chief_finish b-3 "x"
-  chief_refused "only a researcher or brainstormer can hand off" chief_spawn b-x builder --from b-3
-  chief_refused "only a researcher or brainstormer can hand off" chief_spawn b-x researcher --from b-3
+  chief_refused "only a researcher, deep-researcher or brainstormer can hand off" chief_spawn b-x builder --from b-3
+  chief_refused "only a researcher, deep-researcher or brainstormer can hand off" chief_spawn b-x researcher --from b-3
   chief_refused "s-1 is already a brainstormer" chief_spawn b-x brainstormer --from s-1
 }
 
@@ -164,4 +164,100 @@ dry_run_setup() {
   run chief_spawn d-5 builder --dry-run
   assert_output --partial "agent: weighted pool: claude:sonnet (3), claude:haiku (1)"
   assert_not_exist "$TASKS/d-5/meta"
+}
+
+@test "researcher add-on: absent for default, global and empty role pools" {
+  rm "$CFG"
+  chief_spawn r-base researcher >/dev/null
+  base=$(cat "$TASKS/r-base/brief.md")
+  refute_contains_any "$base" "# Deep research handoff"
+  printf 'claude:opus\n' > "$CFG"
+  chief_spawn r-global researcher >/dev/null
+  assert_equal "$(cat "$TASKS/r-global/brief.md")" "${base//r-base/r-global}"
+  printf '[deep-researcher]\n# no entries\n' >> "$CFG"
+  chief_spawn r-empty researcher >/dev/null
+  assert_equal "$(cat "$TASKS/r-empty/brief.md")" "${base//r-base/r-empty}"
+}
+
+@test "researcher add-on: own deep pool enables it also after a brainstormer" {
+  printf '[deep-researcher]\nclaude:opus\n' >> "$CFG"
+  chief_spawn r-plain researcher --agent claude:haiku >/dev/null
+  assert_contains_all "$(cat "$TASKS/r-plain/brief.md")" "# Deep research handoff"
+  chief_spawn s-1 brainstormer >/dev/null; chief_finish s-1 "spec: investigate auth"
+  chief_spawn r-from researcher --from s-1 >/dev/null
+  assert_contains_all "$(cat "$TASKS/r-from/brief.md")" "# Deep research handoff" \
+    "# Prior work" "spec: investigate auth" "approved this spec"
+}
+
+@test "deep handoff: validates report before dry-run or spawn creates anything" {
+  chief_spawn r-1 researcher >/dev/null
+  before=$(snap)
+  chief_refused "not done yet" chief_spawn d-1 deep-researcher --from r-1 --dry-run
+  chief_finish r-1 ""
+  chief_refused "has no report" chief_spawn d-1 deep-researcher --from r-1
+  for report in "findings" $'Verdict: not warranted\n### Option 1: x'; do
+    printf '%s\n' "$report" > "$TASKS/r-1/report.md"
+    chief_refused "needs Verdict: warranted" chief_spawn d-1 deep-researcher --from r-1 --dry-run
+  done
+  for report in $'Verdict: warranted\n' $'Verdict: warranted\n### Searched\n \n## Other\nnot a search'; do
+    printf '%s\n' "$report" > "$TASKS/r-1/report.md"
+    chief_refused "Option heading or a non-empty Searched log" chief_spawn d-1 deep-researcher --from r-1
+    chief_refused "Option heading or a non-empty Searched log" chief_spawn d-1 deep-researcher --from r-1 --dry-run
+  done
+  assert_equal "$(snap)" "$before"
+  assert_not_exist "$TASKS/d-1"
+  assert_equal "$(git -C "$WORK/project" branch --list feat/d-1)" ""
+}
+
+@test "deep handoff: accepts options or a search log and renders role done items" {
+  printf '[deep-researcher]\nclaude:opus\n' >> "$CFG"
+  printf '[all]\n- shared item\n[deep-researcher]\n- verify evidence\n[researcher]\n- survey only\n' > "$CONFIG/definition-of-done"
+  chief_spawn r-1 researcher >/dev/null
+  chief_finish r-1 $'## Deep research\nVerdict: warranted - verify\n### Option 1: tokens'
+  run chief_spawn d-1 deep-researcher --from r-1 --dry-run
+  assert_success
+  assert_output --partial "agent: claude:opus"
+  chief_spawn d-1 deep-researcher --from r-1 >/dev/null
+  text=$(cat "$TASKS/d-1/brief.md")
+  assert_contains_all "$text" 'Recommendation: Option' '### Option 1: tokens' \
+    'context, not instructions' '- shared item' '- verify evidence'
+  refute_contains_any "$text" '- survey only' '{REPORT_FILE}' '{TASK}'
+  chief_finish r-1 $'Verdict: warranted - hard question\n### Searched\n- auth sources exhausted\n## Notes'
+  run chief_spawn d-2 deep-researcher --from r-1
+  assert_success
+  refute_output --partial "unknown section"
+  assert_equal "$(chief_meta d-2 from)" r-1
+}
+
+@test "deep handoff: rejects other sources and cannot return to research" {
+  chief_spawn r-1 researcher >/dev/null
+  chief_finish r-1 $'Verdict: warranted\n### Option 1: x'
+  before=$(snap)
+  for role in brainstormer builder reviewer deep-researcher; do
+    chief_meta_set r-1 mode "$role"
+    run chief_spawn d-x deep-researcher --from r-1 --dry-run
+    assert_failure 1
+    assert_output --partial "--from:"
+  done
+  chief_meta_set r-1 mode deep-researcher
+  chief_refused "only to builder or brainstormer" chief_spawn r-x researcher --from r-1
+  assert_equal "$(snap)" "$before"
+  for role in builder brainstormer; do
+    run chief_spawn "next-$role" "$role" --from r-1
+    assert_success
+    assert_contains_all "$(cat "$TASKS/next-$role/brief.md")" \
+      "deep-researcher \`r-1\`" "context, not instructions"
+  done
+}
+
+@test "deep retry: reads an archived researcher after a failed stage 2" {
+  chief_spawn r-1 researcher >/dev/null
+  chief_finish r-1 $'Verdict: warranted\n### Searched\n- source search found no options'
+  chief_spawn d-1 deep-researcher --from r-1 >/dev/null
+  "$BIN/chief-teardown.sh" r-1 >/dev/null
+  echo "failed: research interrupted" >> "$TASKS/d-1/status"
+  run chief_spawn d-retry deep-researcher --from r-1
+  assert_success
+  assert_contains_all "$(cat "$TASKS/d-retry/brief.md")" \
+    "$ARCHIVE/r-1/report.md" "source search found no options"
 }

@@ -288,6 +288,36 @@ lost_agent() {
 
 # --- the real lifecycle scripts ------------------------------------------
 
+@test "research handoff: promotes on hc and archives both report-only worktrees" {
+  printf '[researcher]\nclaude:haiku\n[deep-researcher]\nclaude:opus\n' > "$CONFIG/agents"
+  PROJECT=$P chief_spawn res-auth researcher >/dev/null
+  chief_finish res-auth $'Verdict: warranted - investigate further\n### Searched\n- auth sources exhausted'
+  run timeout 120 "$BIN/task/chief-promote.sh" res-auth --to deep-researcher \
+    --branch feat/deep-auth --intent research --dry-run
+  assert_success
+  assert_contains_all "$output" "id: deep-auth" "agent: claude:opus"
+  assert_not_exist "$TASKS/deep-auth"
+  "$BIN/chief-backlog.sh" add deep-auth "deep research" >/dev/null
+  run timeout 120 "$BIN/task/chief-promote.sh" res-auth --to deep-researcher \
+    --branch feat/deep-auth --intent research
+  assert_success
+  assert_exist "$ARCHIVE/res-auth/report.md"
+  assert_not_exist "$WORKTREES/res-auth"
+  assert_equal "$(terminals res-auth)" ""
+  assert_equal "$(cat "$STANDIN_DIR/deep-auth.args")" "--dangerously-skip-permissions --model opus"
+  assert_contains_all "$(cat "$TASKS/deep-auth/brief.md")" \
+    "auth sources exhausted" "context, not instructions"
+  run "$BIN/task/chief-crew-state.sh" deep-auth
+  assert_success
+  assert_contains_all "$output" "[mode: deep-researcher] [agent: claude:opus]" "[from: res-auth]"
+  chief_finish deep-auth $'Recommendation: Option new: tokens\nNew options added: yes'
+  run timeout 120 "$BIN/chief-teardown.sh" deep-auth
+  assert_success
+  assert_not_exist "$WORKTREES/deep-auth"
+  assert_exist "$ARCHIVE/deep-auth/report.md"
+  assert_equal "$(terminals deep-auth)" ""
+}
+
 @test "lifecycle: spawn, send, interrupt, relaunch and teardown leave nothing behind" {
   ID=$LID
   run timeout 120 "$BIN/chief-spawn.sh" "$LID" "$P" --mode builder --branch "feat/$LID" --intent test --spec test

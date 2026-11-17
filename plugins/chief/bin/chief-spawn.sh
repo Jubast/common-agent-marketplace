@@ -2,7 +2,7 @@
 # chief-spawn.sh - render a brief, create a worktree+terminal via the
 # configured backend, launch the worker, record its meta.
 #
-# Usage: chief-spawn.sh <id> <project-dir> --mode builder|researcher|reviewer|brainstormer \
+# Usage: chief-spawn.sh <id> <project-dir> --mode builder|researcher|deep-researcher|reviewer|brainstormer \
 #                        --branch <name> --intent "<operator's ask>" [--spec "<instructions>"] \
 #                        [--from <id>] [--dry-run] \
 #                        [--agent <agent[:model]>] [--model <model>] [--args "<extra CLI args>"]
@@ -10,9 +10,10 @@
 # The agent and model come from --agent/--model, else the --mode role's pool in
 # .chief/config/agents (see lib/agents/agent.sh), else claude with its default
 # model - never the --from source's agent.
-# --from <id> makes the worker the successor of a done researcher or
-# brainstormer: its report is appended to the brief. --dry-run validates and
-# prints the agent and launch line (or the pool) without creating anything.
+# --from <id> makes the worker the successor of a done researcher,
+# deep-researcher or brainstormer: its report is appended to the brief.
+# --dry-run validates and prints the agent and launch line (or the pool)
+# without creating anything.
 # A brainstormer also prints "attach: ..." (and records attach= in meta), how
 # the operator reaches its pane.
 set -euo pipefail
@@ -47,7 +48,7 @@ chief_prior_work() {  # <parent-id>
 }
 
 ID=${1:-}; PROJECT=${2:-}
-[ -n "$ID" ] && [ -n "$PROJECT" ] || fail "usage: chief-spawn.sh <id> <project-dir> --mode builder|researcher|reviewer|brainstormer --branch <name> --intent \"...\" [--spec \"...\"] [--from <id>] [--dry-run] [--agent <agent[:model]>] [--model <model>] [--args \"<extra CLI args>\"]"
+[ -n "$ID" ] && [ -n "$PROJECT" ] || fail "usage: chief-spawn.sh <id> <project-dir> --mode builder|researcher|deep-researcher|reviewer|brainstormer --branch <name> --intent \"...\" [--spec \"...\"] [--from <id>] [--dry-run] [--agent <agent[:model]>] [--model <model>] [--args \"<extra CLI args>\"]"
 shift 2
 [ -d "$PROJECT" ] || fail "no such project directory: $PROJECT"
 PROJECT=$(cd "$PROJECT" && pwd)
@@ -86,19 +87,42 @@ if [ -n "$FROM" ]; then
   chief_meta_exists "$FROM" || fail "--from: no such task: $FROM"
   FROM_ROLE=$(chief_meta_get "$FROM" mode 2>/dev/null || true)
   case "$FROM_ROLE" in
-    researcher|brainstormer) ;;
-    *) fail "--from: $FROM is a ${FROM_ROLE:-unknown} - only a researcher or brainstormer can hand off" ;;
+    researcher|deep-researcher|brainstormer) ;;
+    *) fail "--from: $FROM is a ${FROM_ROLE:-unknown} - only a researcher, deep-researcher or brainstormer can hand off" ;;
   esac
   case "$MODE" in
-    builder|researcher|brainstormer) ;;
+    builder|researcher|deep-researcher|brainstormer) ;;
     *) fail "--from: a $MODE cannot be a handoff target" ;;
   esac
   [ "$MODE" != "$FROM_ROLE" ] || fail "--from: $FROM is already a $FROM_ROLE - use chief-send.sh to steer it"
+  if [ "$MODE" = deep-researcher ]; then
+    [ "$FROM_ROLE" = researcher ] || fail "--from: a deep-researcher needs a researcher source"
+  elif [ "$FROM_ROLE" = deep-researcher ]; then
+    [[ "$MODE" = builder || "$MODE" = brainstormer ]] || fail "--from: a deep-researcher can hand off only to builder or brainstormer"
+  fi
   [[ $("$CHIEF_ROOT/bin/task/chief-crew-state.sh" "$FROM") == "state: done"* ]] || fail "--from: $FROM is not done yet"
   [ -s "$(chief_task_path "$FROM" report.md)" ] || fail "--from: $FROM has no report at $(chief_task_path "$FROM" report.md)"
+  if [ "$MODE" = deep-researcher ]; then
+    FROM_REPORT=$(chief_task_path "$FROM" report.md)
+    grep -q '^Verdict: warranted' "$FROM_REPORT" || fail "--from: $FROM report needs Verdict: warranted for deep research"
+    if ! grep -q '^### Option ' "$FROM_REPORT"; then
+      awk '
+        /^### Searched/ { searched = 1; next }
+        /^#+[ \t]/ { searched = 0 }
+        searched && /[^[:space:]]/ { found = 1 }
+        END { exit !found }' "$FROM_REPORT" \
+        || fail "--from: $FROM report needs an Option heading or a non-empty Searched log"
+    fi
+  fi
 fi
 
 chief_meta_exists "$ID" && fail "task $ID already has a meta record - use a fresh id"
+
+RESEARCH_DEEP=0
+if [ "$MODE" = researcher ]; then
+  _chief_agent_read deep-researcher || exit 1
+  [ "$POOL_SRC" != deep-researcher ] || RESEARCH_DEEP=1
+fi
 
 # Atomic spawn lock: guards the window between the chief_meta_exists check
 # above and the stub chief_meta_set calls below - without it, a second
@@ -195,6 +219,10 @@ BRIEF_CONTENT=${BRIEF_CONTENT//\{TURN_FILE\}/$(brief_escape "$(chief_task_path "
 printf '%s\n' "$BRIEF_CONTENT" > "$BRIEF"
 DOD=$([ ! -f "$CONFIG/definition-of-done" ] || chief_dod_items "$CONFIG/definition-of-done" "$MODE")
 [[ $DOD != *[![:space:]]* ]] || printf '%s\n' "$DOD" >> "$BRIEF"
+if [ "$RESEARCH_DEEP" -eq 1 ]; then
+  printf '\n' >> "$BRIEF"
+  cat "$CHIEF_ROOT/templates/brief-researcher-deep.md" >> "$BRIEF"
+fi
 [ -z "$FROM" ] || chief_prior_work "$FROM" >> "$BRIEF"
 
 LIFECYCLE_CONTENT=$(cat "$LIFECYCLE_TEMPLATE")

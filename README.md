@@ -55,7 +55,8 @@ copilot plugin install <plugin-name>
   (Claude Code, Codex CLI, Copilot CLI): dispatches work to isolated
   builder/researcher/reviewer/brainstormer agents over the herdr, Orca or hc
   backend, tracks a plain-markdown backlog, and supervises them with a
-  near-zero-token watch loop.
+  near-zero-token watch loop. Optional [two-stage research](plugins/chief/README.md#two-stage-research)
+  hands a cheap researcher's findings to a stronger deep-researcher.
 
 ## Adding a plugin
 
