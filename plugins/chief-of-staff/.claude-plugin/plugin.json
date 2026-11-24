@@ -1,0 +1,11 @@
+{
+  "name": "chief-of-staff",
+  "version": "0.1.0",
+  "description": "Makes a session a chief of staff that routes asks to builder and researcher workers in git worktrees, over herdr or Orca.",
+  "author": {
+    "name": "Jubast",
+    "email": "30406814+Jubast@users.noreply.github.com"
+  },
+  "license": "MIT",
+  "keywords": ["worktree", "agent-dispatch", "orchestration", "herdr", "orca"]
+}

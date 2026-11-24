@@ -44,6 +44,12 @@
       "description": "A lightweight supervisor for coding agents (Claude Code, Codex CLI, Copilot CLI): dispatches work to isolated builder/researcher/reviewer/brainstormer agents over the herdr, Orca or hc (herdr-core) backend, tracks a plain-markdown backlog, and supervises them with a near-zero-token watch loop.",
       "version": "0.13.0",
       "source": "./plugins/chief/"
+    },
+    {
+      "name": "chief-of-staff",
+      "description": "Makes a session a chief of staff that routes asks to builder and researcher workers in git worktrees, over herdr or Orca.",
+      "version": "0.1.0",
+      "source": "./plugins/chief-of-staff/"
     }
   ]
 }

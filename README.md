@@ -56,6 +56,9 @@ copilot plugin install <plugin-name>
   builder/researcher/reviewer/brainstormer agents over the herdr, Orca or hc
   backend, tracks a plain-markdown backlog, and supervises them with a
   near-zero-token watch loop.
+- [`chief-of-staff`](plugins/chief-of-staff/) — makes a session a chief of
+  staff that routes asks to builder and researcher workers in git worktrees,
+  over herdr or Orca.
 
 ## Adding a plugin
 
