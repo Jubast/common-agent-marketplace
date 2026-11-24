@@ -20,6 +20,7 @@ and [CONTRIBUTING.md](CONTRIBUTING.md).
 | Skill only | `convert-pdf-to-md`, `clean-code`, `clean-architecture` | `skills/<skill>/SKILL.md` with references or scripts beside it |
 | Skill plus `SessionStart` hook | `using-orca`, `conventional-changes` | skills and `hooks/` (`hooks.json`, `session-start.sh`) |
 | Full tool | `chief` | skills, hooks, `bin/` scripts, templates and a Copilot extension |
+| Skills and scripts | `chief-of-staff` | skills (`chief`, `helpers`, one per backend: `herdr`, `orca`) and brief templates |
 
 ## Chief
 
