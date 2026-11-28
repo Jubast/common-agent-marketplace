@@ -18,6 +18,10 @@ Package work into a pull request that's easy to review and merge.
 - Scope is optional but helpful for larger codebases.
 - Keep the PR title and description concise.
 - NEVER use em dashes in the PR/MR title or body.
+- Describe only the change, for its reviewers and users; never how the work
+  was done (review rounds, tools used to do it, process checks such as
+  whitespace, em dashes, attribution, commit messages, branch name or version
+  rules).
 
 ## Workflow
 
@@ -38,6 +42,9 @@ git diff origin/main --stat
 Squash fixup commits before opening the PR. Always commit using the
 `conventional-commits` skill, so the branch's commits are already logically
 grouped and conventionally typed by the time you get here.
+
+If the branch has a work item (its number in the branch name, or a commit's
+`Closes #N`), read it with the project's tracker tooling.
 
 ### 2. Write the Title
 
@@ -67,52 +74,66 @@ Examples:
 
 Check for an existing template first, in this priority order:
 1. A platform-native PR template — GitHub's `.github/PULL_REQUEST_TEMPLATE.md`, GitLab's `.gitlab/merge_request_templates/`, Bitbucket's `.bitbucket/PULL_REQUEST_TEMPLATE.md`, Azure DevOps's default PR description template, etc.
-2. Repo conventions in `CLAUDE.md` / `AGENTS.md`.
+2. Repo conventions in `CLAUDE.md` / `AGENTS.md` / `CONTRIBUTING.md`.
 3. Otherwise, use this structure:
 
 ```markdown
 ## Summary
 
-1-3 sentences explaining what this PR does and why.
+<1-3 sentences: what this PR does and why.>
 
-Closes #123
+<Closing reference to the work item (Closes #123, or the tracker's syntax); delete if none.>
+
+## Breaking change
+
+<Only for a `!` title; delete otherwise. What breaks, who is affected, how to migrate.>
 
 ## Changes
 
-- Add `ThemeToggle` component with system/light/dark options
-- Update `Layout` to read theme from context
-- Add theme persistence to localStorage
+- <One line per logical change, imperative mood.>
 
-## Performed Tests
+## Performed Checks
 
-- [ ] Toggled between light/dark/system themes
-- [ ] Refreshed page, confirmed theme persists
-- [ ] Checked no flash of unstyled content on load
+- [x] <Gate>: <how, a few words>
+- [ ] <Gate>: not run, <reason>
+
+## Notes
+
+<Optional; delete if empty. Steps after merge, follow-ups left out, known limitations, PRs this depends on, review order for a large PR.>
 ```
 
-### 4. Self-Review
+Performed Checks lists the quality gates that apply to this change, one short
+line each, under the project template's testing section if it has one. Take
+the gates from the project's own list (such as a `## Quality gates` section in
+`AGENTS.md`, `CLAUDE.md` or `CONTRIBUTING.md`), else from:
+- Tests
+- Code style: formatter, linter
+- Static analysis: type check, analyzer
+- Build
+- Architecture: `ARCHITECTURE.md`, ADRs
+- Behavior: the feature or fix run
+- Migrations: on existing data
+- Compatibility: public API, config, IDs, or the break flagged
+- Security: auth, input handling, dependencies
+- Docs: user-facing
 
-Before requesting review:
-- Read every line of the diff yourself
-- Remove debug code (`console.log`, `TODO`, commented-out code)
-- Verify tests, types, and lint pass (whatever the project uses)
-- Check for files and secrets that shouldn't be committed (`.env`, credentials, lockfile conflicts)
+Add one line per Acceptance Criterion of the work item from step 1.
 
-### 5. Create or Update the PR
+Tick a gate only if it passed on the branch's final commit; otherwise leave it
+unticked: `not run, <reason>` or `failed, <result>`. Omit gates that don't
+apply. No command output, narrative or `<details>` blocks.
+
+### 4. Create or Update the PR
 
 Push the branch, then create or update the PR/MR on the project's hosting
 platform with the title and body from the previous steps, using whatever
-tool is available. Don't assume GitHub by default.
+tool is available. Don't assume GitHub by default. Label it (feature, bug,
+breaking change, etc.).
 
-### 6. Request Review
-
-- If the PR is large (>400 lines), add a comment explaining the best order to review files
-- If the PR depends on another PR, note it in the description
-- Label the PR appropriately (feature, bug, breaking change, etc.)
+On update, re-check the Performed Checks gates on the new head.
 
 ## Tips
 
 - Small PRs get reviewed faster — aim for <300 lines changed
 - If a PR is too big, split it into multiple (stacked if possible) PRs
-- Screenshots/recordings for UI changes make review much faster
 - Draft PRs are useful for early feedback before the work is complete

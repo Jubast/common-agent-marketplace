@@ -31,6 +31,10 @@ Run `git status` and `git diff` to understand all changes in the working directo
 - `git diff` to see unstaged changes
 - `git diff --cached` to see staged changes
 
+Read every line of the diff. Remove debug code (`console.log`, stray `TODO`s,
+commented-out code), and leave out anything that shouldn't be committed
+(`.env`, credentials, unresolved lockfile conflicts).
+
 ## 3. Group Related Changes
 
 Analyze the changes and group files that logically belong together into separate commits. Consider:
@@ -83,4 +87,5 @@ If the user gives feedback about a commit after it's made (wrong grouping, wrong
 
 ## 5. Repeat
 
-Continue grouping and committing the remaining changes until everything is committed.
+Continue grouping and committing until every change is committed, except what
+step 2 left out; tell the user what was left out.
