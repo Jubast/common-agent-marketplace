@@ -106,8 +106,9 @@ Both platforms are built on the same Open Plugin Spec:
   (`feat(chief)!:`).
 - **Branches** are `<type>/<short-kebab>`, with the issue number first when
   there is one (`docs/142-agent-docs`).
-- **PR body** has the sections `Summary`, `Changes` and `Performed Tests`. Leave
-  the box of a test you did not run unticked and say why.
+- **PR body**: see the
+  [conventional-pull-requests](plugins/conventional-changes/skills/conventional-pull-requests/SKILL.md)
+  skill.
 - **Release PRs** are titled
   `chore(release): bump <plugin> to X and marketplace to Y`; see
   "Marketplace versions" above.
